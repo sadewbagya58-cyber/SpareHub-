@@ -1,0 +1,187 @@
+"use client";
+
+import React, { useState } from "react";
+import Link from "next/link";
+import { 
+  Wrench, 
+  Search, 
+  ShoppingCart, 
+  User, 
+  Store, 
+  Menu, 
+  X, 
+  MapPin, 
+  ShieldCheck, 
+  Phone 
+} from "lucide-react";
+import { Button } from "@/lib/../components/ui/button";
+
+export function Navbar() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  return (
+    <header className="sticky top-0 z-40 w-full border-b border-sparehub-border bg-white shadow-xs">
+      {/* Top Utility Bar */}
+      <div className="bg-sparehub-dark text-white text-xs py-1.5 px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1 text-gray-300">
+              <MapPin className="w-3.5 h-3.5 text-sparehub-orange" />
+              Sri Lanka Marketplace
+            </span>
+            <span className="hidden sm:flex items-center gap-1 text-gray-300">
+              <ShieldCheck className="w-3.5 h-3.5 text-sparehub-success" />
+              Verified Vendors & Genuine Spares
+            </span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="hidden md:flex items-center gap-1 text-gray-300">
+              <Phone className="w-3.5 h-3.5 text-gray-400" />
+              Support: 011-SPAREHUB
+            </span>
+            <Link
+              href="/sell"
+              className="text-sparehub-orange hover:text-white transition-colors font-medium flex items-center gap-1"
+            >
+              <Store className="w-3.5 h-3.5" />
+              Sell on SpareHub
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Navigation Bar */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5">
+        <div className="flex items-center justify-between gap-4">
+          {/* Logo & Tagline */}
+          <Link href="/" className="flex items-center gap-2.5 group shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-sparehub-orange flex items-center justify-center text-white shadow-sm transition-transform group-hover:scale-105">
+              <Wrench className="w-5 h-5 -rotate-45" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xl font-black tracking-tight text-sparehub-dark flex items-center gap-1">
+                SPARE<span className="text-sparehub-orange">HUB</span>
+              </span>
+              <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider -mt-1 hidden sm:block">
+                Every Part. One Marketplace.
+              </span>
+            </div>
+          </Link>
+
+          {/* Quick Header Search Bar */}
+          <div className="hidden lg:flex items-center flex-1 max-w-xl mx-4">
+            <form action="/search" method="GET" className="relative w-full">
+              <input
+                type="text"
+                name="q"
+                placeholder="Search by Part Name, OEM Code (e.g. 04465-02220), or Brand..."
+                className="w-full rounded-lg border border-sparehub-border bg-sparehub-light py-2 pl-10 pr-24 text-sm text-sparehub-dark focus:bg-white focus:border-sparehub-orange focus:outline-none focus:ring-2 focus:ring-sparehub-orange/20 transition-all"
+              />
+              <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <button
+                type="submit"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-sparehub-orange text-white text-xs font-semibold px-3 py-1.5 rounded-md hover:bg-sparehub-orange-hover transition-colors"
+              >
+                Search
+              </button>
+            </form>
+          </div>
+
+          {/* Right Action Controls */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link href="/sell" className="hidden sm:inline-flex">
+              <Button variant="outline" size="sm" className="gap-1.5 font-semibold">
+                <Store className="w-4 h-4 text-sparehub-orange" />
+                Open Your Shop
+              </Button>
+            </Link>
+
+            <Link
+              href="/search"
+              aria-label="Search Catalog"
+              className="p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors lg:hidden"
+            >
+              <Search className="w-5 h-5" />
+            </Link>
+
+            <Link
+              href="/cart"
+              aria-label="Shopping Cart"
+              className="relative p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors"
+            >
+              <ShoppingCart className="w-5 h-5" />
+              <span className="absolute top-1 right-1 bg-sparehub-orange text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                0
+              </span>
+            </Link>
+
+            <Link href="/login">
+              <Button variant="secondary" size="sm" className="hidden sm:inline-flex gap-1.5">
+                <User className="w-4 h-4" />
+                Sign In
+              </Button>
+            </Link>
+
+            {/* Mobile Hamburger Toggle */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors md:hidden"
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Menu Drawer */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-t border-sparehub-border bg-white px-4 pt-3 pb-6 space-y-4 animate-in slide-in-from-top-2 duration-200">
+          <form action="/search" method="GET" className="relative w-full">
+            <input
+              type="text"
+              name="q"
+              placeholder="Search part or OEM number..."
+              className="w-full rounded-lg border border-sparehub-border bg-sparehub-light py-2 pl-9 pr-3 text-sm text-sparehub-dark focus:bg-white focus:outline-none focus:ring-2 focus:ring-sparehub-orange"
+            />
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          </form>
+
+          <nav className="flex flex-col space-y-2">
+            <Link
+              href="/"
+              onClick={() => setMobileMenuOpen(false)}
+              className="px-3 py-2 rounded-md text-sm font-medium text-sparehub-dark hover:bg-sparehub-light"
+            >
+              Home Marketplace
+            </Link>
+            <Link
+              href="/search"
+              onClick={() => setMobileMenuOpen(false)}
+              className="px-3 py-2 rounded-md text-sm font-medium text-sparehub-dark hover:bg-sparehub-light"
+            >
+              All Spare Parts
+            </Link>
+            <Link
+              href="/sell"
+              onClick={() => setMobileMenuOpen(false)}
+              className="px-3 py-2 rounded-md text-sm font-medium text-sparehub-orange hover:bg-sparehub-orange-light flex items-center justify-between"
+            >
+              <span>Sell on SpareHub (Open Shop)</span>
+              <Store className="w-4 h-4" />
+            </Link>
+            <Link
+              href="/login"
+              onClick={() => setMobileMenuOpen(false)}
+              className="px-3 py-2 rounded-md text-sm font-medium text-sparehub-dark hover:bg-sparehub-light"
+            >
+              Sign In / Register
+            </Link>
+          </nav>
+        </div>
+      )}
+    </header>
+  );
+}

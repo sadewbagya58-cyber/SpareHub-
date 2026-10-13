@@ -1,36 +1,115 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SpareHub
+**Every Part. One Marketplace.**
+
+SpareHub is a multi-vendor automotive spare parts marketplace built initially for Sri Lanka, designed with scalability for regional and international expansion.
+
+---
+
+## Brand Identity
+
+| Color | Hex Code | Purpose |
+|---|---|---|
+| **Primary Orange** | `#FF6B00` | Primary call-to-actions, brand accents, active states |
+| **Dark Black** | `#171717` | Typography headers, dark utility navigation, footers |
+| **White** | `#FFFFFF` | Primary shopping canvas background, card surfaces |
+| **Light Gray** | `#F5F5F5` | Neutral container surfaces, secondary cards |
+| **Border Gray** | `#E5E7EB` | Dividers, card borders, form input outlines |
+| **Success Green** | `#16A34A` | Fitment verified badges, in-stock indicators |
+| **Error Red** | `#DC2626` | Incompatible fitment alerts, out-of-stock indicators |
+
+---
+
+## Vehicle Scope
+The platform provides structured compatibility modeling and search across all vehicle categories in Sri Lanka:
+- **Passenger Cars & SUVs**
+- **Three-Wheelers** (Bajaj, TVS, Piaggio tuk-tuks)
+- **Motorcycles & Scooters**
+- **Vans & Light Commercial Vehicles**
+- **Buses** (Private and public transport)
+- **Lorries & Trucks** (Light to heavy haulage)
+- **Tractors & Agricultural Equipment**
+- **Heavy Construction Machinery** (Excavators, Loaders)
+
+---
+
+## Supported Seller Classes
+SpareHub is an authentic multi-vendor platform with four distinct merchant types:
+1. **Retail Spare Parts Shops** (Local brick-and-mortar storefronts)
+2. **Individual Sellers** (Private owners selling spare/reconditioned parts with identity verification)
+3. **Wholesalers** (Distributors selling parts in volume to regional garages)
+4. **Automotive Parts Importers** (Direct importers of OEM and aftermarket components)
+
+---
+
+## Technology Stack
+- **Framework:** Next.js 16 (App Router)
+- **UI & Language:** React 19, TypeScript 5 (Strict Mode)
+- **Styling:** Tailwind CSS v4, Lucide Icons
+- **Database & Auth (Phases 2–4):** Supabase PostgreSQL 16 with Row Level Security (RLS)
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+- Node.js `v20+` or `v24+`
+- npm `v10+` or `v11+`
 
+### Installation
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Quality Assurance & Build Commands
+```bash
+# TypeScript strict type check
+npm run typecheck
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# ESLint code quality audit
+npm run lint
 
-## Learn More
+# Production build verification
+npm run build
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project Structure
+```
+c:\Users\x\SpareHub\
+├── docs\
+│   └── SPAREHUB_ARCHITECTURE_PLAN.md   # Master architecture and specifications
+├── src\
+│   ├── app\                            # Next.js App Router pages and layouts
+│   ├── components\
+│   │   ├── layout\                     # Navbar, Footer, MobileNav
+│   │   ├── marketplace\                # VehicleSelector, DemoCatalog, SellerCTA
+│   │   └── ui\                         # Accessible atomic components (Button, Badge, Input, Card)
+│   ├── lib\
+│   │   ├── constants.ts                # Brand colors, vehicle types, districts
+│   │   ├── types.ts                    # Shared TypeScript types
+│   │   └── utils.ts                    # Tailwind merge and currency formatting
+│   └── styles\                         # Global CSS & brand tokens
+└── .env.example                        # Template for required environment variables
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Phase 1 Implementation Status
+- [x] Project initialized with strict TypeScript, Next.js 16 App Router, and Tailwind CSS v4.
+- [x] Global SpareHub design tokens and color palette implemented.
+- [x] Responsive layout shell built (Desktop Header, Mobile Menu Drawer, Sticky Bottom Navigation).
+- [x] Atomic UI components with non-blocking local loading states (`Button`, `Badge`, `Input`, `Card`, `Skeleton`).
+- [x] Initial marketplace homepage built with interactive Vehicle Selector, category shortcuts, demo catalog, and seller onboarding call-to-action.
+- [x] `.env.example` created.
+- [x] Architecture plan preserved at `docs/SPAREHUB_ARCHITECTURE_PLAN.md`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Phase 1 Limitations
+- Database queries currently present structured demonstration datasets pending Phase 2 (Database Schema) and Phase 3 (Supabase Auth).
+- Live payment gateways are intentionally not integrated in Phase 1 pending platform owner commercial approval.
