@@ -105,11 +105,13 @@ describe("Database Migrations & Schema Architecture Verification", () => {
 
   test("protects seller verification and shop approval on both INSERT and UPDATE", () => {
     assert.ok(
-      allSqlContent.includes("BEFORE INSERT OR UPDATE OF verification_status ON public.seller_profiles"),
+      allSqlContent.includes("BEFORE INSERT OR UPDATE OF verification_status") &&
+      allSqlContent.includes("ON public.seller_profiles"),
       "Verification trigger must intercept both INSERT and UPDATE"
     );
     assert.ok(
-      allSqlContent.includes("BEFORE INSERT OR UPDATE OF status ON public.shops"),
+      allSqlContent.includes("BEFORE INSERT OR UPDATE OF status") &&
+      allSqlContent.includes("ON public.shops"),
       "Shop approval trigger must intercept both INSERT and UPDATE"
     );
   });

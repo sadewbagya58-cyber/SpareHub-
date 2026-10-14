@@ -204,6 +204,7 @@ BEGIN
     JOIN public.products p ON ci.product_id = p.id
     JOIN public.shops s ON p.shop_id = s.id
     WHERE ci.user_id = v_user_id
+    ORDER BY p.id ASC
     FOR UPDATE OF p
   LOOP
     IF NOT v_item_record.is_published OR v_item_record.product_status <> 'active' THEN

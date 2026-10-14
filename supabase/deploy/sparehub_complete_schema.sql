@@ -3,7 +3,7 @@
 -- Brand: SpareHub | Tagline: Every Part. One Marketplace.
 -- Target: Supabase PostgreSQL (Project ref: lbwviifpgkykwtmaqpbe)
 -- All statements are 100% idempotent and rerun-safe (IF NOT EXISTS / DROP POLICY IF EXISTS)
--- Rebuilt: 2026-10-14T03:56:18.220Z
+-- Rebuilt: 2026-10-14T04:26:36.540Z
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -126,7 +126,7 @@ BEGIN
       NEW.role = 'customer';
       NEW.roles = ARRAY['customer']::text[];
     ELSIF TG_OP = 'UPDATE' THEN
-      IF NEW.role <> OLD.role OR NEW.roles <> OLD.roles THEN
+      IF NEW.role IS DISTINCT FROM OLD.role OR NEW.roles IS DISTINCT FROM OLD.roles THEN
         RAISE EXCEPTION 'Unauthorized: Only platform administrators can modify user roles.';
       END IF;
     END IF;
@@ -222,8 +222,11 @@ BEGIN
       NEW.verified_at = NULL;
       NEW.rejection_reason = NULL;
     ELSIF TG_OP = 'UPDATE' THEN
-      IF NEW.verification_status <> OLD.verification_status THEN
+      IF NEW.verification_status IS DISTINCT FROM OLD.verification_status THEN
         RAISE EXCEPTION 'Unauthorized: Only platform administrators can change verification status.';
+      END IF;
+      IF NEW.verified_at IS DISTINCT FROM OLD.verified_at THEN
+        RAISE EXCEPTION 'Unauthorized: Only platform administrators can modify verification audit timestamp.';
       END IF;
     END IF;
   END IF;
@@ -233,7 +236,7 @@ $$;
 
 DROP TRIGGER IF EXISTS trg_prevent_verification_override ON public.seller_profiles;
 CREATE TRIGGER trg_prevent_verification_override
-  BEFORE INSERT OR UPDATE OF verification_status ON public.seller_profiles
+  BEFORE INSERT OR UPDATE OF verification_status, verified_at, rejection_reason ON public.seller_profiles
   FOR EACH ROW EXECUTE FUNCTION public.prevent_self_verification_override();
 
 
@@ -305,8 +308,11 @@ BEGIN
       NEW.approved_by = NULL;
       NEW.approved_at = NULL;
     ELSIF TG_OP = 'UPDATE' THEN
-      IF (NEW.status IN ('approved', 'suspended')) AND (OLD.status <> NEW.status) THEN
+      IF (NEW.status IN ('approved', 'suspended')) AND (OLD.status IS DISTINCT FROM NEW.status) THEN
         RAISE EXCEPTION 'Unauthorized: Only platform administrators can approve or suspend a shop.';
+      END IF;
+      IF (NEW.approved_by IS DISTINCT FROM OLD.approved_by OR NEW.approved_at IS DISTINCT FROM OLD.approved_at) THEN
+        RAISE EXCEPTION 'Unauthorized: Only platform administrators can modify shop approval audit fields.';
       END IF;
     END IF;
   END IF;
@@ -316,7 +322,7 @@ $$;
 
 DROP TRIGGER IF EXISTS trg_prevent_shop_approval ON public.shops;
 CREATE TRIGGER trg_prevent_shop_approval
-  BEFORE INSERT OR UPDATE OF status ON public.shops
+  BEFORE INSERT OR UPDATE OF status, approved_by, approved_at ON public.shops
   FOR EACH ROW EXECUTE FUNCTION public.prevent_self_shop_approval();
 
 
@@ -1026,6 +1032,7 @@ BEGIN
     JOIN public.products p ON ci.product_id = p.id
     JOIN public.shops s ON p.shop_id = s.id
     WHERE ci.user_id = v_user_id
+    ORDER BY p.id ASC
     FOR UPDATE OF p
   LOOP
     IF NOT v_item_record.is_published OR v_item_record.product_status <> 'active' THEN
