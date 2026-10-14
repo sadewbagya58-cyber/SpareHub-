@@ -207,7 +207,7 @@ CREATE TABLE IF NOT EXISTS public.shops (
   district text NOT NULL,
   city text NOT NULL,
   postal_code text,
-  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'pending_review', 'approved', 'rejected', 'suspended')),
+  status text NOT NULL DEFAULT 'approved' CHECK (status IN ('draft', 'pending_review', 'approved', 'rejected', 'suspended')),
   status_reason text,
   approved_by uuid REFERENCES auth.users(id),
   approved_at timestamptz,
@@ -243,7 +243,7 @@ CREATE TRIGGER trg_shops_updated_at
   BEFORE UPDATE ON public.shops
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
--- Prevent sellers from directly approving their own shop on INSERT or UPDATE
+-- Self-Service Marketplace: Prevent non-admins from suspending shops or tampering with admin audit fields
 CREATE OR REPLACE FUNCTION public.prevent_self_shop_approval()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -253,14 +253,18 @@ AS $$
 BEGIN
   IF NOT public.is_platform_admin() THEN
     IF TG_OP = 'INSERT' THEN
-      NEW.status = 'draft';
-      NEW.approved_by = NULL;
-      NEW.approved_at = NULL;
-    ELSIF TG_OP = 'UPDATE' THEN
-      IF (NEW.status IN ('approved', 'suspended')) AND (OLD.status IS DISTINCT FROM NEW.status) THEN
-        RAISE EXCEPTION 'Unauthorized: Only platform administrators can approve or suspend a shop.';
+      -- Self-service shops activate immediately unless seller explicitly chooses draft
+      IF NEW.status IS NULL OR NEW.status NOT IN ('draft', 'approved') THEN
+        NEW.status = 'approved';
       END IF;
-      IF (NEW.approved_by IS DISTINCT FROM OLD.approved_by OR NEW.approved_at IS DISTINCT FROM OLD.approved_at) THEN
+      NEW.approved_by = NULL;
+      NEW.approved_at = now();
+    ELSIF TG_OP = 'UPDATE' THEN
+      -- Non-admins cannot suspend shops; only platform administrators retain suspension rights
+      IF (NEW.status = 'suspended') AND (OLD.status IS DISTINCT FROM NEW.status) THEN
+        RAISE EXCEPTION 'Unauthorized: Only platform administrators can suspend a shop.';
+      END IF;
+      IF (NEW.approved_by IS DISTINCT FROM OLD.approved_by) THEN
         RAISE EXCEPTION 'Unauthorized: Only platform administrators can modify shop approval audit fields.';
       END IF;
     END IF;
@@ -347,9 +351,10 @@ CREATE POLICY "Admins full management on seller_profiles"
 
 -- shops RLS
 DROP POLICY IF EXISTS "Public can view approved shops" ON public.shops;
-CREATE POLICY "Public can view approved shops"
+DROP POLICY IF EXISTS "Public can view active shops" ON public.shops;
+CREATE POLICY "Public can view active shops"
   ON public.shops FOR SELECT
-  USING (status = 'approved');
+  USING (status != 'suspended');
 
 DROP POLICY IF EXISTS "Sellers can view own shop in any state" ON public.shops;
 CREATE POLICY "Sellers can view own shop in any state"

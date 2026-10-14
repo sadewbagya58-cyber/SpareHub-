@@ -134,3 +134,128 @@ export async function rejectShopAction(
     return { error: msg };
   }
 }
+
+/**
+ * Server Action: Platform Administrator suspends a vendor storefront for policy violations.
+ */
+export async function suspendShopAction(
+  shopId: string,
+  reason: string
+): Promise<AdminActionResult> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { error: "Authentication required." };
+    }
+
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("role, roles")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const isAdmin =
+      profile?.role === "platform_admin" ||
+      profile?.roles?.includes("platform_admin");
+
+    if (!isAdmin) {
+      return { error: "Unauthorized: Platform administrator privileges required." };
+    }
+
+    if (!reason || reason.trim().length < 5) {
+      return { error: "Please provide a suspension reason (at least 5 characters)." };
+    }
+
+    const { error } = await supabase
+      .from("shops")
+      .update({
+        status: "suspended",
+        status_reason: reason.trim(),
+        approved_by: user.id,
+        approved_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", shopId);
+
+    if (error) {
+      return { error: error.message };
+    }
+
+    revalidatePath("/admin/dashboard");
+    revalidatePath("/seller/dashboard");
+    revalidatePath("/seller/shop");
+    revalidatePath("/search");
+
+    return {
+      success: true,
+      message: "Vendor shop suspended successfully.",
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to suspend shop.";
+    return { error: msg };
+  }
+}
+
+/**
+ * Server Action: Platform Administrator reinstates a previously suspended shop.
+ */
+export async function reinstateShopAction(
+  shopId: string
+): Promise<AdminActionResult> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { error: "Authentication required." };
+    }
+
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("role, roles")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const isAdmin =
+      profile?.role === "platform_admin" ||
+      profile?.roles?.includes("platform_admin");
+
+    if (!isAdmin) {
+      return { error: "Unauthorized: Platform administrator privileges required." };
+    }
+
+    const { error } = await supabase
+      .from("shops")
+      .update({
+        status: "approved",
+        status_reason: null,
+        approved_by: user.id,
+        approved_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", shopId);
+
+    if (error) {
+      return { error: error.message };
+    }
+
+    revalidatePath("/admin/dashboard");
+    revalidatePath("/seller/dashboard");
+    revalidatePath("/seller/shop");
+    revalidatePath("/search");
+
+    return {
+      success: true,
+      message: "Vendor shop reinstated to active status.",
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to reinstate shop.";
+    return { error: msg };
+  }
+}

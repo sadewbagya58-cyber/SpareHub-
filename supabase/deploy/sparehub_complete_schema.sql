@@ -258,7 +258,7 @@ CREATE TABLE IF NOT EXISTS public.shops (
   district text NOT NULL,
   city text NOT NULL,
   postal_code text,
-  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'pending_review', 'approved', 'rejected', 'suspended')),
+  status text NOT NULL DEFAULT 'approved' CHECK (status IN ('draft', 'pending_review', 'approved', 'rejected', 'suspended')),
   status_reason text,
   approved_by uuid REFERENCES auth.users(id),
   approved_at timestamptz,
@@ -294,7 +294,7 @@ CREATE TRIGGER trg_shops_updated_at
   BEFORE UPDATE ON public.shops
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
--- Prevent sellers from directly approving their own shop on INSERT or UPDATE
+-- Self-Service Marketplace: Prevent non-admins from suspending shops or tampering with admin audit fields
 CREATE OR REPLACE FUNCTION public.prevent_self_shop_approval()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -304,14 +304,18 @@ AS $$
 BEGIN
   IF NOT public.is_platform_admin() THEN
     IF TG_OP = 'INSERT' THEN
-      NEW.status = 'draft';
-      NEW.approved_by = NULL;
-      NEW.approved_at = NULL;
-    ELSIF TG_OP = 'UPDATE' THEN
-      IF (NEW.status IN ('approved', 'suspended')) AND (OLD.status IS DISTINCT FROM NEW.status) THEN
-        RAISE EXCEPTION 'Unauthorized: Only platform administrators can approve or suspend a shop.';
+      -- Self-service shops activate immediately unless seller explicitly chooses draft
+      IF NEW.status IS NULL OR NEW.status NOT IN ('draft', 'approved') THEN
+        NEW.status = 'approved';
       END IF;
-      IF (NEW.approved_by IS DISTINCT FROM OLD.approved_by OR NEW.approved_at IS DISTINCT FROM OLD.approved_at) THEN
+      NEW.approved_by = NULL;
+      NEW.approved_at = now();
+    ELSIF TG_OP = 'UPDATE' THEN
+      -- Non-admins cannot suspend shops; only platform administrators retain suspension rights
+      IF (NEW.status = 'suspended') AND (OLD.status IS DISTINCT FROM NEW.status) THEN
+        RAISE EXCEPTION 'Unauthorized: Only platform administrators can suspend a shop.';
+      END IF;
+      IF (NEW.approved_by IS DISTINCT FROM OLD.approved_by) THEN
         RAISE EXCEPTION 'Unauthorized: Only platform administrators can modify shop approval audit fields.';
       END IF;
     END IF;
@@ -398,9 +402,10 @@ CREATE POLICY "Admins full management on seller_profiles"
 
 -- shops RLS
 DROP POLICY IF EXISTS "Public can view approved shops" ON public.shops;
-CREATE POLICY "Public can view approved shops"
+DROP POLICY IF EXISTS "Public can view active shops" ON public.shops;
+CREATE POLICY "Public can view active shops"
   ON public.shops FOR SELECT
-  USING (status = 'approved');
+  USING (status != 'suspended');
 
 DROP POLICY IF EXISTS "Sellers can view own shop in any state" ON public.shops;
 CREATE POLICY "Sellers can view own shop in any state"
@@ -727,16 +732,31 @@ CREATE POLICY "Admin full management categories"
   ON public.categories FOR ALL
   USING (public.is_platform_admin());
 
+-- Seed Core Automotive Categories (Idempotent ON CONFLICT)
+INSERT INTO public.categories (id, name, slug, icon_name, display_order) VALUES
+  ('c1000000-0000-0000-0000-000000000001', 'Engine & Drivetrain', 'engine-drivetrain', 'Wrench', 1),
+  ('c1000000-0000-0000-0000-000000000002', 'Braking Systems', 'braking-systems', 'Disc', 2),
+  ('c1000000-0000-0000-0000-000000000003', 'Suspension & Steering', 'suspension-steering', 'Activity', 3),
+  ('c1000000-0000-0000-0000-000000000004', 'Electrical & Lighting', 'electrical-lighting', 'Zap', 4),
+  ('c1000000-0000-0000-0000-000000000005', 'Cooling & Heating', 'cooling-heating', 'Thermometer', 5),
+  ('c1000000-0000-0000-0000-000000000006', 'Body & Panel Parts', 'body-panel-parts', 'Shield', 6),
+  ('c1000000-0000-0000-0000-000000000007', 'Filters & Maintenance', 'filters-maintenance', 'Filter', 7),
+  ('c1000000-0000-0000-0000-000000000008', 'Clutch & Transmission', 'clutch-transmission', 'Cog', 8),
+  ('c1000000-0000-0000-0000-000000000009', 'Tires & Wheels', 'tires-wheels', 'Circle', 9),
+  ('c1000000-0000-0000-0000-000000000010', 'Interior & Accessories', 'interior-accessories', 'Sliders', 10)
+ON CONFLICT (slug) DO NOTHING;
+
 -- products RLS
 DROP POLICY IF EXISTS "Public read published products from approved shops" ON public.products;
-CREATE POLICY "Public read published products from approved shops"
+DROP POLICY IF EXISTS "Public read published products from active shops" ON public.products;
+CREATE POLICY "Public read published products from active shops"
   ON public.products FOR SELECT
   USING (
     is_published = true
     AND status = 'active'
     AND EXISTS (
       SELECT 1 FROM public.shops s
-      WHERE s.id = products.shop_id AND s.status = 'approved'
+      WHERE s.id = products.shop_id AND s.status != 'suspended'
     )
   );
 
@@ -746,13 +766,14 @@ CREATE POLICY "Sellers can view own shop products in any status"
   USING (public.owns_shop(shop_id) OR public.is_platform_admin());
 
 DROP POLICY IF EXISTS "Sellers can create products for own approved shop" ON public.products;
-CREATE POLICY "Sellers can create products for own approved shop"
+DROP POLICY IF EXISTS "Sellers can create products for own shop" ON public.products;
+CREATE POLICY "Sellers can create products for own shop"
   ON public.products FOR INSERT
   WITH CHECK (
     public.owns_shop(shop_id)
     AND EXISTS (
       SELECT 1 FROM public.shops s
-      WHERE s.id = shop_id AND s.status = 'approved'
+      WHERE s.id = shop_id AND s.status != 'suspended'
     )
   );
 
@@ -781,7 +802,7 @@ CREATE POLICY "Public read images of visible products"
       JOIN public.shops s ON p.shop_id = s.id
       WHERE p.id = product_images.product_id
         AND p.is_published = true
-        AND s.status = 'approved'
+        AND s.status != 'suspended'
     )
   );
 
@@ -806,7 +827,7 @@ CREATE POLICY "Public read compatibility of visible products"
       JOIN public.shops s ON p.shop_id = s.id
       WHERE p.id = product_compatibility.product_id
         AND p.is_published = true
-        AND s.status = 'approved'
+        AND s.status != 'suspended'
     )
   );
 

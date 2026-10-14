@@ -13,6 +13,7 @@ export type PartCondition = "brand_new" | "reconditioned" | "used";
 export interface DemoProduct {
   id: string;
   title: string;
+  slug?: string;
   partNumber: string;
   oemNumber?: string;
   brand: string;
@@ -25,7 +26,7 @@ export interface DemoProduct {
   vehicleCompatibilitySummary: string;
   category: string;
   imageUrl: string;
-  isDemo: true;
+  isDemo?: boolean;
 }
 
 export interface VehicleSelection {

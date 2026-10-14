@@ -335,7 +335,7 @@ export function CreateShopForm({ initialEmail = "", initialSellerType = "retail_
       {/* Form Submit */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-sparehub-border">
         <p className="text-xs text-gray-500">
-          Your shop will be initialized in <strong>Draft mode</strong>. You can review and submit it for platform approval next.
+          Your storefront will be activated immediately upon creation. No administrator approval wait required.
         </p>
 
         <Button
@@ -346,7 +346,7 @@ export function CreateShopForm({ initialEmail = "", initialSellerType = "retail_
           className="w-full sm:w-auto min-w-[200px] gap-2"
         >
           <PlusCircle className="w-4 h-4" />
-          {isPending ? "Initializing Shop..." : "Create Shop & Continue"}
+          {isPending ? "Initializing Shop..." : "Create Shop & Start Listing"}
         </Button>
       </div>
     </form>

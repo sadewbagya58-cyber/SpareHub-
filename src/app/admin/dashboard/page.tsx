@@ -35,27 +35,26 @@ export default async function AdminDashboardPage() {
 
   const supabase = await createServerSupabaseClient();
 
-  // Fetch count of pending shops and users
-  const { count: pendingShopCount } = await supabase
+  // Fetch count of active shops, suspended shops, and users
+  const { count: activeShopCount } = await supabase
     .from("shops")
     .select("*", { count: "exact", head: true })
-    .eq("status", "pending_review");
+    .neq("status", "suspended");
 
-  const { count: approvedShopCount } = await supabase
+  const { count: suspendedShopCount } = await supabase
     .from("shops")
     .select("*", { count: "exact", head: true })
-    .eq("status", "approved");
+    .eq("status", "suspended");
 
   const { count: userCount } = await supabase
     .from("user_profiles")
     .select("*", { count: "exact", head: true });
 
-  // Fetch actual pending shops with linked seller profile
-  const { data: pendingShops } = await supabase
+  // Fetch shops with linked seller profile for supervision and moderation
+  const { data: moderationShops } = await supabase
     .from("shops")
     .select("id, name, slug, description, phone, email, district, city, address_line1, status, created_at, seller_profiles(seller_type, id_number, id_type)")
-    .eq("status", "pending_review")
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false });
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-8">
@@ -73,7 +72,7 @@ export default async function AdminDashboardPage() {
               </Badge>
             </div>
             <p className="text-xs text-gray-400 mt-0.5">
-              Supervisory governance, shop onboarding queue, and immutable audit ledger
+              Supervisory governance, policy moderation, and immutable audit ledger
             </p>
           </div>
         </div>
@@ -93,15 +92,15 @@ export default async function AdminDashboardPage() {
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                Pending Shop Approvals
+                Active Storefronts
               </p>
-              <h2 className="text-3xl font-black text-amber-600 mt-2">
-                {pendingShopCount ?? 0}
+              <h2 className="text-3xl font-black text-sparehub-success mt-2">
+                {activeShopCount ?? 0}
               </h2>
-              <span className="text-[11px] text-gray-400">Applications awaiting document review</span>
+              <span className="text-[11px] text-gray-400">Live self-service merchants</span>
             </div>
-            <div className="p-3.5 rounded-2xl bg-amber-50 text-amber-600">
-              <Clock className="w-7 h-7" />
+            <div className="p-3.5 rounded-2xl bg-green-50 text-sparehub-success">
+              <Store className="w-7 h-7" />
             </div>
           </CardContent>
         </Card>
@@ -110,15 +109,15 @@ export default async function AdminDashboardPage() {
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                Approved Vendors
+                Suspended Storefronts
               </p>
-              <h2 className="text-3xl font-black text-sparehub-success mt-2">
-                {approvedShopCount ?? 0}
+              <h2 className="text-3xl font-black text-red-600 mt-2">
+                {suspendedShopCount ?? 0}
               </h2>
-              <span className="text-[11px] text-gray-400">Active merchant storefronts</span>
+              <span className="text-[11px] text-gray-400">Under policy moderation hold</span>
             </div>
-            <div className="p-3.5 rounded-2xl bg-green-50 text-sparehub-success">
-              <Store className="w-7 h-7" />
+            <div className="p-3.5 rounded-2xl bg-red-50 text-red-600">
+              <Clock className="w-7 h-7" />
             </div>
           </CardContent>
         </Card>
@@ -132,7 +131,7 @@ export default async function AdminDashboardPage() {
               <h2 className="text-3xl font-black text-sparehub-dark mt-2">
                 {userCount ?? 0}
               </h2>
-              <span className="text-[11px] text-gray-400">Customers, sellers, & admins</span>
+              <span className="text-[11px] text-gray-400">Customers, sellers, &amp; admins</span>
             </div>
             <div className="p-3.5 rounded-2xl bg-blue-50 text-blue-600">
               <Users className="w-7 h-7" />
@@ -141,8 +140,8 @@ export default async function AdminDashboardPage() {
         </Card>
       </div>
 
-      {/* Vendor Shop Review Queue */}
-      <PendingShopsList initialShops={(pendingShops as unknown as PendingShop[]) || []} />
+      {/* Vendor Storefront Moderation Queue */}
+      <PendingShopsList initialShops={(moderationShops as unknown as PendingShop[]) || []} />
 
       {/* Governance Guidance */}
       <Card>

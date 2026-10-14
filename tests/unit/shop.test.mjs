@@ -188,7 +188,7 @@ describe("Seller Shop Validation & Slug Generation (Phase 4.1)", () => {
   });
 });
 
-describe("Shop Approval State Transitions & Security Policies (Phase 4.1)", () => {
+describe("Shop Approval State Transitions & Security Policies (Phase 4.1 Self-Service)", () => {
   const VALID_SHOP_STATUSES = ["draft", "pending_review", "approved", "rejected", "suspended"];
 
   test("all defined shop statuses match PostgreSQL schema check constraints", () => {
@@ -197,19 +197,24 @@ describe("Shop Approval State Transitions & Security Policies (Phase 4.1)", () =
     }
   });
 
-  test("seller state transition rule: sellers can transition draft -> pending_review", () => {
+  test("self-service state transition rule: sellers can self-activate and toggle draft/approved", () => {
     function canSellerTransition(oldStatus, newStatus, isPlatformAdmin = false) {
       if (isPlatformAdmin) return true;
-      if (oldStatus === "draft" && newStatus === "pending_review") return true;
-      if (oldStatus === "rejected" && newStatus === "pending_review") return true;
-      if (newStatus === "approved" || newStatus === "suspended") return false;
+      // In self-service model, sellers can activate draft, pending_review, or rejected shops directly
+      if (oldStatus === "draft" && newStatus === "approved") return true;
+      if (oldStatus === "pending_review" && newStatus === "approved") return true;
+      if (oldStatus === "rejected" && newStatus === "approved") return true;
+      if (oldStatus === "approved" && newStatus === "draft") return true;
+      // Non-admins can NEVER suspend a shop
+      if (newStatus === "suspended") return false;
       return false;
     }
 
-    assert.strictEqual(canSellerTransition("draft", "pending_review", false), true);
-    assert.strictEqual(canSellerTransition("rejected", "pending_review", false), true);
-    assert.strictEqual(canSellerTransition("draft", "approved", false), false);
-    assert.strictEqual(canSellerTransition("pending_review", "approved", false), false);
-    assert.strictEqual(canSellerTransition("pending_review", "approved", true), true);
+    assert.strictEqual(canSellerTransition("draft", "approved", false), true, "Sellers can self-activate draft shop");
+    assert.strictEqual(canSellerTransition("pending_review", "approved", false), true, "Legacy pending shops can self-activate");
+    assert.strictEqual(canSellerTransition("rejected", "approved", false), true, "Updated rejected shops can self-activate");
+    assert.strictEqual(canSellerTransition("approved", "draft", false), true, "Sellers can set shop to maintenance draft");
+    assert.strictEqual(canSellerTransition("approved", "suspended", false), false, "Sellers cannot suspend shops");
+    assert.strictEqual(canSellerTransition("approved", "suspended", true), true, "Admins can suspend shops");
   });
 });

@@ -43,7 +43,7 @@ export default async function SellerShopPage() {
           </p>
         </div>
 
-        {shop && shop.status === "approved" && (
+        {shop && shop.status !== "suspended" && (
           <Link
             href={`/shop/${shop.slug}`}
             target="_blank"

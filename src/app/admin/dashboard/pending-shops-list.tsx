@@ -13,7 +13,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { approveShopAction, rejectShopAction, type AdminActionResult } from "@/lib/admin/actions";
+import { 
+  approveShopAction, 
+  suspendShopAction, 
+  reinstateShopAction, 
+  type AdminActionResult 
+} from "@/lib/admin/actions";
 
 export interface PendingShop {
   id: string;
@@ -41,8 +46,8 @@ interface PendingShopsListProps {
 export function PendingShopsList({ initialShops }: PendingShopsListProps) {
   const [shops, setShops] = useState<PendingShop[]>(initialShops);
   const [actionShopId, setActionShopId] = useState<string | null>(null);
-  const [rejectingId, setRejectingId] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
+  const [suspendingId, setSuspendingId] = useState<string | null>(null);
+  const [suspendReason, setSuspendReason] = useState("");
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<AdminActionResult | null>(null);
 
@@ -54,15 +59,17 @@ export function PendingShopsList({ initialShops }: PendingShopsListProps) {
       const res = await approveShopAction(shopId);
       setResult(res);
       if (res.success) {
-        setShops((prev) => prev.filter((s) => s.id !== shopId));
+        setShops((prev) =>
+          prev.map((s) => (s.id === shopId ? { ...s, status: "approved" } : s))
+        );
       }
       setActionShopId(null);
     });
   };
 
-  const handleReject = (shopId: string) => {
-    if (!rejectReason || rejectReason.trim().length < 5) {
-      setResult({ error: "Please enter a descriptive rejection reason (at least 5 characters)." });
+  const handleSuspend = (shopId: string) => {
+    if (!suspendReason || suspendReason.trim().length < 5) {
+      setResult({ error: "Please enter a descriptive suspension reason (at least 5 characters)." });
       return;
     }
 
@@ -70,12 +77,30 @@ export function PendingShopsList({ initialShops }: PendingShopsListProps) {
     setResult(null);
 
     startTransition(async () => {
-      const res = await rejectShopAction(shopId, rejectReason);
+      const res = await suspendShopAction(shopId, suspendReason);
       setResult(res);
       if (res.success) {
-        setShops((prev) => prev.filter((s) => s.id !== shopId));
-        setRejectingId(null);
-        setRejectReason("");
+        setShops((prev) =>
+          prev.map((s) => (s.id === shopId ? { ...s, status: "suspended" } : s))
+        );
+        setSuspendingId(null);
+        setSuspendReason("");
+      }
+      setActionShopId(null);
+    });
+  };
+
+  const handleReinstate = (shopId: string) => {
+    setActionShopId(shopId);
+    setResult(null);
+
+    startTransition(async () => {
+      const res = await reinstateShopAction(shopId);
+      setResult(res);
+      if (res.success) {
+        setShops((prev) =>
+          prev.map((s) => (s.id === shopId ? { ...s, status: "approved" } : s))
+        );
       }
       setActionShopId(null);
     });
@@ -87,10 +112,10 @@ export function PendingShopsList({ initialShops }: PendingShopsListProps) {
         <CardTitle className="text-base flex items-center justify-between">
           <span className="flex items-center gap-2">
             <Clock className="w-5 h-5 text-amber-600" />
-            Vendor Shop Approval Queue ({shops.length})
+            Vendor Storefront Moderation &amp; Supervisory Queue ({shops.length})
           </span>
           <span className="text-xs text-gray-500 font-normal">
-            Platform governance & merchant review
+            Platform governance &amp; policy moderation
           </span>
         </CardTitle>
       </CardHeader>
@@ -124,8 +149,25 @@ export function PendingShopsList({ initialShops }: PendingShopsListProps) {
                   <div>
                     <div className="flex items-center gap-2">
                       <h4 className="text-sm font-bold text-sparehub-dark">{s.name}</h4>
-                      <Badge variant="orange" className="text-[9px] uppercase font-bold">
-                        Pending Review
+                      <Badge
+                        variant={
+                          s.status === "approved"
+                            ? "success"
+                            : s.status === "suspended"
+                            ? "error"
+                            : s.status === "pending_review"
+                            ? "orange"
+                            : "neutral"
+                        }
+                        className="text-[9px] uppercase font-bold"
+                      >
+                        {s.status === "approved"
+                          ? "Active Storefront"
+                          : s.status === "suspended"
+                          ? "Suspended"
+                          : s.status === "pending_review"
+                          ? "In Review"
+                          : "Draft"}
                       </Badge>
                       {s.seller_profiles?.seller_type && (
                         <span className="text-[10px] uppercase font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
@@ -139,36 +181,54 @@ export function PendingShopsList({ initialShops }: PendingShopsListProps) {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="primary"
-                      size="sm"
-                      onClick={() => handleApprove(s.id)}
-                      disabled={isPending && actionShopId === s.id}
-                      className="gap-1 bg-green-600 hover:bg-green-700 text-white text-xs h-8"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      {isPending && actionShopId === s.id ? "Approving..." : "Approve Shop"}
-                    </Button>
+                    {s.status === "suspended" ? (
+                      <Button
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleReinstate(s.id)}
+                        disabled={isPending && actionShopId === s.id}
+                        className="gap-1 bg-green-600 hover:bg-green-700 text-white text-xs h-8"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        {isPending && actionShopId === s.id ? "Reinstating..." : "Reinstate Shop"}
+                      </Button>
+                    ) : (
+                      <>
+                        {s.status === "pending_review" && (
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleApprove(s.id)}
+                            disabled={isPending && actionShopId === s.id}
+                            className="gap-1 bg-green-600 hover:bg-green-700 text-white text-xs h-8"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            {isPending && actionShopId === s.id ? "Approving..." : "Approve"}
+                          </Button>
+                        )}
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (rejectingId === s.id) {
-                          setRejectingId(null);
-                        } else {
-                          setRejectingId(s.id);
-                          setRejectReason("");
-                        }
-                      }}
-                      disabled={isPending && actionShopId === s.id}
-                      className="gap-1 text-sparehub-error border-red-200 hover:bg-red-50 text-xs h-8"
-                    >
-                      <XCircle className="w-3.5 h-3.5" />
-                      Reject
-                    </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (suspendingId === s.id) {
+                              setSuspendingId(null);
+                            } else {
+                              setSuspendingId(s.id);
+                              setSuspendReason("");
+                            }
+                          }}
+                          disabled={isPending && actionShopId === s.id}
+                          className="gap-1 text-sparehub-error border-red-200 hover:bg-red-50 text-xs h-8"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          Suspend
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -193,16 +253,16 @@ export function PendingShopsList({ initialShops }: PendingShopsListProps) {
                   </p>
                 )}
 
-                {/* Inline Rejection Reason Box */}
-                {rejectingId === s.id && (
+                {/* Inline Suspension Reason Box */}
+                {suspendingId === s.id && (
                   <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 space-y-2.5 animate-in fade-in duration-150">
                     <label className="block text-xs font-bold text-red-900">
-                      Rejection Reason (Sent directly to seller for correction)
+                      Suspension Reason (Platform Moderation Notice)
                     </label>
                     <textarea
-                      value={rejectReason}
-                      onChange={(e) => setRejectReason(e.target.value)}
-                      placeholder="e.g. Please provide a verified local trade address or registered phone number..."
+                      value={suspendReason}
+                      onChange={(e) => setSuspendReason(e.target.value)}
+                      placeholder="e.g. Reported counterfeit parts or trade license discrepancy..."
                       rows={2}
                       className="w-full rounded-lg border border-red-200 bg-white p-2.5 text-xs text-sparehub-dark focus:outline-none focus:ring-1 focus:ring-sparehub-error"
                     />
@@ -211,7 +271,7 @@ export function PendingShopsList({ initialShops }: PendingShopsListProps) {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => setRejectingId(null)}
+                        onClick={() => setSuspendingId(null)}
                         className="text-xs h-7"
                       >
                         Cancel
@@ -220,11 +280,11 @@ export function PendingShopsList({ initialShops }: PendingShopsListProps) {
                         type="button"
                         variant="primary"
                         size="sm"
-                        onClick={() => handleReject(s.id)}
+                        onClick={() => handleSuspend(s.id)}
                         disabled={isPending && actionShopId === s.id}
                         className="bg-sparehub-error hover:bg-red-700 text-white text-xs h-7 gap-1"
                       >
-                        Confirm Rejection
+                        Confirm Suspension
                       </Button>
                     </div>
                   </div>

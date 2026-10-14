@@ -161,7 +161,7 @@ export async function createShopAction(
       candidateSlug = `${finalSlug}-${suffix}`;
     }
 
-    // 4. Insert shop in 'draft' status
+    // 4. Insert shop in 'approved' (active) status immediately in self-service marketplace
     const { data: newShop, error: shopErr } = await supabase
       .from("shops")
       .insert({
@@ -178,7 +178,7 @@ export async function createShopAction(
         postal_code: data.postal_code || null,
         logo_url: data.logo_url || null,
         cover_url: data.cover_url || null,
-        status: "draft",
+        status: "approved",
       })
       .select("id, name, slug, status")
       .single();
@@ -192,13 +192,14 @@ export async function createShopAction(
 
     revalidatePath("/seller/dashboard");
     revalidatePath("/seller/shop");
+    revalidatePath("/seller/products");
     revalidatePath("/sell");
 
     return {
       success: true,
       shopId: newShop.id,
-      message: `Shop "${newShop.name}" created successfully in draft mode.`,
-      redirectTo: "/seller/shop",
+      message: `Shop "${newShop.name}" created and storefront activated successfully! You can now start adding products.`,
+      redirectTo: "/seller/products",
     };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "An unexpected error occurred while creating shop.";
@@ -320,10 +321,10 @@ export async function updateShopAction(
 }
 
 /**
- * Server Action: Submit shop for platform compliance review.
- * Transitions shop status from 'draft' or 'rejected' to 'pending_review'.
+ * Server Action: Activate shop storefront directly (Self-Service).
+ * Allows owners of legacy draft, pending_review, or rejected shops to activate immediately.
  */
-export async function submitShopForReviewAction(
+export async function activateShopAction(
   prevState: ShopActionResult | null,
   formData: FormData
 ): Promise<ShopActionResult> {
@@ -334,7 +335,7 @@ export async function submitShopForReviewAction(
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return { error: "Authentication required to submit shop for review." };
+      return { error: "Authentication required to activate shop." };
     }
 
     const shopId = formData.get("shopId")?.toString();
@@ -353,24 +354,20 @@ export async function submitShopForReviewAction(
       return { error: "Shop not found or access denied." };
     }
 
-    if (shop.status === "approved") {
-      return { error: "This shop is already approved and active on the marketplace." };
-    }
-
-    if (shop.status === "pending_review") {
-      return { message: "Your shop application is already under active review by platform administrators." };
+    if (shop.status === "suspended") {
+      return { error: "This shop has been suspended by platform administration. Please contact support." };
     }
 
     // 2. Validate completeness of shop record
     if (!shop.name || !shop.phone || !shop.email || !shop.address_line1 || !shop.district || !shop.city) {
-      return { error: "Please complete all required shop contact and address details before submitting for review." };
+      return { error: "Please complete all required shop contact and address details before activating." };
     }
 
-    // 3. Update status to 'pending_review'
+    // 3. Update status to 'approved' (active) immediately without admin gate
     const { error: updateErr } = await supabase
       .from("shops")
       .update({
-        status: "pending_review",
+        status: "approved",
         status_reason: null,
         updated_at: new Date().toISOString(),
       })
@@ -382,14 +379,87 @@ export async function submitShopForReviewAction(
 
     revalidatePath("/seller/dashboard");
     revalidatePath("/seller/shop");
-    revalidatePath("/admin/dashboard");
+    revalidatePath("/seller/products");
+    revalidatePath("/search");
 
     return {
       success: true,
-      message: "Shop submitted for review! Our platform administration team will review your business credentials.",
+      message: "Shop storefront activated successfully! Your listings are now live on SpareHub.",
     };
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "An unexpected error occurred while submitting shop.";
+    const msg = err instanceof Error ? err.message : "An unexpected error occurred while activating shop.";
+    return { error: msg };
+  }
+}
+
+/**
+ * Backwards compatibility alias for submitShopForReviewAction.
+ * Activates shop directly without requiring admin approval.
+ */
+export async function submitShopForReviewAction(
+  prevState: ShopActionResult | null,
+  formData: FormData
+): Promise<ShopActionResult> {
+  return activateShopAction(prevState, formData);
+}
+
+/**
+ * Server Action: Toggle shop storefront status (e.g. temporary maintenance mode).
+ * Sellers can switch between 'approved' (active) and 'draft' (unlisted/maintenance).
+ * Only platform admins can set 'suspended'.
+ */
+export async function toggleShopStatusAction(
+  shopId: string,
+  targetStatus: "approved" | "draft"
+): Promise<ShopActionResult> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { error: "Authentication required." };
+    }
+
+    // Verify ownership
+    const { data: shop, error: fetchErr } = await supabase
+      .from("shops")
+      .select("id, status, seller_profiles!inner(user_id)")
+      .eq("id", shopId)
+      .maybeSingle();
+
+    if (fetchErr || !shop) {
+      return { error: "Shop not found or access denied." };
+    }
+
+    if (shop.status === "suspended") {
+      return { error: "Suspended shops cannot be re-activated by sellers. Contact platform administration." };
+    }
+
+    const { error: updateErr } = await supabase
+      .from("shops")
+      .update({
+        status: targetStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", shopId);
+
+    if (updateErr) {
+      return { error: updateErr.message };
+    }
+
+    revalidatePath("/seller/dashboard");
+    revalidatePath("/seller/shop");
+    revalidatePath("/seller/products");
+    revalidatePath("/search");
+
+    return {
+      success: true,
+      message: targetStatus === "approved" ? "Shop is now active and published." : "Shop is now in draft/maintenance mode.",
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to toggle shop status.";
     return { error: msg };
   }
 }

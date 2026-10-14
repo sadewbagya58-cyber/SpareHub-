@@ -141,16 +141,31 @@ CREATE POLICY "Admin full management categories"
   ON public.categories FOR ALL
   USING (public.is_platform_admin());
 
+-- Seed Core Automotive Categories (Idempotent ON CONFLICT)
+INSERT INTO public.categories (id, name, slug, icon_name, display_order) VALUES
+  ('c1000000-0000-0000-0000-000000000001', 'Engine & Drivetrain', 'engine-drivetrain', 'Wrench', 1),
+  ('c1000000-0000-0000-0000-000000000002', 'Braking Systems', 'braking-systems', 'Disc', 2),
+  ('c1000000-0000-0000-0000-000000000003', 'Suspension & Steering', 'suspension-steering', 'Activity', 3),
+  ('c1000000-0000-0000-0000-000000000004', 'Electrical & Lighting', 'electrical-lighting', 'Zap', 4),
+  ('c1000000-0000-0000-0000-000000000005', 'Cooling & Heating', 'cooling-heating', 'Thermometer', 5),
+  ('c1000000-0000-0000-0000-000000000006', 'Body & Panel Parts', 'body-panel-parts', 'Shield', 6),
+  ('c1000000-0000-0000-0000-000000000007', 'Filters & Maintenance', 'filters-maintenance', 'Filter', 7),
+  ('c1000000-0000-0000-0000-000000000008', 'Clutch & Transmission', 'clutch-transmission', 'Cog', 8),
+  ('c1000000-0000-0000-0000-000000000009', 'Tires & Wheels', 'tires-wheels', 'Circle', 9),
+  ('c1000000-0000-0000-0000-000000000010', 'Interior & Accessories', 'interior-accessories', 'Sliders', 10)
+ON CONFLICT (slug) DO NOTHING;
+
 -- products RLS
 DROP POLICY IF EXISTS "Public read published products from approved shops" ON public.products;
-CREATE POLICY "Public read published products from approved shops"
+DROP POLICY IF EXISTS "Public read published products from active shops" ON public.products;
+CREATE POLICY "Public read published products from active shops"
   ON public.products FOR SELECT
   USING (
     is_published = true
     AND status = 'active'
     AND EXISTS (
       SELECT 1 FROM public.shops s
-      WHERE s.id = products.shop_id AND s.status = 'approved'
+      WHERE s.id = products.shop_id AND s.status != 'suspended'
     )
   );
 
@@ -160,13 +175,14 @@ CREATE POLICY "Sellers can view own shop products in any status"
   USING (public.owns_shop(shop_id) OR public.is_platform_admin());
 
 DROP POLICY IF EXISTS "Sellers can create products for own approved shop" ON public.products;
-CREATE POLICY "Sellers can create products for own approved shop"
+DROP POLICY IF EXISTS "Sellers can create products for own shop" ON public.products;
+CREATE POLICY "Sellers can create products for own shop"
   ON public.products FOR INSERT
   WITH CHECK (
     public.owns_shop(shop_id)
     AND EXISTS (
       SELECT 1 FROM public.shops s
-      WHERE s.id = shop_id AND s.status = 'approved'
+      WHERE s.id = shop_id AND s.status != 'suspended'
     )
   );
 
@@ -195,7 +211,7 @@ CREATE POLICY "Public read images of visible products"
       JOIN public.shops s ON p.shop_id = s.id
       WHERE p.id = product_images.product_id
         AND p.is_published = true
-        AND s.status = 'approved'
+        AND s.status != 'suspended'
     )
   );
 
@@ -220,7 +236,7 @@ CREATE POLICY "Public read compatibility of visible products"
       JOIN public.shops s ON p.shop_id = s.id
       WHERE p.id = product_compatibility.product_id
         AND p.is_published = true
-        AND s.status = 'approved'
+        AND s.status != 'suspended'
     )
   );
 

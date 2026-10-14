@@ -7,8 +7,6 @@ import {
   MapPin, 
   CheckCircle2, 
   AlertCircle, 
-  Clock, 
-  Send, 
   ShieldCheck, 
   AlertTriangle, 
   Image as ImageIcon 
@@ -101,7 +99,7 @@ export function ShopForm({ shop, sellerType }: ShopFormProps) {
     });
   };
 
-  const handleSubmitForReview = () => {
+  const handleActivateShop = () => {
     setReviewResult(null);
     const formData = new FormData();
     formData.append("shopId", shop.id);
@@ -112,18 +110,17 @@ export function ShopForm({ shop, sellerType }: ShopFormProps) {
     });
   };
 
+  const isLive = shop.status !== "suspended" && shop.status !== "draft";
   const statusBadgeVariant =
-    shop.status === "approved"
-      ? "success"
-      : shop.status === "rejected" || shop.status === "suspended"
+    shop.status === "suspended"
       ? "error"
-      : shop.status === "pending_review"
-      ? "orange"
-      : "neutral";
+      : shop.status === "draft"
+      ? "neutral"
+      : "success";
 
   return (
     <div className="space-y-8">
-      {/* Status & Review Banner */}
+      {/* Storefront Status Banner */}
       <div className="p-6 rounded-2xl bg-white border border-sparehub-border shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -134,7 +131,7 @@ export function ShopForm({ shop, sellerType }: ShopFormProps) {
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-sparehub-dark">{shop.name}</h2>
                 <Badge variant={statusBadgeVariant} className="text-[10px] uppercase font-bold">
-                  {shop.status.replace("_", " ")}
+                  {shop.status === "suspended" ? "Suspended" : shop.status === "draft" ? "Draft Mode" : "Storefront Active"}
                 </Badge>
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
@@ -145,24 +142,24 @@ export function ShopForm({ shop, sellerType }: ShopFormProps) {
           </div>
 
           {/* Action button based on state */}
-          {(shop.status === "draft" || shop.status === "rejected") && (
+          {shop.status === "draft" && (
             <Button
               type="button"
               variant="primary"
               size="sm"
-              onClick={handleSubmitForReview}
+              onClick={handleActivateShop}
               disabled={isSubmittingReview}
-              className="gap-2 shrink-0"
+              className="gap-2 shrink-0 bg-green-600 hover:bg-green-700"
             >
-              <Send className="w-4 h-4" />
-              {isSubmittingReview ? "Submitting Application..." : "Submit for Platform Review"}
+              <ShieldCheck className="w-4 h-4" />
+              {isSubmittingReview ? "Activating..." : "Activate Storefront Live"}
             </Button>
           )}
 
-          {shop.status === "approved" && (
+          {isLive && (
             <div className="flex items-center gap-2 text-xs font-semibold text-sparehub-success bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">
               <ShieldCheck className="w-4 h-4" />
-              Storefront Verified & Active
+              Storefront Live &amp; Self-Service Ready
             </div>
           )}
         </div>
@@ -174,40 +171,25 @@ export function ShopForm({ shop, sellerType }: ShopFormProps) {
             <div>
               <p className="font-bold">Your shop is currently in Draft mode.</p>
               <p className="text-amber-800 mt-0.5">
-                Review your shop details below. When you are ready, click <strong>&quot;Submit for Platform Review&quot;</strong> so our administration team can verify your business and activate your storefront.
+                Click <strong>&quot;Activate Storefront Live&quot;</strong> whenever you are ready to publish parts and receive customer orders. No platform approval wait required.
               </p>
             </div>
           </div>
         )}
 
-        {shop.status === "pending_review" && (
-          <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900 flex items-start gap-2.5">
-            <Clock className="w-4 h-4 shrink-0 text-blue-600 mt-0.5" />
-            <div>
-              <p className="font-bold">Application Under Compliance Review</p>
-              <p className="text-blue-800 mt-0.5">
-                Your shop application is in the queue for administrator verification. You will be able to publish products as soon as platform approval is granted.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {shop.status === "rejected" && (
+        {shop.status === "suspended" && (
           <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-900 flex items-start gap-2.5">
             <AlertTriangle className="w-4 h-4 shrink-0 text-sparehub-error mt-0.5" />
             <div>
-              <p className="font-bold">Application Updates Required</p>
+              <p className="font-bold">Storefront Suspended</p>
               <p className="text-red-800 mt-0.5">
-                Feedback from platform administrators: <em>&quot;{shop.status_reason || "Please ensure contact and address details are accurate."}&quot;</em>
-              </p>
-              <p className="mt-1 font-semibold text-sparehub-dark">
-                Please update the fields below and re-submit for review.
+                Platform administration has placed your shop on hold: <em>&quot;{shop.status_reason || "Compliance review required."}&quot;</em>
               </p>
             </div>
           </div>
         )}
 
-        {/* Review Submission Feedback */}
+        {/* Activation Feedback */}
         {reviewResult?.error && (
           <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs font-medium text-sparehub-error flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
