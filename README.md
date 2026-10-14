@@ -103,7 +103,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 Run the complete 4-step QA verification suite:
 ```bash
-# 1. Run unit test suite (36 tests across 8 suites)
+# 1. Run unit test suite (44 tests across 10 suites)
 npm run test
 
 # 2. TypeScript strict type check
@@ -154,3 +154,10 @@ Execution order:
   - Role-protected vendor dashboard (`/seller/dashboard`) and admin control center (`/admin/dashboard`).
   - Next.js SSR session refresh middleware with route guards and open-redirect sanitization.
   - 36 automated unit tests verifying design tokens, vehicle taxonomy, database schema, auth validation, and redirect security.
+- [x] **Phase 4.1: Seller Shop Management**
+  - Complete shop creation and editing module with Zod validation and slug normalization (`/seller/shop`, `/seller/shop/new`).
+  - Strict compliance with database schema columns (`shops`, `seller_profiles`, `SRI_LANKA_DISTRICTS`).
+  - Multi-state approval workflow: `draft` $\rightarrow$ `pending_review` $\rightarrow$ `approved` / `rejected`.
+  - Non-repudiable platform admin review queue on `/admin/dashboard` with approval audit logging and descriptive rejection reasons.
+  - Contextual status banners, empty states, and dynamic navigation shortcuts in `AuthNav` and `MobileNav`.
+  - 44 automated unit tests verifying shop schema validation, slug generation, and state transition security.

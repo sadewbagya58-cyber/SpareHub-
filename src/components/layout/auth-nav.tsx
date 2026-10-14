@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { User, LogOut, Store, ShieldCheck, ShoppingBag, ChevronDown } from "lucide-react";
+import { User, LogOut, Store, ShieldCheck, ShoppingBag, ChevronDown, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
@@ -18,6 +18,7 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [profile, setProfile] = useState<{ role: string; roles: string[]; full_name: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasSellerProfile, setHasSellerProfile] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -28,15 +29,22 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user);
       if (user) {
-        supabase
-          .from("user_profiles")
-          .select("role, roles, full_name")
-          .eq("id", user.id)
-          .maybeSingle()
-          .then(({ data }) => {
-            if (data) setProfile(data);
-            setLoading(false);
-          });
+        Promise.all([
+          supabase
+            .from("user_profiles")
+            .select("role, roles, full_name")
+            .eq("id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("seller_profiles")
+            .select("id")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+        ]).then(([profileRes, sellerRes]) => {
+          if (profileRes.data) setProfile(profileRes.data);
+          if (sellerRes.data) setHasSellerProfile(true);
+          setLoading(false);
+        });
       } else {
         setLoading(false);
       }
@@ -47,16 +55,24 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
       (event, session) => {
         setUser(session?.user ?? null);
         if (session?.user) {
-          supabase
-            .from("user_profiles")
-            .select("role, roles, full_name")
-            .eq("id", session.user.id)
-            .maybeSingle()
-            .then(({ data }) => {
-              if (data) setProfile(data);
-            });
+          Promise.all([
+            supabase
+              .from("user_profiles")
+              .select("role, roles, full_name")
+              .eq("id", session.user.id)
+              .maybeSingle(),
+            supabase
+              .from("seller_profiles")
+              .select("id")
+              .eq("user_id", session.user.id)
+              .maybeSingle(),
+          ]).then(([profileRes, sellerRes]) => {
+            if (profileRes.data) setProfile(profileRes.data);
+            if (sellerRes.data) setHasSellerProfile(true);
+          });
         } else {
           setProfile(null);
+          setHasSellerProfile(false);
         }
       }
     );
@@ -84,7 +100,7 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
   }
 
   const roles = profile?.roles || (profile?.role ? [profile.role] : ["customer"]);
-  const isSeller = roles.includes("seller") || roles.includes("platform_admin");
+  const isSeller = roles.includes("seller") || roles.includes("platform_admin") || hasSellerProfile;
   const isAdmin = roles.includes("platform_admin");
 
   if (!user) {
@@ -148,13 +164,34 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
         </Link>
 
         {isSeller && (
+          <>
+            <Link
+              href="/seller/dashboard"
+              onClick={onNavigate}
+              className="px-3 py-2 rounded-md text-xs font-medium text-amber-900 hover:bg-amber-50 flex items-center gap-2"
+            >
+              <Store className="w-4 h-4 text-amber-600" />
+              Seller Dashboard
+            </Link>
+            <Link
+              href="/seller/shop"
+              onClick={onNavigate}
+              className="px-3 py-2 rounded-md text-xs font-medium text-amber-900 hover:bg-amber-50 flex items-center gap-2"
+            >
+              <Settings className="w-4 h-4 text-amber-600" />
+              Shop Settings
+            </Link>
+          </>
+        )}
+
+        {!isSeller && (
           <Link
-            href="/seller/dashboard"
+            href="/sell"
             onClick={onNavigate}
-            className="px-3 py-2 rounded-md text-xs font-medium text-amber-900 hover:bg-amber-50 flex items-center gap-2"
+            className="px-3 py-2 rounded-md text-xs font-medium text-sparehub-orange hover:bg-sparehub-orange-light flex items-center gap-2"
           >
-            <Store className="w-4 h-4 text-amber-600" />
-            Seller Dashboard
+            <Store className="w-4 h-4" />
+            Open a Seller Shop
           </Link>
         )}
 
@@ -239,13 +276,34 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
           </Link>
 
           {isSeller && (
+            <>
+              <Link
+                href="/seller/dashboard"
+                onClick={() => setDropdownOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-amber-900 bg-amber-50/50 hover:bg-amber-50 transition-colors"
+              >
+                <Store className="w-4 h-4 text-amber-600" />
+                Seller Dashboard
+              </Link>
+              <Link
+                href="/seller/shop"
+                onClick={() => setDropdownOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-amber-900 hover:bg-amber-50 transition-colors"
+              >
+                <Settings className="w-4 h-4 text-amber-600" />
+                Shop Profile & Settings
+              </Link>
+            </>
+          )}
+
+          {!isSeller && (
             <Link
-              href="/seller/dashboard"
+              href="/sell"
               onClick={() => setDropdownOpen(false)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-amber-900 bg-amber-50/50 hover:bg-amber-50 transition-colors"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-sparehub-orange hover:bg-sparehub-orange-light/40 transition-colors"
             >
-              <Store className="w-4 h-4 text-amber-600" />
-              Seller Dashboard
+              <Store className="w-4 h-4" />
+              Open a Seller Shop
             </Link>
           )}
 

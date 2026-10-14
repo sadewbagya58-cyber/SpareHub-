@@ -8,6 +8,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
+import { PendingShopsList, type PendingShop } from "./pending-shops-list";
+
 export const dynamic = "force-dynamic";
 
 export const metadata = {
@@ -47,6 +49,13 @@ export default async function AdminDashboardPage() {
   const { count: userCount } = await supabase
     .from("user_profiles")
     .select("*", { count: "exact", head: true });
+
+  // Fetch actual pending shops with linked seller profile
+  const { data: pendingShops } = await supabase
+    .from("shops")
+    .select("id, name, slug, description, phone, email, district, city, address_line1, status, created_at, seller_profiles(seller_type, id_number, id_type)")
+    .eq("status", "pending_review")
+    .order("created_at", { ascending: true });
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-8">
@@ -131,6 +140,9 @@ export default async function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Vendor Shop Review Queue */}
+      <PendingShopsList initialShops={(pendingShops as unknown as PendingShop[]) || []} />
 
       {/* Governance Guidance */}
       <Card>

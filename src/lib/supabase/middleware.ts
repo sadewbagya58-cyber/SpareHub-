@@ -81,13 +81,25 @@ export async function updateSession(request: NextRequest) {
       .eq("id", user.id)
       .maybeSingle();
 
-    const isSeller =
+    let isSeller =
       profile?.role === "seller" ||
       profile?.roles?.includes("seller") ||
       profile?.role === "platform_admin" ||
       profile?.roles?.includes("platform_admin");
 
     if (!isSeller) {
+      const { data: sellerProfile } = await supabase
+        .from("seller_profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (sellerProfile) {
+        isSeller = true;
+      }
+    }
+
+    if (!isSeller && pathname !== "/seller/shop/new") {
       // Redirect to seller registration / onboarding page
       const url = request.nextUrl.clone();
       url.pathname = "/sell";
