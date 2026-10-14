@@ -2,10 +2,15 @@
 -- SPAREHUB DATABASE MIGRATION: 004 - Product Catalog & Vehicle Compatibility
 -- Description: Multi-vendor catalog, images, full-text indexes, and structured compatibility.
 -- Fix: Robust partial unique indexes resolving nullable column edge-cases.
+-- All DDL statements are idempotent and rerun-safe.
 -- =============================================================================
 
+SET search_path = public, extensions;
+
+-- -----------------------------------------------------------------------------
 -- 1. CATEGORIES
-CREATE TABLE public.categories (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.categories (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   parent_id uuid REFERENCES public.categories(id) ON DELETE SET NULL,
   name text NOT NULL,
@@ -17,16 +22,19 @@ CREATE TABLE public.categories (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_categories_parent ON public.categories(parent_id);
-CREATE INDEX idx_categories_slug ON public.categories(slug);
+CREATE INDEX IF NOT EXISTS idx_categories_parent ON public.categories(parent_id);
+CREATE INDEX IF NOT EXISTS idx_categories_slug ON public.categories(slug);
 
+DROP TRIGGER IF EXISTS trg_categories_updated_at ON public.categories;
 CREATE TRIGGER trg_categories_updated_at
   BEFORE UPDATE ON public.categories
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
+-- -----------------------------------------------------------------------------
 -- 2. PRODUCTS
-CREATE TABLE public.products (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.products (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   shop_id uuid NOT NULL REFERENCES public.shops(id) ON DELETE RESTRICT,
   category_id uuid NOT NULL REFERENCES public.categories(id) ON DELETE RESTRICT,
@@ -52,24 +60,27 @@ CREATE TABLE public.products (
   UNIQUE (shop_id, slug)
 );
 
-CREATE INDEX idx_products_shop_id ON public.products(shop_id);
-CREATE INDEX idx_products_category_id ON public.products(category_id);
-CREATE INDEX idx_products_status ON public.products(status);
-CREATE INDEX idx_products_published ON public.products(is_published);
-CREATE INDEX idx_products_price ON public.products(price_minor_units);
+CREATE INDEX IF NOT EXISTS idx_products_shop_id ON public.products(shop_id);
+CREATE INDEX IF NOT EXISTS idx_products_category_id ON public.products(category_id);
+CREATE INDEX IF NOT EXISTS idx_products_status ON public.products(status);
+CREATE INDEX IF NOT EXISTS idx_products_published ON public.products(is_published);
+CREATE INDEX IF NOT EXISTS idx_products_price ON public.products(price_minor_units);
 
 -- Trigram indexes for resilient partial search across part numbers and titles
-CREATE INDEX idx_products_part_number_trgm ON public.products USING gin (part_number gin_trgm_ops);
-CREATE INDEX idx_products_oem_trgm ON public.products USING gin (oem_part_number gin_trgm_ops);
-CREATE INDEX idx_products_title_trgm ON public.products USING gin (title gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_products_part_number_trgm ON public.products USING gin (part_number gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_products_oem_trgm ON public.products USING gin (oem_part_number gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_products_title_trgm ON public.products USING gin (title gin_trgm_ops);
 
+DROP TRIGGER IF EXISTS trg_products_updated_at ON public.products;
 CREATE TRIGGER trg_products_updated_at
   BEFORE UPDATE ON public.products
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
+-- -----------------------------------------------------------------------------
 -- 3. PRODUCT IMAGES
-CREATE TABLE public.product_images (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.product_images (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
   image_url text NOT NULL,
@@ -79,11 +90,13 @@ CREATE TABLE public.product_images (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_product_images_product ON public.product_images(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_images_product ON public.product_images(product_id);
 
 
+-- -----------------------------------------------------------------------------
 -- 4. PRODUCT VEHICLE COMPATIBILITY
-CREATE TABLE public.product_compatibility (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.product_compatibility (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
   vehicle_variant_id uuid REFERENCES public.vehicle_variants(id) ON DELETE CASCADE,
@@ -94,23 +107,23 @@ CREATE TABLE public.product_compatibility (
   CONSTRAINT check_variant_or_model CHECK (vehicle_variant_id IS NOT NULL OR vehicle_model_id IS NOT NULL)
 );
 
-CREATE INDEX idx_compatibility_product ON public.product_compatibility(product_id);
-CREATE INDEX idx_compatibility_variant ON public.product_compatibility(vehicle_variant_id);
-CREATE INDEX idx_compatibility_model ON public.product_compatibility(vehicle_model_id);
+CREATE INDEX IF NOT EXISTS idx_compatibility_product ON public.product_compatibility(product_id);
+CREATE INDEX IF NOT EXISTS idx_compatibility_variant ON public.product_compatibility(vehicle_variant_id);
+CREATE INDEX IF NOT EXISTS idx_compatibility_model ON public.product_compatibility(vehicle_model_id);
 
 -- Robust partial unique indexes: handles nullable variant/model cleanly without SQL NULL duplicate quirks
-CREATE UNIQUE INDEX idx_compat_product_variant_unique
+CREATE UNIQUE INDEX IF NOT EXISTS idx_compat_product_variant_unique
   ON public.product_compatibility (product_id, vehicle_variant_id)
   WHERE vehicle_variant_id IS NOT NULL;
 
-CREATE UNIQUE INDEX idx_compat_product_model_unique
+CREATE UNIQUE INDEX IF NOT EXISTS idx_compat_product_model_unique
   ON public.product_compatibility (product_id, vehicle_model_id)
   WHERE vehicle_variant_id IS NULL;
 
 
--- =============================================================================
--- ROW LEVEL SECURITY POLICIES
--- =============================================================================
+-- -----------------------------------------------------------------------------
+-- ROW LEVEL SECURITY POLICIES (Idempotent & Rerun-Safe)
+-- -----------------------------------------------------------------------------
 
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
@@ -118,15 +131,18 @@ ALTER TABLE public.product_images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.product_compatibility ENABLE ROW LEVEL SECURITY;
 
 -- categories RLS
+DROP POLICY IF EXISTS "Public read active categories" ON public.categories;
 CREATE POLICY "Public read active categories"
   ON public.categories FOR SELECT
   USING (is_active = true);
 
+DROP POLICY IF EXISTS "Admin full management categories" ON public.categories;
 CREATE POLICY "Admin full management categories"
   ON public.categories FOR ALL
   USING (public.is_platform_admin());
 
 -- products RLS
+DROP POLICY IF EXISTS "Public read published products from approved shops" ON public.products;
 CREATE POLICY "Public read published products from approved shops"
   ON public.products FOR SELECT
   USING (
@@ -138,10 +154,12 @@ CREATE POLICY "Public read published products from approved shops"
     )
   );
 
+DROP POLICY IF EXISTS "Sellers can view own shop products in any status" ON public.products;
 CREATE POLICY "Sellers can view own shop products in any status"
   ON public.products FOR SELECT
   USING (public.owns_shop(shop_id) OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Sellers can create products for own approved shop" ON public.products;
 CREATE POLICY "Sellers can create products for own approved shop"
   ON public.products FOR INSERT
   WITH CHECK (
@@ -152,19 +170,23 @@ CREATE POLICY "Sellers can create products for own approved shop"
     )
   );
 
+DROP POLICY IF EXISTS "Sellers can update own shop products" ON public.products;
 CREATE POLICY "Sellers can update own shop products"
   ON public.products FOR UPDATE
   USING (public.owns_shop(shop_id) OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Sellers can delete own shop products" ON public.products;
 CREATE POLICY "Sellers can delete own shop products"
   ON public.products FOR DELETE
   USING (public.owns_shop(shop_id) OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admin full management products" ON public.products;
 CREATE POLICY "Admin full management products"
   ON public.products FOR ALL
   USING (public.is_platform_admin());
 
 -- product_images RLS
+DROP POLICY IF EXISTS "Public read images of visible products" ON public.product_images;
 CREATE POLICY "Public read images of visible products"
   ON public.product_images FOR SELECT
   USING (
@@ -177,6 +199,7 @@ CREATE POLICY "Public read images of visible products"
     )
   );
 
+DROP POLICY IF EXISTS "Sellers can manage images of own products" ON public.product_images;
 CREATE POLICY "Sellers can manage images of own products"
   ON public.product_images FOR ALL
   USING (
@@ -188,6 +211,7 @@ CREATE POLICY "Sellers can manage images of own products"
   );
 
 -- product_compatibility RLS
+DROP POLICY IF EXISTS "Public read compatibility of visible products" ON public.product_compatibility;
 CREATE POLICY "Public read compatibility of visible products"
   ON public.product_compatibility FOR SELECT
   USING (
@@ -200,6 +224,7 @@ CREATE POLICY "Public read compatibility of visible products"
     )
   );
 
+DROP POLICY IF EXISTS "Sellers can manage compatibility of own products" ON public.product_compatibility;
 CREATE POLICY "Sellers can manage compatibility of own products"
   ON public.product_compatibility FOR ALL
   USING (

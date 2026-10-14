@@ -2,10 +2,15 @@
 -- SPAREHUB DATABASE MIGRATION: 005 - Multi-Vendor Cart & Partitioned Orders
 -- Description: Shopping cart, customer orders, shop-partitioned suborders, item snapshots,
 -- and an atomic, transactional checkout function resistant to race conditions & price tampering.
+-- All DDL statements are idempotent and rerun-safe.
 -- =============================================================================
 
+SET search_path = public, extensions;
+
+-- -----------------------------------------------------------------------------
 -- 1. SHOPPING CART ITEMS
-CREATE TABLE public.cart_items (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.cart_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
@@ -15,16 +20,19 @@ CREATE TABLE public.cart_items (
   UNIQUE (user_id, product_id)
 );
 
-CREATE INDEX idx_cart_items_user ON public.cart_items(user_id);
-CREATE INDEX idx_cart_items_product ON public.cart_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_cart_items_user ON public.cart_items(user_id);
+CREATE INDEX IF NOT EXISTS idx_cart_items_product ON public.cart_items(product_id);
 
+DROP TRIGGER IF EXISTS trg_cart_items_updated_at ON public.cart_items;
 CREATE TRIGGER trg_cart_items_updated_at
   BEFORE UPDATE ON public.cart_items
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
+-- -----------------------------------------------------------------------------
 -- 2. CUSTOMER ORDERS (Aggregated Customer Invoice)
-CREATE TABLE public.customer_orders (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.customer_orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_number text NOT NULL UNIQUE,
   customer_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
@@ -47,17 +55,20 @@ CREATE TABLE public.customer_orders (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_customer_orders_customer ON public.customer_orders(customer_id);
-CREATE INDEX idx_customer_orders_status ON public.customer_orders(status);
-CREATE INDEX idx_customer_orders_created ON public.customer_orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_customer_orders_customer ON public.customer_orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_customer_orders_status ON public.customer_orders(status);
+CREATE INDEX IF NOT EXISTS idx_customer_orders_created ON public.customer_orders(created_at DESC);
 
+DROP TRIGGER IF EXISTS trg_customer_orders_updated_at ON public.customer_orders;
 CREATE TRIGGER trg_customer_orders_updated_at
   BEFORE UPDATE ON public.customer_orders
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
+-- -----------------------------------------------------------------------------
 -- 3. SELLER ORDERS (Sub-orders Partitioned by Shop)
-CREATE TABLE public.seller_orders (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.seller_orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_order_id uuid NOT NULL REFERENCES public.customer_orders(id) ON DELETE RESTRICT,
   shop_id uuid NOT NULL REFERENCES public.shops(id) ON DELETE RESTRICT,
@@ -78,17 +89,20 @@ CREATE TABLE public.seller_orders (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_seller_orders_customer_order ON public.seller_orders(customer_order_id);
-CREATE INDEX idx_seller_orders_shop ON public.seller_orders(shop_id);
-CREATE INDEX idx_seller_orders_status ON public.seller_orders(status);
+CREATE INDEX IF NOT EXISTS idx_seller_orders_customer_order ON public.seller_orders(customer_order_id);
+CREATE INDEX IF NOT EXISTS idx_seller_orders_shop ON public.seller_orders(shop_id);
+CREATE INDEX IF NOT EXISTS idx_seller_orders_status ON public.seller_orders(status);
 
+DROP TRIGGER IF EXISTS trg_seller_orders_updated_at ON public.seller_orders;
 CREATE TRIGGER trg_seller_orders_updated_at
   BEFORE UPDATE ON public.seller_orders
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
+-- -----------------------------------------------------------------------------
 -- 4. ORDER ITEMS (Immutable Snapshots at Checkout)
-CREATE TABLE public.order_items (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.order_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   seller_order_id uuid NOT NULL REFERENCES public.seller_orders(id) ON DELETE RESTRICT,
   product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE RESTRICT,
@@ -101,12 +115,14 @@ CREATE TABLE public.order_items (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_order_items_seller_order ON public.order_items(seller_order_id);
-CREATE INDEX idx_order_items_product ON public.order_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_seller_order ON public.order_items(seller_order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_product ON public.order_items(product_id);
 
 
+-- -----------------------------------------------------------------------------
 -- 5. ORDER STATUS HISTORY (Audit Trail)
-CREATE TABLE public.order_status_history (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.order_status_history (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   seller_order_id uuid NOT NULL REFERENCES public.seller_orders(id) ON DELETE CASCADE,
   from_status text,
@@ -116,7 +132,7 @@ CREATE TABLE public.order_status_history (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_order_status_history_order ON public.order_status_history(seller_order_id);
+CREATE INDEX IF NOT EXISTS idx_order_status_history_order ON public.order_status_history(seller_order_id);
 
 
 -- =============================================================================
@@ -137,7 +153,7 @@ CREATE OR REPLACE FUNCTION public.process_checkout_order(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public, auth, pg_temp
 AS $$
 DECLARE
   v_user_id uuid := auth.uid();
@@ -357,9 +373,9 @@ REVOKE ALL ON FUNCTION public.process_checkout_order FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.process_checkout_order TO authenticated, service_role;
 
 
--- =============================================================================
--- ROW LEVEL SECURITY POLICIES
--- =============================================================================
+-- -----------------------------------------------------------------------------
+-- ROW LEVEL SECURITY POLICIES (Idempotent & Rerun-Safe)
+-- -----------------------------------------------------------------------------
 
 ALTER TABLE public.cart_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customer_orders ENABLE ROW LEVEL SECURITY;
@@ -368,20 +384,24 @@ ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_status_history ENABLE ROW LEVEL SECURITY;
 
 -- cart_items RLS
+DROP POLICY IF EXISTS "Users can manage own cart" ON public.cart_items;
 CREATE POLICY "Users can manage own cart"
   ON public.cart_items FOR ALL
   USING (user_id = auth.uid());
 
 -- customer_orders RLS: Read-only for customers; all mutations go through process_checkout_order() or Admin
+DROP POLICY IF EXISTS "Customers can view own orders" ON public.customer_orders;
 CREATE POLICY "Customers can view own orders"
   ON public.customer_orders FOR SELECT
   USING (customer_id = auth.uid() OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admin full management customer_orders" ON public.customer_orders;
 CREATE POLICY "Admin full management customer_orders"
   ON public.customer_orders FOR ALL
   USING (public.is_platform_admin());
 
 -- seller_orders RLS (Strict Multi-Tenant Separation)
+DROP POLICY IF EXISTS "Customers can view sub-orders for their own customer order" ON public.seller_orders;
 CREATE POLICY "Customers can view sub-orders for their own customer order"
   ON public.seller_orders FOR SELECT
   USING (
@@ -391,19 +411,23 @@ CREATE POLICY "Customers can view sub-orders for their own customer order"
     )
   );
 
+DROP POLICY IF EXISTS "Sellers can view own shop sub-orders" ON public.seller_orders;
 CREATE POLICY "Sellers can view own shop sub-orders"
   ON public.seller_orders FOR SELECT
   USING (public.owns_shop(shop_id) OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Sellers can update fulfillment on own sub-orders" ON public.seller_orders;
 CREATE POLICY "Sellers can update fulfillment on own sub-orders"
   ON public.seller_orders FOR UPDATE
   USING (public.owns_shop(shop_id) OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admin full management seller_orders" ON public.seller_orders;
 CREATE POLICY "Admin full management seller_orders"
   ON public.seller_orders FOR ALL
   USING (public.is_platform_admin());
 
 -- order_items RLS
+DROP POLICY IF EXISTS "Customers can view items in own customer orders" ON public.order_items;
 CREATE POLICY "Customers can view items in own customer orders"
   ON public.order_items FOR SELECT
   USING (
@@ -414,6 +438,7 @@ CREATE POLICY "Customers can view items in own customer orders"
     )
   );
 
+DROP POLICY IF EXISTS "Sellers can view items in own shop sub-orders" ON public.order_items;
 CREATE POLICY "Sellers can view items in own shop sub-orders"
   ON public.order_items FOR SELECT
   USING (
@@ -424,11 +449,13 @@ CREATE POLICY "Sellers can view items in own shop sub-orders"
     OR public.is_platform_admin()
   );
 
+DROP POLICY IF EXISTS "Admin full management order_items" ON public.order_items;
 CREATE POLICY "Admin full management order_items"
   ON public.order_items FOR ALL
   USING (public.is_platform_admin());
 
 -- order_status_history RLS
+DROP POLICY IF EXISTS "Authorized parties can view order history" ON public.order_status_history;
 CREATE POLICY "Authorized parties can view order history"
   ON public.order_status_history FOR SELECT
   USING (
@@ -444,6 +471,7 @@ CREATE POLICY "Authorized parties can view order history"
     )
   );
 
+DROP POLICY IF EXISTS "Admin and Sellers can append status history" ON public.order_status_history;
 CREATE POLICY "Admin and Sellers can append status history"
   ON public.order_status_history FOR INSERT
   WITH CHECK (

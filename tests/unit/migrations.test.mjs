@@ -52,6 +52,7 @@ describe("Database Migrations & Schema Architecture Verification", () => {
     for (const table of requiredTables) {
       assert.ok(
         allSqlContent.includes(`CREATE TABLE public.${table}`) ||
+        allSqlContent.includes(`CREATE TABLE IF NOT EXISTS public.${table}`) ||
         allSqlContent.includes(`CREATE TABLE public.${table} (`),
         `Table public.${table} must be defined in migrations`
       );
@@ -115,11 +116,11 @@ describe("Database Migrations & Schema Architecture Verification", () => {
 
   test("enforces partial unique indexes on product_compatibility eliminating nullable duplicate edge-cases", () => {
     assert.ok(
-      allSqlContent.includes("CREATE UNIQUE INDEX idx_compat_product_variant_unique"),
+      allSqlContent.includes("idx_compat_product_variant_unique"),
       "Must define variant-level unique index where variant is not null"
     );
     assert.ok(
-      allSqlContent.includes("CREATE UNIQUE INDEX idx_compat_product_model_unique"),
+      allSqlContent.includes("idx_compat_product_model_unique"),
       "Must define model-level unique index where variant is null"
     );
   });

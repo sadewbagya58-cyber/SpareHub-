@@ -2,7 +2,8 @@
 -- SPAREHUB PRODUCTION DATABASE SCHEMA (CONSOLIDATED AUDITED MIGRATION SUITE)
 -- Brand: SpareHub | Tagline: Every Part. One Marketplace.
 -- Target: Supabase PostgreSQL (Project ref: lbwviifpgkykwtmaqpbe)
--- Generated: 2026-10-14T03:00:24.905Z
+-- All statements are 100% idempotent and rerun-safe (IF NOT EXISTS / DROP POLICY IF EXISTS)
+-- Rebuilt: 2026-10-14T03:56:18.220Z
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -11,20 +12,27 @@
 
 -- =============================================================================
 -- SPAREHUB DATABASE MIGRATION: 001 - Core Extensions & Helper Functions
--- Description: Enables required extensions, automated timestamps, and secure RLS helpers.
+-- Description: Enables required extensions and automated updated_at trigger function.
+-- Note: Table-dependent helper functions (has_role, owns_shop, etc.) are defined in
+-- 002_user_and_seller_profiles.sql after their underlying relations are created.
 -- =============================================================================
 
--- Enable required extensions
+-- Ensure search path includes public and extensions
+SET search_path = public, extensions;
+
+-- 1. ENABLE REQUIRED EXTENSIONS
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "citext";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Automated updated_at trigger function
+-- 2. AUTOMATED UPDATED_AT TRIGGER FUNCTION
+-- Generic function with zero table dependencies; usable by all domain tables
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 BEGIN
   NEW.updated_at = now();
@@ -32,73 +40,9 @@ BEGIN
 END;
 $$;
 
--- RLS Helper: Multi-Role Authorization Check
--- Supports users who possess multiple roles (e.g., both 'customer' and 'seller', or 'platform_admin')
-CREATE OR REPLACE FUNCTION public.has_role(target_role text)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public, auth
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.user_profiles
-    WHERE id = auth.uid() AND (role = target_role OR target_role = ANY(roles))
-  );
-$$;
-
--- RLS Helper: Check if current authenticated user is a Platform Admin
-CREATE OR REPLACE FUNCTION public.is_platform_admin()
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public, auth
-AS $$
-  SELECT public.has_role('platform_admin');
-$$;
-
--- RLS Helper: Check if current authenticated user owns a specific shop
-CREATE OR REPLACE FUNCTION public.owns_shop(target_shop_id uuid)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public, auth
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.shops s
-    JOIN public.seller_profiles sp ON s.seller_profile_id = sp.id
-    WHERE s.id = target_shop_id AND sp.user_id = auth.uid()
-  );
-$$;
-
--- RLS Helper: Check if current authenticated user owns a specific seller profile
-CREATE OR REPLACE FUNCTION public.owns_seller_profile(target_profile_id uuid)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public, auth
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.seller_profiles
-    WHERE id = target_profile_id AND user_id = auth.uid()
-  );
-$$;
-
 -- Explicit Least-Privilege Execution Permissions
-REVOKE ALL ON FUNCTION public.has_role(text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.has_role(text) TO authenticated, service_role;
-
-REVOKE ALL ON FUNCTION public.is_platform_admin() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.is_platform_admin() TO authenticated, anon, service_role;
-
-REVOKE ALL ON FUNCTION public.owns_shop(uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.owns_shop(uuid) TO authenticated, service_role;
-
-REVOKE ALL ON FUNCTION public.owns_seller_profile(uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.owns_seller_profile(uuid) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.set_updated_at() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.set_updated_at() TO authenticated, service_role;
 
 
 -- -----------------------------------------------------------------------------
@@ -108,11 +52,16 @@ GRANT EXECUTE ON FUNCTION public.owns_seller_profile(uuid) TO authenticated, ser
 -- =============================================================================
 -- SPAREHUB DATABASE MIGRATION: 002 - User Profiles, Seller Profiles & Shops
 -- Description: Multi-vendor identity, onboarding, shop status, and verification vault.
--- Hardened against INSERT/UPDATE role escalation and unauthorized self-approval.
+-- Defines table-dependent authorization helper functions immediately after tables are created.
+-- All DDL statements are idempotent and rerun-safe.
 -- =============================================================================
 
+SET search_path = public, extensions;
+
+-- -----------------------------------------------------------------------------
 -- 1. USER PROFILES
-CREATE TABLE public.user_profiles (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_profiles (
   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email citext NOT NULL UNIQUE,
   full_name text NOT NULL,
@@ -123,10 +72,43 @@ CREATE TABLE public.user_profiles (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_user_profiles_role ON public.user_profiles(role);
-CREATE INDEX idx_user_profiles_roles ON public.user_profiles USING gin (roles);
-CREATE INDEX idx_user_profiles_email ON public.user_profiles(email);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_role ON public.user_profiles(role);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_roles ON public.user_profiles USING gin (roles);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_email ON public.user_profiles(email);
 
+-- Table-Dependent Helper: Multi-Role Authorization Check
+CREATE OR REPLACE FUNCTION public.has_role(target_role text)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_profiles
+    WHERE id = auth.uid() AND (role = target_role OR target_role = ANY(roles))
+  );
+$$;
+
+-- Table-Dependent Helper: Platform Admin Check
+CREATE OR REPLACE FUNCTION public.is_platform_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+  SELECT public.has_role('platform_admin');
+$$;
+
+REVOKE ALL ON FUNCTION public.has_role(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.has_role(text) TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.is_platform_admin() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_platform_admin() TO authenticated, anon, service_role;
+
+-- Updated_at trigger for user_profiles
+DROP TRIGGER IF EXISTS trg_user_profiles_updated_at ON public.user_profiles;
 CREATE TRIGGER trg_user_profiles_updated_at
   BEFORE UPDATE ON public.user_profiles
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -136,17 +118,14 @@ CREATE OR REPLACE FUNCTION public.prevent_self_role_escalation()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public, auth, pg_temp
 AS $$
 BEGIN
-  -- If not platform administrator:
   IF NOT public.is_platform_admin() THEN
     IF TG_OP = 'INSERT' THEN
-      -- Guarantee initial role on insert is customer only
       NEW.role = 'customer';
       NEW.roles = ARRAY['customer']::text[];
     ELSIF TG_OP = 'UPDATE' THEN
-      -- Block modification of role or roles array
       IF NEW.role <> OLD.role OR NEW.roles <> OLD.roles THEN
         RAISE EXCEPTION 'Unauthorized: Only platform administrators can modify user roles.';
       END IF;
@@ -156,6 +135,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_prevent_role_escalation ON public.user_profiles;
 CREATE TRIGGER trg_prevent_role_escalation
   BEFORE INSERT OR UPDATE OF role, roles ON public.user_profiles
   FOR EACH ROW EXECUTE FUNCTION public.prevent_self_role_escalation();
@@ -165,7 +145,7 @@ CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public, auth, pg_temp
 AS $$
 BEGIN
   INSERT INTO public.user_profiles (id, email, full_name, role, roles)
@@ -181,15 +161,16 @@ BEGIN
 END;
 $$;
 
--- Trigger fired after an auth user is created
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();
 
 
+-- -----------------------------------------------------------------------------
 -- 2. SELLER PROFILES
-CREATE TABLE public.seller_profiles (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.seller_profiles (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
   seller_type text NOT NULL CHECK (seller_type IN ('retail_shop', 'individual', 'wholesaler', 'importer')),
@@ -202,9 +183,27 @@ CREATE TABLE public.seller_profiles (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_seller_profiles_user_id ON public.seller_profiles(user_id);
-CREATE INDEX idx_seller_profiles_status ON public.seller_profiles(verification_status);
+CREATE INDEX IF NOT EXISTS idx_seller_profiles_user_id ON public.seller_profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_seller_profiles_status ON public.seller_profiles(verification_status);
 
+-- Table-Dependent Helper: Seller Profile Ownership Check
+CREATE OR REPLACE FUNCTION public.owns_seller_profile(target_profile_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.seller_profiles
+    WHERE id = target_profile_id AND user_id = auth.uid()
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.owns_seller_profile(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.owns_seller_profile(uuid) TO authenticated, service_role;
+
+DROP TRIGGER IF EXISTS trg_seller_profiles_updated_at ON public.seller_profiles;
 CREATE TRIGGER trg_seller_profiles_updated_at
   BEFORE UPDATE ON public.seller_profiles
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -214,12 +213,11 @@ CREATE OR REPLACE FUNCTION public.prevent_self_verification_override()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public, auth, pg_temp
 AS $$
 BEGIN
   IF NOT public.is_platform_admin() THEN
     IF TG_OP = 'INSERT' THEN
-      -- Force unverified status on creation
       NEW.verification_status = 'unverified';
       NEW.verified_at = NULL;
       NEW.rejection_reason = NULL;
@@ -233,13 +231,16 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_prevent_verification_override ON public.seller_profiles;
 CREATE TRIGGER trg_prevent_verification_override
   BEFORE INSERT OR UPDATE OF verification_status ON public.seller_profiles
   FOR EACH ROW EXECUTE FUNCTION public.prevent_self_verification_override();
 
 
+-- -----------------------------------------------------------------------------
 -- 3. SHOPS
-CREATE TABLE public.shops (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.shops (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   seller_profile_id uuid NOT NULL REFERENCES public.seller_profiles(id) ON DELETE RESTRICT,
   name text NOT NULL,
@@ -262,11 +263,30 @@ CREATE TABLE public.shops (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_shops_seller_profile_id ON public.shops(seller_profile_id);
-CREATE INDEX idx_shops_status ON public.shops(status);
-CREATE INDEX idx_shops_district ON public.shops(district);
-CREATE INDEX idx_shops_slug ON public.shops(slug);
+CREATE INDEX IF NOT EXISTS idx_shops_seller_profile_id ON public.shops(seller_profile_id);
+CREATE INDEX IF NOT EXISTS idx_shops_status ON public.shops(status);
+CREATE INDEX IF NOT EXISTS idx_shops_district ON public.shops(district);
+CREATE INDEX IF NOT EXISTS idx_shops_slug ON public.shops(slug);
 
+-- Table-Dependent Helper: Shop Ownership Check
+CREATE OR REPLACE FUNCTION public.owns_shop(target_shop_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.shops s
+    JOIN public.seller_profiles sp ON s.seller_profile_id = sp.id
+    WHERE s.id = target_shop_id AND sp.user_id = auth.uid()
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.owns_shop(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.owns_shop(uuid) TO authenticated, service_role;
+
+DROP TRIGGER IF EXISTS trg_shops_updated_at ON public.shops;
 CREATE TRIGGER trg_shops_updated_at
   BEFORE UPDATE ON public.shops
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -276,12 +296,11 @@ CREATE OR REPLACE FUNCTION public.prevent_self_shop_approval()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public, auth, pg_temp
 AS $$
 BEGIN
   IF NOT public.is_platform_admin() THEN
     IF TG_OP = 'INSERT' THEN
-      -- Force draft status on shop registration
       NEW.status = 'draft';
       NEW.approved_by = NULL;
       NEW.approved_at = NULL;
@@ -295,13 +314,16 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_prevent_shop_approval ON public.shops;
 CREATE TRIGGER trg_prevent_shop_approval
   BEFORE INSERT OR UPDATE OF status ON public.shops
   FOR EACH ROW EXECUTE FUNCTION public.prevent_self_shop_approval();
 
 
+-- -----------------------------------------------------------------------------
 -- 4. SELLER DOCUMENTS (Secure Private Verification Vault)
-CREATE TABLE public.seller_documents (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.seller_documents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   seller_profile_id uuid NOT NULL REFERENCES public.seller_profiles(id) ON DELETE CASCADE,
   shop_id uuid REFERENCES public.shops(id) ON DELETE CASCADE,
@@ -313,13 +335,13 @@ CREATE TABLE public.seller_documents (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_seller_documents_profile ON public.seller_documents(seller_profile_id);
-CREATE INDEX idx_seller_documents_shop ON public.seller_documents(shop_id);
+CREATE INDEX IF NOT EXISTS idx_seller_documents_profile ON public.seller_documents(seller_profile_id);
+CREATE INDEX IF NOT EXISTS idx_seller_documents_shop ON public.seller_documents(shop_id);
 
 
--- =============================================================================
--- ROW LEVEL SECURITY POLICIES
--- =============================================================================
+-- -----------------------------------------------------------------------------
+-- ROW LEVEL SECURITY POLICIES (Idempotent & Rerun-Safe)
+-- -----------------------------------------------------------------------------
 
 ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.seller_profiles ENABLE ROW LEVEL SECURITY;
@@ -327,69 +349,85 @@ ALTER TABLE public.shops ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.seller_documents ENABLE ROW LEVEL SECURITY;
 
 -- user_profiles RLS
+DROP POLICY IF EXISTS "Users can view own profile" ON public.user_profiles;
 CREATE POLICY "Users can view own profile"
   ON public.user_profiles FOR SELECT
   USING (id = auth.uid() OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Users can insert own initial profile" ON public.user_profiles;
 CREATE POLICY "Users can insert own initial profile"
   ON public.user_profiles FOR INSERT
   WITH CHECK (id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can update own profile" ON public.user_profiles;
 CREATE POLICY "Users can update own profile"
   ON public.user_profiles FOR UPDATE
   USING (id = auth.uid() OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admins full management on user_profiles" ON public.user_profiles;
 CREATE POLICY "Admins full management on user_profiles"
   ON public.user_profiles FOR ALL
   USING (public.is_platform_admin());
 
 -- seller_profiles RLS
+DROP POLICY IF EXISTS "Sellers can view own seller profile" ON public.seller_profiles;
 CREATE POLICY "Sellers can view own seller profile"
   ON public.seller_profiles FOR SELECT
   USING (user_id = auth.uid() OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Sellers can create own seller profile" ON public.seller_profiles;
 CREATE POLICY "Sellers can create own seller profile"
   ON public.seller_profiles FOR INSERT
   WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Sellers can update own seller profile" ON public.seller_profiles;
 CREATE POLICY "Sellers can update own seller profile"
   ON public.seller_profiles FOR UPDATE
   USING (user_id = auth.uid() OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admins full management on seller_profiles" ON public.seller_profiles;
 CREATE POLICY "Admins full management on seller_profiles"
   ON public.seller_profiles FOR ALL
   USING (public.is_platform_admin());
 
 -- shops RLS
+DROP POLICY IF EXISTS "Public can view approved shops" ON public.shops;
 CREATE POLICY "Public can view approved shops"
   ON public.shops FOR SELECT
   USING (status = 'approved');
 
+DROP POLICY IF EXISTS "Sellers can view own shop in any state" ON public.shops;
 CREATE POLICY "Sellers can view own shop in any state"
   ON public.shops FOR SELECT
   USING (public.owns_shop(id) OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Sellers can create shop for their verified profile" ON public.shops;
 CREATE POLICY "Sellers can create shop for their verified profile"
   ON public.shops FOR INSERT
   WITH CHECK (public.owns_seller_profile(seller_profile_id));
 
+DROP POLICY IF EXISTS "Sellers can update own shop details" ON public.shops;
 CREATE POLICY "Sellers can update own shop details"
   ON public.shops FOR UPDATE
   USING (public.owns_shop(id) OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admins full management on shops" ON public.shops;
 CREATE POLICY "Admins full management on shops"
   ON public.shops FOR ALL
   USING (public.is_platform_admin());
 
 -- seller_documents RLS (Strictly Protected - ZERO public access)
+DROP POLICY IF EXISTS "Sellers can view own documents" ON public.seller_documents;
 CREATE POLICY "Sellers can view own documents"
   ON public.seller_documents FOR SELECT
   USING (public.owns_seller_profile(seller_profile_id) OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Sellers can upload own verification documents" ON public.seller_documents;
 CREATE POLICY "Sellers can upload own verification documents"
   ON public.seller_documents FOR INSERT
   WITH CHECK (public.owns_seller_profile(seller_profile_id));
 
+DROP POLICY IF EXISTS "Admins full management on seller_documents" ON public.seller_documents;
 CREATE POLICY "Admins full management on seller_documents"
   ON public.seller_documents FOR ALL
   USING (public.is_platform_admin());
@@ -402,10 +440,15 @@ CREATE POLICY "Admins full management on seller_documents"
 -- =============================================================================
 -- SPAREHUB DATABASE MIGRATION: 003 - Hierarchical Vehicle Taxonomy
 -- Description: Vehicle types, makes, models, and variants supporting all categories.
+-- All DDL statements are idempotent and rerun-safe.
 -- =============================================================================
 
+SET search_path = public, extensions;
+
+-- -----------------------------------------------------------------------------
 -- 1. VEHICLE TYPES
-CREATE TABLE public.vehicle_types (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.vehicle_types (
   id text PRIMARY KEY,
   name text NOT NULL,
   display_order int NOT NULL DEFAULT 0,
@@ -413,7 +456,7 @@ CREATE TABLE public.vehicle_types (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- Seed initial vehicle types
+-- Seed initial vehicle types (Idempotent ON CONFLICT)
 INSERT INTO public.vehicle_types (id, name, display_order) VALUES
   ('car', 'Cars & SUVs', 1),
   ('three_wheeler', 'Three-Wheelers', 2),
@@ -426,8 +469,10 @@ INSERT INTO public.vehicle_types (id, name, display_order) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 
+-- -----------------------------------------------------------------------------
 -- 2. VEHICLE MAKES
-CREATE TABLE public.vehicle_makes (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.vehicle_makes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   vehicle_type_id text NOT NULL REFERENCES public.vehicle_types(id) ON DELETE RESTRICT,
   name text NOT NULL,
@@ -437,12 +482,14 @@ CREATE TABLE public.vehicle_makes (
   UNIQUE (vehicle_type_id, name)
 );
 
-CREATE INDEX idx_vehicle_makes_type ON public.vehicle_makes(vehicle_type_id);
-CREATE INDEX idx_vehicle_makes_name ON public.vehicle_makes(name);
+CREATE INDEX IF NOT EXISTS idx_vehicle_makes_type ON public.vehicle_makes(vehicle_type_id);
+CREATE INDEX IF NOT EXISTS idx_vehicle_makes_name ON public.vehicle_makes(name);
 
 
+-- -----------------------------------------------------------------------------
 -- 3. VEHICLE MODELS
-CREATE TABLE public.vehicle_models (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.vehicle_models (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   make_id uuid NOT NULL REFERENCES public.vehicle_makes(id) ON DELETE CASCADE,
   name text NOT NULL,
@@ -451,12 +498,14 @@ CREATE TABLE public.vehicle_models (
   UNIQUE (make_id, name)
 );
 
-CREATE INDEX idx_vehicle_models_make ON public.vehicle_models(make_id);
-CREATE INDEX idx_vehicle_models_name ON public.vehicle_models(name);
+CREATE INDEX IF NOT EXISTS idx_vehicle_models_make ON public.vehicle_models(make_id);
+CREATE INDEX IF NOT EXISTS idx_vehicle_models_name ON public.vehicle_models(name);
 
 
+-- -----------------------------------------------------------------------------
 -- 4. VEHICLE VARIANTS
-CREATE TABLE public.vehicle_variants (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.vehicle_variants (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   model_id uuid NOT NULL REFERENCES public.vehicle_models(id) ON DELETE CASCADE,
   generation_chassis text,
@@ -468,14 +517,14 @@ CREATE TABLE public.vehicle_variants (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_vehicle_variants_model ON public.vehicle_variants(model_id);
-CREATE INDEX idx_vehicle_variants_years ON public.vehicle_variants(year_start, year_end);
-CREATE INDEX idx_vehicle_variants_chassis ON public.vehicle_variants(generation_chassis);
+CREATE INDEX IF NOT EXISTS idx_vehicle_variants_model ON public.vehicle_variants(model_id);
+CREATE INDEX IF NOT EXISTS idx_vehicle_variants_years ON public.vehicle_variants(year_start, year_end);
+CREATE INDEX IF NOT EXISTS idx_vehicle_variants_chassis ON public.vehicle_variants(generation_chassis);
 
 
--- =============================================================================
--- ROW LEVEL SECURITY POLICIES
--- =============================================================================
+-- -----------------------------------------------------------------------------
+-- ROW LEVEL SECURITY POLICIES (Idempotent & Rerun-Safe)
+-- -----------------------------------------------------------------------------
 
 ALTER TABLE public.vehicle_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vehicle_makes ENABLE ROW LEVEL SECURITY;
@@ -483,35 +532,43 @@ ALTER TABLE public.vehicle_models ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vehicle_variants ENABLE ROW LEVEL SECURITY;
 
 -- Public read policies
+DROP POLICY IF EXISTS "Public read active vehicle_types" ON public.vehicle_types;
 CREATE POLICY "Public read active vehicle_types"
   ON public.vehicle_types FOR SELECT
   USING (is_active = true);
 
+DROP POLICY IF EXISTS "Public read vehicle_makes" ON public.vehicle_makes;
 CREATE POLICY "Public read vehicle_makes"
   ON public.vehicle_makes FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Public read vehicle_models" ON public.vehicle_models;
 CREATE POLICY "Public read vehicle_models"
   ON public.vehicle_models FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Public read vehicle_variants" ON public.vehicle_variants;
 CREATE POLICY "Public read vehicle_variants"
   ON public.vehicle_variants FOR SELECT
   USING (true);
 
 -- Admin management policies
+DROP POLICY IF EXISTS "Admin full management vehicle_types" ON public.vehicle_types;
 CREATE POLICY "Admin full management vehicle_types"
   ON public.vehicle_types FOR ALL
   USING (public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admin full management vehicle_makes" ON public.vehicle_makes;
 CREATE POLICY "Admin full management vehicle_makes"
   ON public.vehicle_makes FOR ALL
   USING (public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admin full management vehicle_models" ON public.vehicle_models;
 CREATE POLICY "Admin full management vehicle_models"
   ON public.vehicle_models FOR ALL
   USING (public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admin full management vehicle_variants" ON public.vehicle_variants;
 CREATE POLICY "Admin full management vehicle_variants"
   ON public.vehicle_variants FOR ALL
   USING (public.is_platform_admin());
@@ -525,10 +582,15 @@ CREATE POLICY "Admin full management vehicle_variants"
 -- SPAREHUB DATABASE MIGRATION: 004 - Product Catalog & Vehicle Compatibility
 -- Description: Multi-vendor catalog, images, full-text indexes, and structured compatibility.
 -- Fix: Robust partial unique indexes resolving nullable column edge-cases.
+-- All DDL statements are idempotent and rerun-safe.
 -- =============================================================================
 
+SET search_path = public, extensions;
+
+-- -----------------------------------------------------------------------------
 -- 1. CATEGORIES
-CREATE TABLE public.categories (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.categories (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   parent_id uuid REFERENCES public.categories(id) ON DELETE SET NULL,
   name text NOT NULL,
@@ -540,16 +602,19 @@ CREATE TABLE public.categories (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_categories_parent ON public.categories(parent_id);
-CREATE INDEX idx_categories_slug ON public.categories(slug);
+CREATE INDEX IF NOT EXISTS idx_categories_parent ON public.categories(parent_id);
+CREATE INDEX IF NOT EXISTS idx_categories_slug ON public.categories(slug);
 
+DROP TRIGGER IF EXISTS trg_categories_updated_at ON public.categories;
 CREATE TRIGGER trg_categories_updated_at
   BEFORE UPDATE ON public.categories
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
+-- -----------------------------------------------------------------------------
 -- 2. PRODUCTS
-CREATE TABLE public.products (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.products (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   shop_id uuid NOT NULL REFERENCES public.shops(id) ON DELETE RESTRICT,
   category_id uuid NOT NULL REFERENCES public.categories(id) ON DELETE RESTRICT,
@@ -575,24 +640,27 @@ CREATE TABLE public.products (
   UNIQUE (shop_id, slug)
 );
 
-CREATE INDEX idx_products_shop_id ON public.products(shop_id);
-CREATE INDEX idx_products_category_id ON public.products(category_id);
-CREATE INDEX idx_products_status ON public.products(status);
-CREATE INDEX idx_products_published ON public.products(is_published);
-CREATE INDEX idx_products_price ON public.products(price_minor_units);
+CREATE INDEX IF NOT EXISTS idx_products_shop_id ON public.products(shop_id);
+CREATE INDEX IF NOT EXISTS idx_products_category_id ON public.products(category_id);
+CREATE INDEX IF NOT EXISTS idx_products_status ON public.products(status);
+CREATE INDEX IF NOT EXISTS idx_products_published ON public.products(is_published);
+CREATE INDEX IF NOT EXISTS idx_products_price ON public.products(price_minor_units);
 
 -- Trigram indexes for resilient partial search across part numbers and titles
-CREATE INDEX idx_products_part_number_trgm ON public.products USING gin (part_number gin_trgm_ops);
-CREATE INDEX idx_products_oem_trgm ON public.products USING gin (oem_part_number gin_trgm_ops);
-CREATE INDEX idx_products_title_trgm ON public.products USING gin (title gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_products_part_number_trgm ON public.products USING gin (part_number gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_products_oem_trgm ON public.products USING gin (oem_part_number gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_products_title_trgm ON public.products USING gin (title gin_trgm_ops);
 
+DROP TRIGGER IF EXISTS trg_products_updated_at ON public.products;
 CREATE TRIGGER trg_products_updated_at
   BEFORE UPDATE ON public.products
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
+-- -----------------------------------------------------------------------------
 -- 3. PRODUCT IMAGES
-CREATE TABLE public.product_images (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.product_images (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
   image_url text NOT NULL,
@@ -602,11 +670,13 @@ CREATE TABLE public.product_images (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_product_images_product ON public.product_images(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_images_product ON public.product_images(product_id);
 
 
+-- -----------------------------------------------------------------------------
 -- 4. PRODUCT VEHICLE COMPATIBILITY
-CREATE TABLE public.product_compatibility (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.product_compatibility (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
   vehicle_variant_id uuid REFERENCES public.vehicle_variants(id) ON DELETE CASCADE,
@@ -617,23 +687,23 @@ CREATE TABLE public.product_compatibility (
   CONSTRAINT check_variant_or_model CHECK (vehicle_variant_id IS NOT NULL OR vehicle_model_id IS NOT NULL)
 );
 
-CREATE INDEX idx_compatibility_product ON public.product_compatibility(product_id);
-CREATE INDEX idx_compatibility_variant ON public.product_compatibility(vehicle_variant_id);
-CREATE INDEX idx_compatibility_model ON public.product_compatibility(vehicle_model_id);
+CREATE INDEX IF NOT EXISTS idx_compatibility_product ON public.product_compatibility(product_id);
+CREATE INDEX IF NOT EXISTS idx_compatibility_variant ON public.product_compatibility(vehicle_variant_id);
+CREATE INDEX IF NOT EXISTS idx_compatibility_model ON public.product_compatibility(vehicle_model_id);
 
 -- Robust partial unique indexes: handles nullable variant/model cleanly without SQL NULL duplicate quirks
-CREATE UNIQUE INDEX idx_compat_product_variant_unique
+CREATE UNIQUE INDEX IF NOT EXISTS idx_compat_product_variant_unique
   ON public.product_compatibility (product_id, vehicle_variant_id)
   WHERE vehicle_variant_id IS NOT NULL;
 
-CREATE UNIQUE INDEX idx_compat_product_model_unique
+CREATE UNIQUE INDEX IF NOT EXISTS idx_compat_product_model_unique
   ON public.product_compatibility (product_id, vehicle_model_id)
   WHERE vehicle_variant_id IS NULL;
 
 
--- =============================================================================
--- ROW LEVEL SECURITY POLICIES
--- =============================================================================
+-- -----------------------------------------------------------------------------
+-- ROW LEVEL SECURITY POLICIES (Idempotent & Rerun-Safe)
+-- -----------------------------------------------------------------------------
 
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
@@ -641,15 +711,18 @@ ALTER TABLE public.product_images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.product_compatibility ENABLE ROW LEVEL SECURITY;
 
 -- categories RLS
+DROP POLICY IF EXISTS "Public read active categories" ON public.categories;
 CREATE POLICY "Public read active categories"
   ON public.categories FOR SELECT
   USING (is_active = true);
 
+DROP POLICY IF EXISTS "Admin full management categories" ON public.categories;
 CREATE POLICY "Admin full management categories"
   ON public.categories FOR ALL
   USING (public.is_platform_admin());
 
 -- products RLS
+DROP POLICY IF EXISTS "Public read published products from approved shops" ON public.products;
 CREATE POLICY "Public read published products from approved shops"
   ON public.products FOR SELECT
   USING (
@@ -661,10 +734,12 @@ CREATE POLICY "Public read published products from approved shops"
     )
   );
 
+DROP POLICY IF EXISTS "Sellers can view own shop products in any status" ON public.products;
 CREATE POLICY "Sellers can view own shop products in any status"
   ON public.products FOR SELECT
   USING (public.owns_shop(shop_id) OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Sellers can create products for own approved shop" ON public.products;
 CREATE POLICY "Sellers can create products for own approved shop"
   ON public.products FOR INSERT
   WITH CHECK (
@@ -675,19 +750,23 @@ CREATE POLICY "Sellers can create products for own approved shop"
     )
   );
 
+DROP POLICY IF EXISTS "Sellers can update own shop products" ON public.products;
 CREATE POLICY "Sellers can update own shop products"
   ON public.products FOR UPDATE
   USING (public.owns_shop(shop_id) OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Sellers can delete own shop products" ON public.products;
 CREATE POLICY "Sellers can delete own shop products"
   ON public.products FOR DELETE
   USING (public.owns_shop(shop_id) OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admin full management products" ON public.products;
 CREATE POLICY "Admin full management products"
   ON public.products FOR ALL
   USING (public.is_platform_admin());
 
 -- product_images RLS
+DROP POLICY IF EXISTS "Public read images of visible products" ON public.product_images;
 CREATE POLICY "Public read images of visible products"
   ON public.product_images FOR SELECT
   USING (
@@ -700,6 +779,7 @@ CREATE POLICY "Public read images of visible products"
     )
   );
 
+DROP POLICY IF EXISTS "Sellers can manage images of own products" ON public.product_images;
 CREATE POLICY "Sellers can manage images of own products"
   ON public.product_images FOR ALL
   USING (
@@ -711,6 +791,7 @@ CREATE POLICY "Sellers can manage images of own products"
   );
 
 -- product_compatibility RLS
+DROP POLICY IF EXISTS "Public read compatibility of visible products" ON public.product_compatibility;
 CREATE POLICY "Public read compatibility of visible products"
   ON public.product_compatibility FOR SELECT
   USING (
@@ -723,6 +804,7 @@ CREATE POLICY "Public read compatibility of visible products"
     )
   );
 
+DROP POLICY IF EXISTS "Sellers can manage compatibility of own products" ON public.product_compatibility;
 CREATE POLICY "Sellers can manage compatibility of own products"
   ON public.product_compatibility FOR ALL
   USING (
@@ -742,10 +824,15 @@ CREATE POLICY "Sellers can manage compatibility of own products"
 -- SPAREHUB DATABASE MIGRATION: 005 - Multi-Vendor Cart & Partitioned Orders
 -- Description: Shopping cart, customer orders, shop-partitioned suborders, item snapshots,
 -- and an atomic, transactional checkout function resistant to race conditions & price tampering.
+-- All DDL statements are idempotent and rerun-safe.
 -- =============================================================================
 
+SET search_path = public, extensions;
+
+-- -----------------------------------------------------------------------------
 -- 1. SHOPPING CART ITEMS
-CREATE TABLE public.cart_items (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.cart_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
@@ -755,16 +842,19 @@ CREATE TABLE public.cart_items (
   UNIQUE (user_id, product_id)
 );
 
-CREATE INDEX idx_cart_items_user ON public.cart_items(user_id);
-CREATE INDEX idx_cart_items_product ON public.cart_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_cart_items_user ON public.cart_items(user_id);
+CREATE INDEX IF NOT EXISTS idx_cart_items_product ON public.cart_items(product_id);
 
+DROP TRIGGER IF EXISTS trg_cart_items_updated_at ON public.cart_items;
 CREATE TRIGGER trg_cart_items_updated_at
   BEFORE UPDATE ON public.cart_items
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
+-- -----------------------------------------------------------------------------
 -- 2. CUSTOMER ORDERS (Aggregated Customer Invoice)
-CREATE TABLE public.customer_orders (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.customer_orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_number text NOT NULL UNIQUE,
   customer_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
@@ -787,17 +877,20 @@ CREATE TABLE public.customer_orders (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_customer_orders_customer ON public.customer_orders(customer_id);
-CREATE INDEX idx_customer_orders_status ON public.customer_orders(status);
-CREATE INDEX idx_customer_orders_created ON public.customer_orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_customer_orders_customer ON public.customer_orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_customer_orders_status ON public.customer_orders(status);
+CREATE INDEX IF NOT EXISTS idx_customer_orders_created ON public.customer_orders(created_at DESC);
 
+DROP TRIGGER IF EXISTS trg_customer_orders_updated_at ON public.customer_orders;
 CREATE TRIGGER trg_customer_orders_updated_at
   BEFORE UPDATE ON public.customer_orders
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
+-- -----------------------------------------------------------------------------
 -- 3. SELLER ORDERS (Sub-orders Partitioned by Shop)
-CREATE TABLE public.seller_orders (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.seller_orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_order_id uuid NOT NULL REFERENCES public.customer_orders(id) ON DELETE RESTRICT,
   shop_id uuid NOT NULL REFERENCES public.shops(id) ON DELETE RESTRICT,
@@ -818,17 +911,20 @@ CREATE TABLE public.seller_orders (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_seller_orders_customer_order ON public.seller_orders(customer_order_id);
-CREATE INDEX idx_seller_orders_shop ON public.seller_orders(shop_id);
-CREATE INDEX idx_seller_orders_status ON public.seller_orders(status);
+CREATE INDEX IF NOT EXISTS idx_seller_orders_customer_order ON public.seller_orders(customer_order_id);
+CREATE INDEX IF NOT EXISTS idx_seller_orders_shop ON public.seller_orders(shop_id);
+CREATE INDEX IF NOT EXISTS idx_seller_orders_status ON public.seller_orders(status);
 
+DROP TRIGGER IF EXISTS trg_seller_orders_updated_at ON public.seller_orders;
 CREATE TRIGGER trg_seller_orders_updated_at
   BEFORE UPDATE ON public.seller_orders
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
+-- -----------------------------------------------------------------------------
 -- 4. ORDER ITEMS (Immutable Snapshots at Checkout)
-CREATE TABLE public.order_items (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.order_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   seller_order_id uuid NOT NULL REFERENCES public.seller_orders(id) ON DELETE RESTRICT,
   product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE RESTRICT,
@@ -841,12 +937,14 @@ CREATE TABLE public.order_items (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_order_items_seller_order ON public.order_items(seller_order_id);
-CREATE INDEX idx_order_items_product ON public.order_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_seller_order ON public.order_items(seller_order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_product ON public.order_items(product_id);
 
 
+-- -----------------------------------------------------------------------------
 -- 5. ORDER STATUS HISTORY (Audit Trail)
-CREATE TABLE public.order_status_history (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.order_status_history (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   seller_order_id uuid NOT NULL REFERENCES public.seller_orders(id) ON DELETE CASCADE,
   from_status text,
@@ -856,7 +954,7 @@ CREATE TABLE public.order_status_history (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_order_status_history_order ON public.order_status_history(seller_order_id);
+CREATE INDEX IF NOT EXISTS idx_order_status_history_order ON public.order_status_history(seller_order_id);
 
 
 -- =============================================================================
@@ -877,7 +975,7 @@ CREATE OR REPLACE FUNCTION public.process_checkout_order(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public, auth, pg_temp
 AS $$
 DECLARE
   v_user_id uuid := auth.uid();
@@ -1097,9 +1195,9 @@ REVOKE ALL ON FUNCTION public.process_checkout_order FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.process_checkout_order TO authenticated, service_role;
 
 
--- =============================================================================
--- ROW LEVEL SECURITY POLICIES
--- =============================================================================
+-- -----------------------------------------------------------------------------
+-- ROW LEVEL SECURITY POLICIES (Idempotent & Rerun-Safe)
+-- -----------------------------------------------------------------------------
 
 ALTER TABLE public.cart_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customer_orders ENABLE ROW LEVEL SECURITY;
@@ -1108,20 +1206,24 @@ ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_status_history ENABLE ROW LEVEL SECURITY;
 
 -- cart_items RLS
+DROP POLICY IF EXISTS "Users can manage own cart" ON public.cart_items;
 CREATE POLICY "Users can manage own cart"
   ON public.cart_items FOR ALL
   USING (user_id = auth.uid());
 
 -- customer_orders RLS: Read-only for customers; all mutations go through process_checkout_order() or Admin
+DROP POLICY IF EXISTS "Customers can view own orders" ON public.customer_orders;
 CREATE POLICY "Customers can view own orders"
   ON public.customer_orders FOR SELECT
   USING (customer_id = auth.uid() OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admin full management customer_orders" ON public.customer_orders;
 CREATE POLICY "Admin full management customer_orders"
   ON public.customer_orders FOR ALL
   USING (public.is_platform_admin());
 
 -- seller_orders RLS (Strict Multi-Tenant Separation)
+DROP POLICY IF EXISTS "Customers can view sub-orders for their own customer order" ON public.seller_orders;
 CREATE POLICY "Customers can view sub-orders for their own customer order"
   ON public.seller_orders FOR SELECT
   USING (
@@ -1131,19 +1233,23 @@ CREATE POLICY "Customers can view sub-orders for their own customer order"
     )
   );
 
+DROP POLICY IF EXISTS "Sellers can view own shop sub-orders" ON public.seller_orders;
 CREATE POLICY "Sellers can view own shop sub-orders"
   ON public.seller_orders FOR SELECT
   USING (public.owns_shop(shop_id) OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Sellers can update fulfillment on own sub-orders" ON public.seller_orders;
 CREATE POLICY "Sellers can update fulfillment on own sub-orders"
   ON public.seller_orders FOR UPDATE
   USING (public.owns_shop(shop_id) OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admin full management seller_orders" ON public.seller_orders;
 CREATE POLICY "Admin full management seller_orders"
   ON public.seller_orders FOR ALL
   USING (public.is_platform_admin());
 
 -- order_items RLS
+DROP POLICY IF EXISTS "Customers can view items in own customer orders" ON public.order_items;
 CREATE POLICY "Customers can view items in own customer orders"
   ON public.order_items FOR SELECT
   USING (
@@ -1154,6 +1260,7 @@ CREATE POLICY "Customers can view items in own customer orders"
     )
   );
 
+DROP POLICY IF EXISTS "Sellers can view items in own shop sub-orders" ON public.order_items;
 CREATE POLICY "Sellers can view items in own shop sub-orders"
   ON public.order_items FOR SELECT
   USING (
@@ -1164,11 +1271,13 @@ CREATE POLICY "Sellers can view items in own shop sub-orders"
     OR public.is_platform_admin()
   );
 
+DROP POLICY IF EXISTS "Admin full management order_items" ON public.order_items;
 CREATE POLICY "Admin full management order_items"
   ON public.order_items FOR ALL
   USING (public.is_platform_admin());
 
 -- order_status_history RLS
+DROP POLICY IF EXISTS "Authorized parties can view order history" ON public.order_status_history;
 CREATE POLICY "Authorized parties can view order history"
   ON public.order_status_history FOR SELECT
   USING (
@@ -1184,6 +1293,7 @@ CREATE POLICY "Authorized parties can view order history"
     )
   );
 
+DROP POLICY IF EXISTS "Admin and Sellers can append status history" ON public.order_status_history;
 CREATE POLICY "Admin and Sellers can append status history"
   ON public.order_status_history FOR INSERT
   WITH CHECK (
@@ -1202,10 +1312,15 @@ CREATE POLICY "Admin and Sellers can append status history"
 -- =============================================================================
 -- SPAREHUB DATABASE MIGRATION: 006 - Configurable Commission, Ledger & Audit Logs
 -- Description: Extensible commission rules, immutable financial ledger, payment records, and audit logs.
+-- All DDL statements are idempotent and rerun-safe.
 -- =============================================================================
 
+SET search_path = public, extensions;
+
+-- -----------------------------------------------------------------------------
 -- 1. COMMISSION RULES (Configurable Platform, Category & Shop Rates)
-CREATE TABLE public.commission_rules (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.commission_rules (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   rule_type text NOT NULL CHECK (rule_type IN ('platform_default', 'category_override', 'shop_override')),
@@ -1220,13 +1335,15 @@ CREATE TABLE public.commission_rules (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_commission_rules_lookup ON public.commission_rules(rule_type, is_active);
-CREATE INDEX idx_commission_rules_category ON public.commission_rules(category_id);
-CREATE INDEX idx_commission_rules_shop ON public.commission_rules(shop_id);
+CREATE INDEX IF NOT EXISTS idx_commission_rules_lookup ON public.commission_rules(rule_type, is_active);
+CREATE INDEX IF NOT EXISTS idx_commission_rules_category ON public.commission_rules(category_id);
+CREATE INDEX IF NOT EXISTS idx_commission_rules_shop ON public.commission_rules(shop_id);
 
 
+-- -----------------------------------------------------------------------------
 -- 2. COMMISSION LEDGER (Immutable Financial Record)
-CREATE TABLE public.commission_ledger (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.commission_ledger (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   seller_order_id uuid NOT NULL REFERENCES public.seller_orders(id) ON DELETE RESTRICT,
   order_item_id uuid NOT NULL UNIQUE REFERENCES public.order_items(id) ON DELETE RESTRICT,
@@ -1242,13 +1359,15 @@ CREATE TABLE public.commission_ledger (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_commission_ledger_shop ON public.commission_ledger(shop_id);
-CREATE INDEX idx_commission_ledger_status ON public.commission_ledger(status);
-CREATE INDEX idx_commission_ledger_order ON public.commission_ledger(seller_order_id);
+CREATE INDEX IF NOT EXISTS idx_commission_ledger_shop ON public.commission_ledger(shop_id);
+CREATE INDEX IF NOT EXISTS idx_commission_ledger_status ON public.commission_ledger(status);
+CREATE INDEX IF NOT EXISTS idx_commission_ledger_order ON public.commission_ledger(seller_order_id);
 
 
+-- -----------------------------------------------------------------------------
 -- 3. PAYMENT RECORDS (Idempotent Webhook Transactions)
-CREATE TABLE public.payment_records (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.payment_records (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_order_id uuid NOT NULL REFERENCES public.customer_orders(id) ON DELETE RESTRICT,
   gateway_provider text NOT NULL,
@@ -1263,16 +1382,19 @@ CREATE TABLE public.payment_records (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_payment_records_order ON public.payment_records(customer_order_id);
-CREATE INDEX idx_payment_records_idempotency ON public.payment_records(idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_payment_records_order ON public.payment_records(customer_order_id);
+CREATE INDEX IF NOT EXISTS idx_payment_records_idempotency ON public.payment_records(idempotency_key);
 
+DROP TRIGGER IF EXISTS trg_payment_records_updated_at ON public.payment_records;
 CREATE TRIGGER trg_payment_records_updated_at
   BEFORE UPDATE ON public.payment_records
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
+-- -----------------------------------------------------------------------------
 -- 4. ADMINISTRATIVE AUDIT LOGS (Immutable Activity Log)
-CREATE TABLE public.admin_audit_logs (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.admin_audit_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   actor_id uuid NOT NULL REFERENCES auth.users(id),
   action text NOT NULL,
@@ -1285,14 +1407,14 @@ CREATE TABLE public.admin_audit_logs (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_audit_logs_actor ON public.admin_audit_logs(actor_id);
-CREATE INDEX idx_audit_logs_target ON public.admin_audit_logs(target_type, target_id);
-CREATE INDEX idx_audit_logs_created ON public.admin_audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON public.admin_audit_logs(actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_target ON public.admin_audit_logs(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON public.admin_audit_logs(created_at DESC);
 
 
--- =============================================================================
--- ROW LEVEL SECURITY POLICIES
--- =============================================================================
+-- -----------------------------------------------------------------------------
+-- ROW LEVEL SECURITY POLICIES (Idempotent & Rerun-Safe)
+-- -----------------------------------------------------------------------------
 
 ALTER TABLE public.commission_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.commission_ledger ENABLE ROW LEVEL SECURITY;
@@ -1300,20 +1422,24 @@ ALTER TABLE public.payment_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- commission_rules RLS (Admin Only)
+DROP POLICY IF EXISTS "Admin full management commission_rules" ON public.commission_rules;
 CREATE POLICY "Admin full management commission_rules"
   ON public.commission_rules FOR ALL
   USING (public.is_platform_admin());
 
 -- commission_ledger RLS
+DROP POLICY IF EXISTS "Sellers can view own shop earnings ledger" ON public.commission_ledger;
 CREATE POLICY "Sellers can view own shop earnings ledger"
   ON public.commission_ledger FOR SELECT
   USING (public.owns_shop(shop_id) OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admin full management commission_ledger" ON public.commission_ledger;
 CREATE POLICY "Admin full management commission_ledger"
   ON public.commission_ledger FOR ALL
   USING (public.is_platform_admin());
 
 -- payment_records RLS
+DROP POLICY IF EXISTS "Customers can view payment status of own order" ON public.payment_records;
 CREATE POLICY "Customers can view payment status of own order"
   ON public.payment_records FOR SELECT
   USING (
@@ -1324,15 +1450,18 @@ CREATE POLICY "Customers can view payment status of own order"
     OR public.is_platform_admin()
   );
 
+DROP POLICY IF EXISTS "Admin full management payment_records" ON public.payment_records;
 CREATE POLICY "Admin full management payment_records"
   ON public.payment_records FOR ALL
   USING (public.is_platform_admin());
 
 -- admin_audit_logs RLS (Admin View Only, Append-Only)
+DROP POLICY IF EXISTS "Admin view audit logs" ON public.admin_audit_logs;
 CREATE POLICY "Admin view audit logs"
   ON public.admin_audit_logs FOR SELECT
   USING (public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admin append audit logs" ON public.admin_audit_logs;
 CREATE POLICY "Admin append audit logs"
   ON public.admin_audit_logs FOR INSERT
   WITH CHECK (public.is_platform_admin());
@@ -1346,9 +1475,14 @@ CREATE POLICY "Admin append audit logs"
 -- SPAREHUB DATABASE MIGRATION: 007 - Storage Buckets & Access Control Policies
 -- Description: Configures public product-images and strictly private verification-documents buckets.
 -- Enforces storage RLS so private seller verification documents are protected.
+-- All DDL statements are idempotent and rerun-safe.
 -- =============================================================================
 
--- 1. PROVISION STORAGE BUCKETS
+SET search_path = public, extensions;
+
+-- -----------------------------------------------------------------------------
+-- 1. PROVISION STORAGE BUCKETS (Idempotent ON CONFLICT)
+-- -----------------------------------------------------------------------------
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES 
   (
@@ -1371,14 +1505,18 @@ ON CONFLICT (id) DO UPDATE SET
   allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 
--- 2. STORAGE OBJECTS ROW LEVEL SECURITY POLICIES
+-- -----------------------------------------------------------------------------
+-- 2. STORAGE OBJECTS ROW LEVEL SECURITY POLICIES (Idempotent & Rerun-Safe)
+-- -----------------------------------------------------------------------------
 
 -- Product Images: Public can view
+DROP POLICY IF EXISTS "Public read product images" ON storage.objects;
 CREATE POLICY "Public read product images"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'product-images');
 
 -- Product Images: Authenticated sellers can upload
+DROP POLICY IF EXISTS "Authenticated sellers upload product images" ON storage.objects;
 CREATE POLICY "Authenticated sellers upload product images"
   ON storage.objects FOR INSERT
   TO authenticated
@@ -1388,6 +1526,7 @@ CREATE POLICY "Authenticated sellers upload product images"
   );
 
 -- Product Images: Sellers can update/delete own uploaded images
+DROP POLICY IF EXISTS "Sellers manage own product images" ON storage.objects;
 CREATE POLICY "Sellers manage own product images"
   ON storage.objects FOR ALL
   TO authenticated
@@ -1398,6 +1537,7 @@ CREATE POLICY "Sellers manage own product images"
 
 -- Verification Documents: ZERO PUBLIC ACCESS
 -- Sellers can view only their own uploaded verification documents
+DROP POLICY IF EXISTS "Sellers read own verification documents" ON storage.objects;
 CREATE POLICY "Sellers read own verification documents"
   ON storage.objects FOR SELECT
   TO authenticated
@@ -1410,6 +1550,7 @@ CREATE POLICY "Sellers read own verification documents"
   );
 
 -- Verification Documents: Sellers can upload to their own user-scoped directory
+DROP POLICY IF EXISTS "Sellers upload own verification documents" ON storage.objects;
 CREATE POLICY "Sellers upload own verification documents"
   ON storage.objects FOR INSERT
   TO authenticated
@@ -1419,6 +1560,7 @@ CREATE POLICY "Sellers upload own verification documents"
   );
 
 -- Verification Documents: Platform Administrators have full management
+DROP POLICY IF EXISTS "Admin manage all verification documents" ON storage.objects;
 CREATE POLICY "Admin manage all verification documents"
   ON storage.objects FOR ALL
   TO authenticated

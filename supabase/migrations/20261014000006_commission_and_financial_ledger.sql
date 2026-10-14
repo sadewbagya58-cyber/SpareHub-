@@ -1,10 +1,15 @@
 -- =============================================================================
 -- SPAREHUB DATABASE MIGRATION: 006 - Configurable Commission, Ledger & Audit Logs
 -- Description: Extensible commission rules, immutable financial ledger, payment records, and audit logs.
+-- All DDL statements are idempotent and rerun-safe.
 -- =============================================================================
 
+SET search_path = public, extensions;
+
+-- -----------------------------------------------------------------------------
 -- 1. COMMISSION RULES (Configurable Platform, Category & Shop Rates)
-CREATE TABLE public.commission_rules (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.commission_rules (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   rule_type text NOT NULL CHECK (rule_type IN ('platform_default', 'category_override', 'shop_override')),
@@ -19,13 +24,15 @@ CREATE TABLE public.commission_rules (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_commission_rules_lookup ON public.commission_rules(rule_type, is_active);
-CREATE INDEX idx_commission_rules_category ON public.commission_rules(category_id);
-CREATE INDEX idx_commission_rules_shop ON public.commission_rules(shop_id);
+CREATE INDEX IF NOT EXISTS idx_commission_rules_lookup ON public.commission_rules(rule_type, is_active);
+CREATE INDEX IF NOT EXISTS idx_commission_rules_category ON public.commission_rules(category_id);
+CREATE INDEX IF NOT EXISTS idx_commission_rules_shop ON public.commission_rules(shop_id);
 
 
+-- -----------------------------------------------------------------------------
 -- 2. COMMISSION LEDGER (Immutable Financial Record)
-CREATE TABLE public.commission_ledger (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.commission_ledger (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   seller_order_id uuid NOT NULL REFERENCES public.seller_orders(id) ON DELETE RESTRICT,
   order_item_id uuid NOT NULL UNIQUE REFERENCES public.order_items(id) ON DELETE RESTRICT,
@@ -41,13 +48,15 @@ CREATE TABLE public.commission_ledger (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_commission_ledger_shop ON public.commission_ledger(shop_id);
-CREATE INDEX idx_commission_ledger_status ON public.commission_ledger(status);
-CREATE INDEX idx_commission_ledger_order ON public.commission_ledger(seller_order_id);
+CREATE INDEX IF NOT EXISTS idx_commission_ledger_shop ON public.commission_ledger(shop_id);
+CREATE INDEX IF NOT EXISTS idx_commission_ledger_status ON public.commission_ledger(status);
+CREATE INDEX IF NOT EXISTS idx_commission_ledger_order ON public.commission_ledger(seller_order_id);
 
 
+-- -----------------------------------------------------------------------------
 -- 3. PAYMENT RECORDS (Idempotent Webhook Transactions)
-CREATE TABLE public.payment_records (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.payment_records (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   customer_order_id uuid NOT NULL REFERENCES public.customer_orders(id) ON DELETE RESTRICT,
   gateway_provider text NOT NULL,
@@ -62,16 +71,19 @@ CREATE TABLE public.payment_records (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_payment_records_order ON public.payment_records(customer_order_id);
-CREATE INDEX idx_payment_records_idempotency ON public.payment_records(idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_payment_records_order ON public.payment_records(customer_order_id);
+CREATE INDEX IF NOT EXISTS idx_payment_records_idempotency ON public.payment_records(idempotency_key);
 
+DROP TRIGGER IF EXISTS trg_payment_records_updated_at ON public.payment_records;
 CREATE TRIGGER trg_payment_records_updated_at
   BEFORE UPDATE ON public.payment_records
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 
+-- -----------------------------------------------------------------------------
 -- 4. ADMINISTRATIVE AUDIT LOGS (Immutable Activity Log)
-CREATE TABLE public.admin_audit_logs (
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.admin_audit_logs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   actor_id uuid NOT NULL REFERENCES auth.users(id),
   action text NOT NULL,
@@ -84,14 +96,14 @@ CREATE TABLE public.admin_audit_logs (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_audit_logs_actor ON public.admin_audit_logs(actor_id);
-CREATE INDEX idx_audit_logs_target ON public.admin_audit_logs(target_type, target_id);
-CREATE INDEX idx_audit_logs_created ON public.admin_audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON public.admin_audit_logs(actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_target ON public.admin_audit_logs(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON public.admin_audit_logs(created_at DESC);
 
 
--- =============================================================================
--- ROW LEVEL SECURITY POLICIES
--- =============================================================================
+-- -----------------------------------------------------------------------------
+-- ROW LEVEL SECURITY POLICIES (Idempotent & Rerun-Safe)
+-- -----------------------------------------------------------------------------
 
 ALTER TABLE public.commission_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.commission_ledger ENABLE ROW LEVEL SECURITY;
@@ -99,20 +111,24 @@ ALTER TABLE public.payment_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- commission_rules RLS (Admin Only)
+DROP POLICY IF EXISTS "Admin full management commission_rules" ON public.commission_rules;
 CREATE POLICY "Admin full management commission_rules"
   ON public.commission_rules FOR ALL
   USING (public.is_platform_admin());
 
 -- commission_ledger RLS
+DROP POLICY IF EXISTS "Sellers can view own shop earnings ledger" ON public.commission_ledger;
 CREATE POLICY "Sellers can view own shop earnings ledger"
   ON public.commission_ledger FOR SELECT
   USING (public.owns_shop(shop_id) OR public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admin full management commission_ledger" ON public.commission_ledger;
 CREATE POLICY "Admin full management commission_ledger"
   ON public.commission_ledger FOR ALL
   USING (public.is_platform_admin());
 
 -- payment_records RLS
+DROP POLICY IF EXISTS "Customers can view payment status of own order" ON public.payment_records;
 CREATE POLICY "Customers can view payment status of own order"
   ON public.payment_records FOR SELECT
   USING (
@@ -123,15 +139,18 @@ CREATE POLICY "Customers can view payment status of own order"
     OR public.is_platform_admin()
   );
 
+DROP POLICY IF EXISTS "Admin full management payment_records" ON public.payment_records;
 CREATE POLICY "Admin full management payment_records"
   ON public.payment_records FOR ALL
   USING (public.is_platform_admin());
 
 -- admin_audit_logs RLS (Admin View Only, Append-Only)
+DROP POLICY IF EXISTS "Admin view audit logs" ON public.admin_audit_logs;
 CREATE POLICY "Admin view audit logs"
   ON public.admin_audit_logs FOR SELECT
   USING (public.is_platform_admin());
 
+DROP POLICY IF EXISTS "Admin append audit logs" ON public.admin_audit_logs;
 CREATE POLICY "Admin append audit logs"
   ON public.admin_audit_logs FOR INSERT
   WITH CHECK (public.is_platform_admin());

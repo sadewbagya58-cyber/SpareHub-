@@ -2,9 +2,14 @@
 -- SPAREHUB DATABASE MIGRATION: 007 - Storage Buckets & Access Control Policies
 -- Description: Configures public product-images and strictly private verification-documents buckets.
 -- Enforces storage RLS so private seller verification documents are protected.
+-- All DDL statements are idempotent and rerun-safe.
 -- =============================================================================
 
--- 1. PROVISION STORAGE BUCKETS
+SET search_path = public, extensions;
+
+-- -----------------------------------------------------------------------------
+-- 1. PROVISION STORAGE BUCKETS (Idempotent ON CONFLICT)
+-- -----------------------------------------------------------------------------
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES 
   (
@@ -27,14 +32,18 @@ ON CONFLICT (id) DO UPDATE SET
   allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 
--- 2. STORAGE OBJECTS ROW LEVEL SECURITY POLICIES
+-- -----------------------------------------------------------------------------
+-- 2. STORAGE OBJECTS ROW LEVEL SECURITY POLICIES (Idempotent & Rerun-Safe)
+-- -----------------------------------------------------------------------------
 
 -- Product Images: Public can view
+DROP POLICY IF EXISTS "Public read product images" ON storage.objects;
 CREATE POLICY "Public read product images"
   ON storage.objects FOR SELECT
   USING (bucket_id = 'product-images');
 
 -- Product Images: Authenticated sellers can upload
+DROP POLICY IF EXISTS "Authenticated sellers upload product images" ON storage.objects;
 CREATE POLICY "Authenticated sellers upload product images"
   ON storage.objects FOR INSERT
   TO authenticated
@@ -44,6 +53,7 @@ CREATE POLICY "Authenticated sellers upload product images"
   );
 
 -- Product Images: Sellers can update/delete own uploaded images
+DROP POLICY IF EXISTS "Sellers manage own product images" ON storage.objects;
 CREATE POLICY "Sellers manage own product images"
   ON storage.objects FOR ALL
   TO authenticated
@@ -54,6 +64,7 @@ CREATE POLICY "Sellers manage own product images"
 
 -- Verification Documents: ZERO PUBLIC ACCESS
 -- Sellers can view only their own uploaded verification documents
+DROP POLICY IF EXISTS "Sellers read own verification documents" ON storage.objects;
 CREATE POLICY "Sellers read own verification documents"
   ON storage.objects FOR SELECT
   TO authenticated
@@ -66,6 +77,7 @@ CREATE POLICY "Sellers read own verification documents"
   );
 
 -- Verification Documents: Sellers can upload to their own user-scoped directory
+DROP POLICY IF EXISTS "Sellers upload own verification documents" ON storage.objects;
 CREATE POLICY "Sellers upload own verification documents"
   ON storage.objects FOR INSERT
   TO authenticated
@@ -75,6 +87,7 @@ CREATE POLICY "Sellers upload own verification documents"
   );
 
 -- Verification Documents: Platform Administrators have full management
+DROP POLICY IF EXISTS "Admin manage all verification documents" ON storage.objects;
 CREATE POLICY "Admin manage all verification documents"
   ON storage.objects FOR ALL
   TO authenticated
