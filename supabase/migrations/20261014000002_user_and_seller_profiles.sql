@@ -1,6 +1,7 @@
 -- =============================================================================
 -- SPAREHUB DATABASE MIGRATION: 002 - User Profiles, Seller Profiles & Shops
 -- Description: Multi-vendor identity, onboarding, shop status, and verification vault.
+-- Hardened against INSERT/UPDATE role escalation and unauthorized self-approval.
 -- =============================================================================
 
 -- 1. USER PROFILES
@@ -10,18 +11,20 @@ CREATE TABLE public.user_profiles (
   full_name text NOT NULL,
   phone text,
   role text NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'seller', 'platform_admin', 'support_agent')),
+  roles text[] NOT NULL DEFAULT ARRAY['customer']::text[],
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_user_profiles_role ON public.user_profiles(role);
+CREATE INDEX idx_user_profiles_roles ON public.user_profiles USING gin (roles);
 CREATE INDEX idx_user_profiles_email ON public.user_profiles(email);
 
 CREATE TRIGGER trg_user_profiles_updated_at
   BEFORE UPDATE ON public.user_profiles
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
--- Trigger to prevent non-admins from self-escalating role
+-- Trigger to prevent non-admins from self-escalating roles on INSERT or UPDATE
 CREATE OR REPLACE FUNCTION public.prevent_self_role_escalation()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -29,16 +32,53 @@ SECURITY DEFINER
 SET search_path = public, auth
 AS $$
 BEGIN
-  IF NEW.role <> OLD.role AND NOT public.is_platform_admin() THEN
-    RAISE EXCEPTION 'Unauthorized: Only platform administrators can modify user roles.';
+  -- If not platform administrator:
+  IF NOT public.is_platform_admin() THEN
+    IF TG_OP = 'INSERT' THEN
+      -- Guarantee initial role on insert is customer only
+      NEW.role = 'customer';
+      NEW.roles = ARRAY['customer']::text[];
+    ELSIF TG_OP = 'UPDATE' THEN
+      -- Block modification of role or roles array
+      IF NEW.role <> OLD.role OR NEW.roles <> OLD.roles THEN
+        RAISE EXCEPTION 'Unauthorized: Only platform administrators can modify user roles.';
+      END IF;
+    END IF;
   END IF;
   RETURN NEW;
 END;
 $$;
 
 CREATE TRIGGER trg_prevent_role_escalation
-  BEFORE UPDATE OF role ON public.user_profiles
+  BEFORE INSERT OR UPDATE OF role, roles ON public.user_profiles
   FOR EACH ROW EXECUTE FUNCTION public.prevent_self_role_escalation();
+
+-- Automated profile provisioning trigger when a new user signs up in auth.users
+CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+  INSERT INTO public.user_profiles (id, email, full_name, role, roles)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
+    'customer',
+    ARRAY['customer']::text[]
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+
+-- Trigger fired after an auth user is created
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();
 
 
 -- 2. SELLER PROFILES
@@ -62,7 +102,7 @@ CREATE TRIGGER trg_seller_profiles_updated_at
   BEFORE UPDATE ON public.seller_profiles
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
--- Prevent sellers from modifying their own verification_status
+-- Prevent sellers from modifying their own verification_status on INSERT or UPDATE
 CREATE OR REPLACE FUNCTION public.prevent_self_verification_override()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -70,15 +110,24 @@ SECURITY DEFINER
 SET search_path = public, auth
 AS $$
 BEGIN
-  IF NEW.verification_status <> OLD.verification_status AND NOT public.is_platform_admin() THEN
-    RAISE EXCEPTION 'Unauthorized: Only platform administrators can change verification status.';
+  IF NOT public.is_platform_admin() THEN
+    IF TG_OP = 'INSERT' THEN
+      -- Force unverified status on creation
+      NEW.verification_status = 'unverified';
+      NEW.verified_at = NULL;
+      NEW.rejection_reason = NULL;
+    ELSIF TG_OP = 'UPDATE' THEN
+      IF NEW.verification_status <> OLD.verification_status THEN
+        RAISE EXCEPTION 'Unauthorized: Only platform administrators can change verification status.';
+      END IF;
+    END IF;
   END IF;
   RETURN NEW;
 END;
 $$;
 
 CREATE TRIGGER trg_prevent_verification_override
-  BEFORE UPDATE OF verification_status ON public.seller_profiles
+  BEFORE INSERT OR UPDATE OF verification_status ON public.seller_profiles
   FOR EACH ROW EXECUTE FUNCTION public.prevent_self_verification_override();
 
 
@@ -115,7 +164,7 @@ CREATE TRIGGER trg_shops_updated_at
   BEFORE UPDATE ON public.shops
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
--- Prevent sellers from directly approving their own shop
+-- Prevent sellers from directly approving their own shop on INSERT or UPDATE
 CREATE OR REPLACE FUNCTION public.prevent_self_shop_approval()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -123,15 +172,24 @@ SECURITY DEFINER
 SET search_path = public, auth
 AS $$
 BEGIN
-  IF (NEW.status IN ('approved', 'suspended')) AND (OLD.status <> NEW.status) AND NOT public.is_platform_admin() THEN
-    RAISE EXCEPTION 'Unauthorized: Only platform administrators can approve or suspend a shop.';
+  IF NOT public.is_platform_admin() THEN
+    IF TG_OP = 'INSERT' THEN
+      -- Force draft status on shop registration
+      NEW.status = 'draft';
+      NEW.approved_by = NULL;
+      NEW.approved_at = NULL;
+    ELSIF TG_OP = 'UPDATE' THEN
+      IF (NEW.status IN ('approved', 'suspended')) AND (OLD.status <> NEW.status) THEN
+        RAISE EXCEPTION 'Unauthorized: Only platform administrators can approve or suspend a shop.';
+      END IF;
+    END IF;
   END IF;
   RETURN NEW;
 END;
 $$;
 
 CREATE TRIGGER trg_prevent_shop_approval
-  BEFORE UPDATE OF status ON public.shops
+  BEFORE INSERT OR UPDATE OF status ON public.shops
   FOR EACH ROW EXECUTE FUNCTION public.prevent_self_shop_approval();
 
 
@@ -165,6 +223,10 @@ ALTER TABLE public.seller_documents ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own profile"
   ON public.user_profiles FOR SELECT
   USING (id = auth.uid() OR public.is_platform_admin());
+
+CREATE POLICY "Users can insert own initial profile"
+  ON public.user_profiles FOR INSERT
+  WITH CHECK (id = auth.uid());
 
 CREATE POLICY "Users can update own profile"
   ON public.user_profiles FOR UPDATE

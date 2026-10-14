@@ -1,6 +1,7 @@
 -- =============================================================================
 -- SPAREHUB DATABASE MIGRATION: 004 - Product Catalog & Vehicle Compatibility
 -- Description: Multi-vendor catalog, images, full-text indexes, and structured compatibility.
+-- Fix: Robust partial unique indexes resolving nullable column edge-cases.
 -- =============================================================================
 
 -- 1. CATEGORIES
@@ -90,14 +91,21 @@ CREATE TABLE public.product_compatibility (
   notes text,
   is_exact_fit boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT check_variant_or_model CHECK (vehicle_variant_id IS NOT NULL OR vehicle_model_id IS NOT NULL),
-  UNIQUE (product_id, vehicle_variant_id),
-  UNIQUE (product_id, vehicle_model_id)
+  CONSTRAINT check_variant_or_model CHECK (vehicle_variant_id IS NOT NULL OR vehicle_model_id IS NOT NULL)
 );
 
 CREATE INDEX idx_compatibility_product ON public.product_compatibility(product_id);
 CREATE INDEX idx_compatibility_variant ON public.product_compatibility(vehicle_variant_id);
 CREATE INDEX idx_compatibility_model ON public.product_compatibility(vehicle_model_id);
+
+-- Robust partial unique indexes: handles nullable variant/model cleanly without SQL NULL duplicate quirks
+CREATE UNIQUE INDEX idx_compat_product_variant_unique
+  ON public.product_compatibility (product_id, vehicle_variant_id)
+  WHERE vehicle_variant_id IS NOT NULL;
+
+CREATE UNIQUE INDEX idx_compat_product_model_unique
+  ON public.product_compatibility (product_id, vehicle_model_id)
+  WHERE vehicle_variant_id IS NULL;
 
 
 -- =============================================================================

@@ -21,9 +21,9 @@ BEGIN
 END;
 $$;
 
--- RLS Helper: Check if current authenticated user is a Platform Admin
--- SECURITY DEFINER with fixed search_path to prevent search_path injection attacks
-CREATE OR REPLACE FUNCTION public.is_platform_admin()
+-- RLS Helper: Multi-Role Authorization Check
+-- Supports users who possess multiple roles (e.g., both 'customer' and 'seller', or 'platform_admin')
+CREATE OR REPLACE FUNCTION public.has_role(target_role text)
 RETURNS boolean
 LANGUAGE sql
 STABLE
@@ -32,8 +32,19 @@ SET search_path = public, auth
 AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.user_profiles
-    WHERE id = auth.uid() AND role = 'platform_admin'
+    WHERE id = auth.uid() AND (role = target_role OR target_role = ANY(roles))
   );
+$$;
+
+-- RLS Helper: Check if current authenticated user is a Platform Admin
+CREATE OR REPLACE FUNCTION public.is_platform_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT public.has_role('platform_admin');
 $$;
 
 -- RLS Helper: Check if current authenticated user owns a specific shop
@@ -64,3 +75,16 @@ AS $$
     WHERE id = target_profile_id AND user_id = auth.uid()
   );
 $$;
+
+-- Explicit Least-Privilege Execution Permissions
+REVOKE ALL ON FUNCTION public.has_role(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.has_role(text) TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.is_platform_admin() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_platform_admin() TO authenticated, anon, service_role;
+
+REVOKE ALL ON FUNCTION public.owns_shop(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.owns_shop(uuid) TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.owns_seller_profile(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.owns_seller_profile(uuid) TO authenticated, service_role;

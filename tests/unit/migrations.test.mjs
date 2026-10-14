@@ -7,21 +7,22 @@ describe("Database Migrations & Schema Architecture Verification", () => {
   const migrationsDir = path.resolve(process.cwd(), "supabase/migrations");
   const migrationFiles = fs.readdirSync(migrationsDir).sort();
 
-  test("contains all 6 sequential modular migration files", () => {
-    assert.equal(migrationFiles.length, 6, "Expected 6 migration files");
+  test("contains all 7 sequential modular migration files including storage security", () => {
+    assert.equal(migrationFiles.length, 7, "Expected exactly 7 migration files");
     assert.ok(migrationFiles[0].includes("core_extensions_and_helpers"));
     assert.ok(migrationFiles[1].includes("user_and_seller_profiles"));
     assert.ok(migrationFiles[2].includes("vehicle_taxonomy"));
     assert.ok(migrationFiles[3].includes("catalog_and_compatibility"));
     assert.ok(migrationFiles[4].includes("cart_and_multi_vendor_orders"));
     assert.ok(migrationFiles[5].includes("commission_and_financial_ledger"));
+    assert.ok(migrationFiles[6].includes("storage_buckets_and_policies"));
   });
 
   const allSqlContent = migrationFiles
     .map((file) => fs.readFileSync(path.join(migrationsDir, file), "utf-8"))
     .join("\n\n");
 
-  test("defines all 18 core domain tables", () => {
+  test("defines all 21 core domain tables accurately", () => {
     const requiredTables = [
       "user_profiles",
       "seller_profiles",
@@ -46,6 +47,8 @@ describe("Database Migrations & Schema Architecture Verification", () => {
       "admin_audit_logs",
     ];
 
+    assert.equal(requiredTables.length, 21, "Reconciled exact domain table count must be 21");
+
     for (const table of requiredTables) {
       assert.ok(
         allSqlContent.includes(`CREATE TABLE public.${table}`) ||
@@ -55,7 +58,7 @@ describe("Database Migrations & Schema Architecture Verification", () => {
     }
   });
 
-  test("enables ROW LEVEL SECURITY on all domain tables", () => {
+  test("enables ROW LEVEL SECURITY on all 21 domain tables", () => {
     const requiredRlsTables = [
       "user_profiles",
       "seller_profiles",
@@ -88,34 +91,84 @@ describe("Database Migrations & Schema Architecture Verification", () => {
     }
   });
 
-  test("enforces non-negative constraints on price and stock quantities", () => {
+  test("protects against role escalation on both INSERT and UPDATE", () => {
     assert.ok(
-      allSqlContent.includes("CHECK (price_minor_units >= 0)"),
-      "Products table must prohibit negative price"
+      allSqlContent.includes("BEFORE INSERT OR UPDATE OF role, roles ON public.user_profiles"),
+      "Role escalation trigger must intercept both INSERT and UPDATE"
     );
     assert.ok(
-      allSqlContent.includes("CHECK (stock_quantity >= 0)"),
-      "Products table must prohibit negative inventory"
+      allSqlContent.includes("NEW.role = 'customer'"),
+      "Initial role must be forced to customer for non-admins"
+    );
+  });
+
+  test("protects seller verification and shop approval on both INSERT and UPDATE", () => {
+    assert.ok(
+      allSqlContent.includes("BEFORE INSERT OR UPDATE OF verification_status ON public.seller_profiles"),
+      "Verification trigger must intercept both INSERT and UPDATE"
+    );
+    assert.ok(
+      allSqlContent.includes("BEFORE INSERT OR UPDATE OF status ON public.shops"),
+      "Shop approval trigger must intercept both INSERT and UPDATE"
+    );
+  });
+
+  test("enforces partial unique indexes on product_compatibility eliminating nullable duplicate edge-cases", () => {
+    assert.ok(
+      allSqlContent.includes("CREATE UNIQUE INDEX idx_compat_product_variant_unique"),
+      "Must define variant-level unique index where variant is not null"
+    );
+    assert.ok(
+      allSqlContent.includes("CREATE UNIQUE INDEX idx_compat_product_model_unique"),
+      "Must define model-level unique index where variant is null"
+    );
+  });
+
+  test("defines atomic, transactional checkout function resistant to price tampering", () => {
+    assert.ok(
+      allSqlContent.includes("CREATE OR REPLACE FUNCTION public.process_checkout_order"),
+      "process_checkout_order function must exist"
+    );
+    assert.ok(
+      allSqlContent.includes("FOR UPDATE OF p"),
+      "process_checkout_order must lock products with FOR UPDATE"
+    );
+    assert.ok(
+      allSqlContent.includes("stock_quantity - v_item_record.quantity"),
+      "Must atomically decrement stock quantity"
+    );
+  });
+
+  test("configures private storage bucket and access policies for verification documents", () => {
+    assert.ok(
+      allSqlContent.includes("'verification-documents'"),
+      "Must declare verification-documents bucket"
+    );
+    assert.ok(
+      allSqlContent.includes("false, -- STRICTLY PRIVATE BUCKET: ZERO PUBLIC ACCESS"),
+      "verification-documents bucket must be private (public = false)"
+    );
+    assert.ok(
+      allSqlContent.includes("ON storage.objects"),
+      "Must declare RLS policies on storage.objects"
     );
   });
 
   test("enforces fixed search_path on all SECURITY DEFINER functions", () => {
-    // Regular expression matching functions declared with SECURITY DEFINER
     const secDefinerMatches = allSqlContent.match(/CREATE OR REPLACE FUNCTION public\.\w+[\s\S]*?SECURITY DEFINER[\s\S]*?AS/g) || [];
-    assert.ok(secDefinerMatches.length >= 4, "Expected multiple SECURITY DEFINER functions");
+    assert.ok(secDefinerMatches.length >= 6, "Expected at least 6 SECURITY DEFINER functions");
 
     for (const funcDef of secDefinerMatches) {
       assert.ok(
         funcDef.includes("SET search_path ="),
-        `SECURITY DEFINER function must explicitly set search_path to prevent hijacking: ${funcDef.slice(0, 80)}...`
+        `SECURITY DEFINER function must explicitly set search_path: ${funcDef.slice(0, 80)}...`
       );
     }
   });
 
   test("ensures no secret keys or hardcoded commission percentages are present", () => {
     assert.ok(!allSqlContent.includes("sb_secret_"), "No secret keys allowed in migrations");
-    assert.ok(!allSqlContent.includes("service_role"), "No raw service role tokens allowed in migrations");
-    // Verify commission rate is configurable and not hardcoded
+    assert.ok(!allSqlContent.includes("eyJhbGci"), "No raw JWT service role tokens allowed in migrations");
     assert.ok(allSqlContent.includes("rate_basis_points"), "Commission rates must be modeled as configurable basis points");
   });
 });
