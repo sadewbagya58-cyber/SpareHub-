@@ -1,7 +1,9 @@
 # SpareHub
 **Every Part. One Marketplace.**
 
-SpareHub is a multi-vendor automotive spare parts marketplace built initially for Sri Lanka, designed with scalability for regional and international expansion.
+SpareHub is a multi-vendor automotive spare parts marketplace built initially for Sri Lanka, engineered with enterprise scalability for regional and international expansion.
+
+**GitHub Repository:** [https://github.com/sadewbagya58-cyber/SpareHub-.git](https://github.com/sadewbagya58-cyber/SpareHub-.git)
 
 ---
 
@@ -41,11 +43,27 @@ SpareHub is an authentic multi-vendor platform with four distinct merchant types
 
 ---
 
+## Multi-Role Architecture & Security
+SpareHub supports three core user roles with strict separation of privileges:
+- **`customer`**: Browses catalog, places orders, manages profile and shipping addresses.
+- **`seller`**: Registers business profile, manages catalog inventory, fulfills suborders. Protected by seller verification workflow (`draft` &rarr; `pending_review` &rarr; `approved`).
+- **`platform_admin`**: Platform supervisory oversight, merchant KYC verification, commission policy enforcement, dispute resolution, and immutable audit logs.
+
+### Security Defenses
+- **Row Level Security (RLS):** All 21 database tables enforce Postgres RLS policies. Cross-seller and customer data isolation is enforced at the database layer.
+- **Privilege Escalation Protection:** Database triggers (`trg_protect_user_roles`, `trg_protect_seller_approval`) and API validation prevent users from self-promoting to `platform_admin` or approving their own seller accounts/shops.
+- **Open-Redirect Defense:** `safeRedirectUrl()` sanitizer strips protocol-relative links (`//`), backslashes (`\`), CRLF characters, and external domains.
+- **Password Strength:** Enforced 8+ characters, uppercase, lowercase, and numeric requirements.
+- **Route Protection:** Next.js Edge Middleware and Server Actions guard protected paths (`/account/*`, `/seller/*`, `/admin/*`).
+
+---
+
 ## Technology Stack
-- **Framework:** Next.js 16 (App Router)
+- **Framework:** Next.js 16 (App Router with Server Actions)
 - **UI & Language:** React 19, TypeScript 5 (Strict Mode)
 - **Styling:** Tailwind CSS v4, Lucide Icons
-- **Database & Auth (Phases 2–4):** Supabase PostgreSQL 16 with Row Level Security (RLS)
+- **Database & Auth:** Supabase PostgreSQL 16 with Row Level Security (RLS), `@supabase/ssr`, `@supabase/supabase-js`
+- **Validation:** Zod v4
 
 ---
 
@@ -54,6 +72,19 @@ SpareHub is an authentic multi-vendor platform with four distinct merchant types
 ### Prerequisites
 - Node.js `v20+` or `v24+`
 - npm `v10+` or `v11+`
+
+### Environment Configuration
+Copy `.env.example` to `.env.local` and configure your Supabase credentials:
+```bash
+cp .env.example .env.local
+```
+
+Required environment variables:
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-or-publishable-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-secret-key
+```
 
 ### Installation
 ```bash
@@ -66,50 +97,60 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### Quality Assurance & Build Commands
+---
+
+## Verification & Quality Assurance Suite
+
+Run the complete 4-step QA verification suite:
 ```bash
-# TypeScript strict type check
+# 1. Run unit test suite (36 tests across 8 suites)
+npm run test
+
+# 2. TypeScript strict type check
 npm run typecheck
 
-# ESLint code quality audit
+# 3. ESLint code quality & security rules
 npm run lint
 
-# Production build verification
+# 4. Next.js production build & static route generation
 npm run build
 ```
 
 ---
 
-## Project Structure
-```
-c:\Users\x\SpareHub\
-├── docs\
-│   └── SPAREHUB_ARCHITECTURE_PLAN.md   # Master architecture and specifications
-├── src\
-│   ├── app\                            # Next.js App Router pages and layouts
-│   ├── components\
-│   │   ├── layout\                     # Navbar, Footer, MobileNav
-│   │   ├── marketplace\                # VehicleSelector, DemoCatalog, SellerCTA
-│   │   └── ui\                         # Accessible atomic components (Button, Badge, Input, Card)
-│   ├── lib\
-│   │   ├── constants.ts                # Brand colors, vehicle types, districts
-│   │   ├── types.ts                    # Shared TypeScript types
-│   │   └── utils.ts                    # Tailwind merge and currency formatting
-│   └── styles\                         # Global CSS & brand tokens
-└── .env.example                        # Template for required environment variables
-```
+## Database Migrations
+
+The database migration suite resides in `supabase/migrations/` and is consolidated into `supabase/deploy/sparehub_complete_schema.sql`.
+
+Execution order:
+1. `001_core_extensions_and_enums.sql`: Extensions, enums, audit triggers.
+2. `002_users_and_profiles.sql`: Profiles, authorization helpers (`has_role`, `is_platform_admin`, `owns_seller_profile`, `owns_shop`), anti-escalation triggers.
+3. `003_seller_and_shop_management.sql`: Seller profiles, shop branches, verification docs, review queues.
+4. `004_catalog_and_inventory.sql`: Vehicle categories, brands, models, products, partial unique fitment indexes.
+5. `005_orders_checkout_and_fulfillment.sql`: Orders, suborders, items, atomic checkout RPC (`process_checkout_order`).
+6. `006_reviews_disputes_and_audit.sql`: Reviews, disputes, and immutable audit ledger.
+7. `007_storage_buckets_and_policies.sql`: Private storage buckets (`verification-documents`) and public asset buckets (`product-images`).
+
+> **Note:** The SQL migration suite is completely verified and idempotent. Running against a remote production Supabase instance is staged for controlled release.
 
 ---
 
-## Phase 1 Implementation Status
-- [x] Project initialized with strict TypeScript, Next.js 16 App Router, and Tailwind CSS v4.
-- [x] Global SpareHub design tokens and color palette implemented.
-- [x] Responsive layout shell built (Desktop Header, Mobile Menu Drawer, Sticky Bottom Navigation).
-- [x] Atomic UI components with non-blocking local loading states (`Button`, `Badge`, `Input`, `Card`, `Skeleton`).
-- [x] Initial marketplace homepage built with interactive Vehicle Selector, category shortcuts, demo catalog, and seller onboarding call-to-action.
-- [x] `.env.example` created.
-- [x] Architecture plan preserved at `docs/SPAREHUB_ARCHITECTURE_PLAN.md`.
+## Implementation Progress
 
-### Phase 1 Limitations
-- Database queries currently present structured demonstration datasets pending Phase 2 (Database Schema) and Phase 3 (Supabase Auth).
-- Live payment gateways are intentionally not integrated in Phase 1 pending platform owner commercial approval.
+- [x] **Phase 1: Project Foundation & Design System Scaffolding**
+  - Next.js 16 App Router, TypeScript, Tailwind CSS v4, Lucide icons.
+  - Reusable accessible UI components (`Button`, `Badge`, `Input`, `Card`, `Skeleton`).
+  - Responsive layout shell (Desktop Header, Mobile Menu Drawer, Mobile Bottom Navigation).
+  - High-converting marketplace homepage with interactive Vehicle Selector, category shortcuts, demo catalog.
+- [x] **Phase 2: Database Architecture & PostgreSQL Migration Suite**
+  - 21 domain tables with 100% RLS coverage.
+  - Idempotent migration suite and consolidated deployment script.
+  - Concurrency-safe atomic checkout function with deadlock prevention (`ORDER BY id ASC FOR UPDATE`).
+  - Private storage security for merchant identity verification documents.
+- [x] **Phase 3: Authentication & Multi-Role Profiles**
+  - Customer registration with Zod validation and password strength enforcement.
+  - Session-aware navigation (`AuthNav`) and mobile drawer integration.
+  - Customer account portal (`/account`) with profile updater and multi-role badges.
+  - Role-protected vendor dashboard (`/seller/dashboard`) and admin control center (`/admin/dashboard`).
+  - Next.js SSR session refresh middleware with route guards and open-redirect sanitization.
+  - 36 automated unit tests verifying design tokens, vehicle taxonomy, database schema, auth validation, and redirect security.

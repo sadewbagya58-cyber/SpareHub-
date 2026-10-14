@@ -6,7 +6,6 @@ import {
   Wrench, 
   Search, 
   ShoppingCart, 
-  User, 
   Store, 
   Menu, 
   X, 
@@ -14,7 +13,8 @@ import {
   ShieldCheck, 
   Phone 
 } from "lucide-react";
-import { Button } from "@/lib/../components/ui/button";
+import { AuthNav } from "./auth-nav";
+import { Button } from "@/components/ui/button";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -115,12 +115,7 @@ export function Navbar() {
               </span>
             </Link>
 
-            <Link href="/login">
-              <Button variant="secondary" size="sm" className="hidden sm:inline-flex gap-1.5">
-                <User className="w-4 h-4" />
-                Sign In
-              </Button>
-            </Link>
+            <AuthNav />
 
             {/* Mobile Hamburger Toggle */}
             <button
@@ -172,13 +167,8 @@ export function Navbar() {
               <span>Sell on SpareHub (Open Shop)</span>
               <Store className="w-4 h-4" />
             </Link>
-            <Link
-              href="/login"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 rounded-md text-sm font-medium text-sparehub-dark hover:bg-sparehub-light"
-            >
-              Sign In / Register
-            </Link>
+            
+            <AuthNav isMobile onNavigate={() => setMobileMenuOpen(false)} />
           </nav>
         </div>
       )}

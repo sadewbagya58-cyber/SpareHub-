@@ -1,20 +1,41 @@
 "use client";
-
-import React from "react";
+ 
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Search, Store, ShoppingCart, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 
 export function MobileNav() {
   const pathname = usePathname();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   const navItems = [
     { label: "Home", href: "/", icon: Home },
     { label: "Search", href: "/search", icon: Search },
     { label: "Sell", href: "/sell", icon: Store },
     { label: "Cart", href: "/cart", icon: ShoppingCart, badge: "0" },
-    { label: "Sign In", href: "/login", icon: User },
+    {
+      label: isLoggedIn ? "Account" : "Sign In",
+      href: isLoggedIn ? "/account" : "/login",
+      icon: User,
+    },
   ];
 
   return (
@@ -24,7 +45,13 @@ export function MobileNav() {
     >
       <div className="flex items-center justify-around">
         {navItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive =
+            item.href === "/account"
+              ? pathname === "/account" ||
+                pathname.startsWith("/account/") ||
+                pathname.startsWith("/seller") ||
+                pathname.startsWith("/admin")
+              : pathname === item.href;
           const Icon = item.icon;
 
           return (
