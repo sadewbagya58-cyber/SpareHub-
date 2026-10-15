@@ -359,17 +359,26 @@ CREATE POLICY "Public can view active shops"
 DROP POLICY IF EXISTS "Sellers can view own shop in any state" ON public.shops;
 CREATE POLICY "Sellers can view own shop in any state"
   ON public.shops FOR SELECT
-  USING (public.owns_shop(id) OR public.is_platform_admin());
+  USING (
+    public.owns_seller_profile(seller_profile_id)
+    OR public.owns_shop(id)
+    OR public.is_platform_admin()
+  );
 
 DROP POLICY IF EXISTS "Sellers can create shop for their verified profile" ON public.shops;
-CREATE POLICY "Sellers can create shop for their verified profile"
+DROP POLICY IF EXISTS "Sellers can create own shop" ON public.shops;
+CREATE POLICY "Sellers can create own shop"
   ON public.shops FOR INSERT
   WITH CHECK (public.owns_seller_profile(seller_profile_id));
 
 DROP POLICY IF EXISTS "Sellers can update own shop details" ON public.shops;
 CREATE POLICY "Sellers can update own shop details"
   ON public.shops FOR UPDATE
-  USING (public.owns_shop(id) OR public.is_platform_admin());
+  USING (
+    public.owns_seller_profile(seller_profile_id)
+    OR public.owns_shop(id)
+    OR public.is_platform_admin()
+  );
 
 DROP POLICY IF EXISTS "Admins full management on shops" ON public.shops;
 CREATE POLICY "Admins full management on shops"

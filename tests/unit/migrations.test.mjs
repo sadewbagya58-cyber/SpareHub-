@@ -174,4 +174,15 @@ describe("Database Migrations & Schema Architecture Verification", () => {
     assert.ok(!allSqlContent.includes("eyJhbGci"), "No raw JWT service role tokens allowed in migrations");
     assert.ok(allSqlContent.includes("rate_basis_points"), "Commission rates must be modeled as configurable basis points");
   });
+
+  test("enforces shops RLS policies using direct seller profile ownership", () => {
+    assert.ok(
+      allSqlContent.includes("public.owns_seller_profile(seller_profile_id)"),
+      "Shops RLS policies must evaluate ownership via owns_seller_profile(seller_profile_id)"
+    );
+    assert.ok(
+      allSqlContent.includes("CREATE POLICY \"Public can view active shops\""),
+      "Public must be able to view active shops (status != 'suspended')"
+    );
+  });
 });

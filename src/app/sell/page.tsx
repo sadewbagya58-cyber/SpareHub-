@@ -60,7 +60,7 @@ export default async function SellPage() {
                   Storefront Already Registered: &quot;{shop.name}&quot;
                 </h3>
                 <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
-                  Your seller account already has an active shop registered on SpareHub. You can manage your store settings, submit for review, and list products from your seller portal.
+                  Your seller account already has an active shop registered on SpareHub. You can manage your storefront, list products, and fulfill orders directly from your seller portal.
                 </p>
               </div>
 
@@ -99,25 +99,25 @@ export default async function SellPage() {
                 <span className="w-5 h-5 rounded-full bg-sparehub-dark text-white flex items-center justify-center font-bold shrink-0 text-[10px]">
                   1
                 </span>
-                <span><strong>Submit Details:</strong> Provide shop information, address, and category.</span>
+                <span><strong>Submit Shop Details:</strong> Enter your shop name, contact information, district, and seller category.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-5 h-5 rounded-full bg-sparehub-dark text-white flex items-center justify-center font-bold shrink-0 text-[10px]">
                   2
                 </span>
-                <span><strong>Verification Review:</strong> Platform administrators verify business contact credentials.</span>
+                <span><strong>Set Up Your Storefront:</strong> Customize your shop profile, logo, banner, and business description.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-5 h-5 rounded-full bg-sparehub-dark text-white flex items-center justify-center font-bold shrink-0 text-[10px]">
                   3
                 </span>
-                <span><strong>Approval Granted:</strong> Shop is officially approved and public storefront activated.</span>
+                <span><strong>Add Spare Parts:</strong> List parts with accurate vehicle compatibility, stock, and pricing in LKR.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-5 h-5 rounded-full bg-sparehub-dark text-white flex items-center justify-center font-bold shrink-0 text-[10px]">
                   4
                 </span>
-                <span><strong>Start Selling:</strong> Publish spare parts with accurate vehicle compatibility.</span>
+                <span><strong>Publish and Start Selling:</strong> Activate your listings immediately and begin receiving customer orders across Sri Lanka.</span>
               </li>
             </ol>
           </div>

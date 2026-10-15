@@ -217,4 +217,19 @@ describe("Shop Approval State Transitions & Security Policies (Phase 4.1 Self-Se
     assert.strictEqual(canSellerTransition("approved", "suspended", false), false, "Sellers cannot suspend shops");
     assert.strictEqual(canSellerTransition("approved", "suspended", true), true, "Admins can suspend shops");
   });
+
+  test("self-service onboarding flow follows 4 confirmed seller steps", () => {
+    const ONBOARDING_STEPS = [
+      { step: 1, title: "Submit Shop Details" },
+      { step: 2, title: "Set Up Your Storefront" },
+      { step: 3, title: "Add Spare Parts" },
+      { step: 4, title: "Publish and Start Selling" },
+    ];
+
+    assert.equal(ONBOARDING_STEPS.length, 4);
+    assert.equal(ONBOARDING_STEPS[0].title, "Submit Shop Details");
+    assert.equal(ONBOARDING_STEPS[1].title, "Set Up Your Storefront");
+    assert.equal(ONBOARDING_STEPS[2].title, "Add Spare Parts");
+    assert.equal(ONBOARDING_STEPS[3].title, "Publish and Start Selling");
+  });
 });

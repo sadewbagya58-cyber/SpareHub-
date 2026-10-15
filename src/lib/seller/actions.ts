@@ -162,9 +162,12 @@ export async function createShopAction(
     }
 
     // 4. Insert shop in 'approved' (active) status immediately in self-service marketplace
-    const { data: newShop, error: shopErr } = await supabase
+    // Pre-generate UUID to cleanly decouple INSERT from RETURNING RLS subquery evaluation
+    const shopId = crypto.randomUUID();
+    const { error: shopErr } = await supabase
       .from("shops")
       .insert({
+        id: shopId,
         seller_profile_id: sellerProfile.id,
         name: data.name,
         slug: candidateSlug,
@@ -179,15 +182,24 @@ export async function createShopAction(
         logo_url: data.logo_url || null,
         cover_url: data.cover_url || null,
         status: "approved",
-      })
-      .select("id, name, slug, status")
-      .single();
+      });
 
-    if (shopErr || !newShop) {
-      if (shopErr?.message.includes("violates unique constraint") && shopErr?.message.includes("slug")) {
+    if (shopErr) {
+      if (shopErr.message.includes("violates unique constraint") && shopErr.message.includes("slug")) {
         return { error: "This shop URL slug is already taken. Please choose a different shop name or slug." };
       }
-      return { error: shopErr?.message || "Failed to create shop." };
+      return { error: shopErr.message || "Failed to create shop." };
+    }
+
+    // 5. Query newly created shop record
+    const { data: newShop, error: fetchErr } = await supabase
+      .from("shops")
+      .select("id, name, slug, status")
+      .eq("id", shopId)
+      .maybeSingle();
+
+    if (fetchErr || !newShop) {
+      return { error: fetchErr?.message || "Shop was created, but unable to retrieve store details." };
     }
 
     revalidatePath("/seller/dashboard");
