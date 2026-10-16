@@ -284,5 +284,168 @@ describe("Database Migrations & Schema Architecture Verification", () => {
       "Deployment script must include Section 4 verification query for taxonomy counts"
     );
   });
+
+  function parseSqlValues(text) {
+    const tuples = [];
+    let inString = false;
+    let inTuple = false;
+    let currentTuple = "";
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      if (char === "'") {
+        if (inString && text[i + 1] === "'") {
+          currentTuple += "''";
+          i++;
+          continue;
+        }
+        inString = !inString;
+        currentTuple += char;
+      } else if (char === "(" && !inString && !inTuple) {
+        inTuple = true;
+        currentTuple = "";
+      } else if (char === ")" && !inString && inTuple) {
+        inTuple = false;
+        tuples.push(currentTuple.trim());
+        currentTuple = "";
+      } else if (inTuple) {
+        currentTuple += char;
+      }
+    }
+
+    return tuples.map((t) => {
+      return t
+        .split(/,(?=(?:[^']*'[^']*')*[^']*$)/)
+        .map((v) => v.trim().replace(/^'|'$/g, ""));
+    });
+  }
+
+  test("enforces identical VALUES tuple lengths and column structure across all vehicle taxonomy seeds (no ERROR 42601)", () => {
+    const deployDir = path.resolve(process.cwd(), "supabase/deploy");
+    const targetSqlFiles = [
+      path.join(migrationsDir, "20261014000003_vehicle_taxonomy.sql"),
+      path.join(deployDir, "phase_4_3_vehicle_compatibility.sql"),
+      path.join(deployDir, "sparehub_complete_schema.sql"),
+    ];
+
+    for (const filePath of targetSqlFiles) {
+      const sql = fs.readFileSync(filePath, "utf-8");
+      const fileName = path.basename(filePath);
+
+      // Check makes: (id, vehicle_type_id, name, slug, is_popular) -> 5
+      const makeStart = sql.indexOf("INSERT INTO public.vehicle_makes");
+      assert.ok(makeStart !== -1, `${fileName} must have INSERT INTO public.vehicle_makes`);
+      const makeValuesIdx = sql.indexOf("VALUES", makeStart);
+      const makeEndValuesIdx = sql.indexOf("ON CONFLICT", makeValuesIdx);
+      const makeTuples = parseSqlValues(sql.substring(makeValuesIdx + 6, makeEndValuesIdx));
+      assert.equal(makeTuples.length, 21, `${fileName} must have exactly 21 make tuples`);
+      makeTuples.forEach((tuple, idx) => {
+        assert.equal(tuple.length, 5, `${fileName} make tuple #${idx + 1} must have 5 values: ${tuple.join(", ")}`);
+      });
+
+      // Check models: (id, make_id, vehicle_type_id, make_name, name, slug) -> 6
+      const modelStart = sql.indexOf("INSERT INTO public.vehicle_models");
+      assert.ok(modelStart !== -1, `${fileName} must have INSERT INTO public.vehicle_models`);
+      const modelValuesIdx = sql.indexOf("VALUES", modelStart);
+      const modelEndValuesIdx = sql.indexOf(") AS v(", modelValuesIdx);
+      const modelTuples = parseSqlValues(sql.substring(modelValuesIdx + 6, modelEndValuesIdx));
+      assert.equal(modelTuples.length, 40, `${fileName} must have exactly 40 model tuples`);
+      modelTuples.forEach((tuple, idx) => {
+        assert.equal(tuple.length, 6, `${fileName} model tuple #${idx + 1} (${tuple[4] || tuple[0]}) must have exactly 6 values, got ${tuple.length}: ${tuple.join(", ")}`);
+      });
+
+      // Check variants: (id, model_id, model_name, generation_chassis, year_start, year_end, engine_code, transmission, fuel_type) -> 9
+      const variantStart = sql.indexOf("INSERT INTO public.vehicle_variants");
+      assert.ok(variantStart !== -1, `${fileName} must have INSERT INTO public.vehicle_variants`);
+      const variantValuesIdx = sql.indexOf("VALUES", variantStart);
+      const variantEndValuesIdx = sql.indexOf(") AS v(", variantValuesIdx);
+      const variantTuples = parseSqlValues(sql.substring(variantValuesIdx + 6, variantEndValuesIdx));
+      assert.equal(variantTuples.length, 50, `${fileName} must have exactly 50 variant tuples`);
+      variantTuples.forEach((tuple, idx) => {
+        assert.equal(tuple.length, 9, `${fileName} variant tuple #${idx + 1} (${tuple[3] || tuple[0]}) must have exactly 9 values, got ${tuple.length}: ${tuple.join(", ")}`);
+      });
+    }
+  });
+
+  test("enforces unique primary keys and complete foreign key integrity across models and variants in all scripts", () => {
+    const deployDir = path.resolve(process.cwd(), "supabase/deploy");
+    const targetSqlFiles = [
+      path.join(migrationsDir, "20261014000003_vehicle_taxonomy.sql"),
+      path.join(deployDir, "phase_4_3_vehicle_compatibility.sql"),
+      path.join(deployDir, "sparehub_complete_schema.sql"),
+    ];
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+    for (const filePath of targetSqlFiles) {
+      const sql = fs.readFileSync(filePath, "utf-8");
+      const fileName = path.basename(filePath);
+
+      // Extract makes
+      const makeStart = sql.indexOf("INSERT INTO public.vehicle_makes");
+      const makeValuesIdx = sql.indexOf("VALUES", makeStart);
+      const makeEndValuesIdx = sql.indexOf("ON CONFLICT", makeValuesIdx);
+      const makeTuples = parseSqlValues(sql.substring(makeValuesIdx + 6, makeEndValuesIdx));
+      const makesMap = new Map();
+      makeTuples.forEach(([id, typeId, name, slug]) => {
+        assert.ok(uuidRegex.test(id), `${fileName} make ID ${id} must be valid hex UUID`);
+        assert.ok(!makesMap.has(id), `${fileName} has duplicate make ID: ${id}`);
+        makesMap.set(id, { id, typeId, name, slug });
+      });
+
+      // Extract models
+      const modelStart = sql.indexOf("INSERT INTO public.vehicle_models");
+      const modelValuesIdx = sql.indexOf("VALUES", modelStart);
+      const modelEndValuesIdx = sql.indexOf(") AS v(", modelValuesIdx);
+      const modelTuples = parseSqlValues(sql.substring(modelValuesIdx + 6, modelEndValuesIdx));
+      const modelsMap = new Map();
+      modelTuples.forEach(([id, makeId, typeId, makeName, name, slug]) => {
+        assert.ok(uuidRegex.test(id), `${fileName} model ID ${id} must be valid hex UUID`);
+        assert.ok(!modelsMap.has(id), `${fileName} has duplicate model ID: ${id} (${name})`);
+        assert.ok(makesMap.has(makeId), `${fileName} model ${name} references non-existent make_id: ${makeId}`);
+        assert.equal(makesMap.get(makeId).name, makeName, `${fileName} model ${name} make_name mismatch: expected ${makesMap.get(makeId).name}, got ${makeName}`);
+        assert.equal(makesMap.get(makeId).typeId, typeId, `${fileName} model ${name} vehicle_type_id mismatch: expected ${makesMap.get(makeId).typeId}, got ${typeId}`);
+        modelsMap.set(id, { id, makeId, name, slug });
+      });
+
+      // Specifically assert repaired models (31 through 40)
+      const expectedRepairedModels = [
+        { id: "d1000000-0000-0000-0000-000000000031", makeName: "Caterpillar", name: "320D Excavator", slug: "cat-320d" },
+        { id: "d1000000-0000-0000-0000-000000000032", makeName: "Nissan", name: "Sunny", slug: "sunny" },
+        { id: "d1000000-0000-0000-0000-000000000033", makeName: "Nissan", name: "Leaf", slug: "leaf" },
+        { id: "d1000000-0000-0000-0000-000000000034", makeName: "Nissan", name: "X-Trail", slug: "x-trail" },
+        { id: "d1000000-0000-0000-0000-000000000035", makeName: "Mitsubishi", name: "Lancer", slug: "lancer" },
+        { id: "d1000000-0000-0000-0000-000000000036", makeName: "Mitsubishi", name: "Montero / Pajero", slug: "montero" },
+        { id: "d1000000-0000-0000-0000-000000000037", makeName: "Piaggio", name: "Ape City / Xtra LDX", slug: "ape-city" },
+        { id: "d1000000-0000-0000-0000-000000000038", makeName: "TVS", name: "Apache RTR 160", slug: "apache-rtr-160" },
+        { id: "d1000000-0000-0000-0000-000000000039", makeName: "TVS", name: "NTorq 125", slug: "ntorq-125" },
+        { id: "d1000000-0000-0000-0000-000000000040", makeName: "Komatsu", name: "PC200-8 Excavator", slug: "pc200-8" },
+      ];
+
+      for (const expected of expectedRepairedModels) {
+        assert.ok(modelsMap.has(expected.id), `${fileName} missing expected model ${expected.name} (${expected.id})`);
+        const actual = modelsMap.get(expected.id);
+        assert.equal(actual.name, expected.name, `${fileName} model ID ${expected.id} expected name ${expected.name}, got ${actual.name}`);
+        assert.equal(actual.slug, expected.slug, `${fileName} model ${expected.name} slug expected ${expected.slug}, got ${actual.slug}`);
+      }
+
+      // Extract variants
+      const variantStart = sql.indexOf("INSERT INTO public.vehicle_variants");
+      const variantValuesIdx = sql.indexOf("VALUES", variantStart);
+      const variantEndValuesIdx = sql.indexOf(") AS v(", variantValuesIdx);
+      const variantTuples = parseSqlValues(sql.substring(variantValuesIdx + 6, variantEndValuesIdx));
+      const variantsMap = new Map();
+      variantTuples.forEach(([id, modelId, modelName, chassis, yStart, yEnd, engine, trans, fuel]) => {
+        assert.ok(uuidRegex.test(id), `${fileName} variant ID ${id} must be valid hex UUID`);
+        assert.ok(!variantsMap.has(id), `${fileName} has duplicate variant ID: ${id} (${chassis})`);
+        assert.ok(modelsMap.has(modelId), `${fileName} variant ${chassis} references non-existent model_id: ${modelId}`);
+        assert.equal(modelsMap.get(modelId).name, modelName, `${fileName} variant ${chassis} model_name mismatch: expected ${modelsMap.get(modelId).name}, got ${modelName}`);
+        assert.ok(Number(yStart) >= 1970, `${fileName} variant ${chassis} invalid year_start: ${yStart}`);
+        assert.ok(!yEnd || yEnd === "NULL" || Number(yEnd) >= Number(yStart), `${fileName} variant ${chassis} invalid year_end: ${yEnd}`);
+        assert.ok(engine.length > 0 && trans.length > 0 && fuel.length > 0, `${fileName} variant ${chassis} missing specifications`);
+        variantsMap.set(id, { id, modelId, modelName, chassis, fuel });
+      });
+    }
+  });
 });
 
