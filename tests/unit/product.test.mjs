@@ -269,19 +269,19 @@ describe("Phase 4.2: Product Validation & Helpers Suite", () => {
         { id: "three_wheeler", name: "Three-Wheelers", display_order: 2 },
       ],
       makes: [
-        { id: "m1000000-0000-0000-0000-000000000001", vehicle_type_id: "car", name: "Toyota", slug: "toyota", is_popular: true },
-        { id: "m1000000-0000-0000-0000-000000000002", vehicle_type_id: "car", name: "Honda", slug: "honda", is_popular: true },
-        { id: "m1000000-0000-0000-0000-000000000006", vehicle_type_id: "three_wheeler", name: "Bajaj", slug: "bajaj-three-wheeler", is_popular: true },
+        { id: "b1000000-0000-0000-0000-000000000001", vehicle_type_id: "car", name: "Toyota", slug: "toyota", is_popular: true },
+        { id: "b1000000-0000-0000-0000-000000000002", vehicle_type_id: "car", name: "Honda", slug: "honda", is_popular: true },
+        { id: "b1000000-0000-0000-0000-000000000006", vehicle_type_id: "three_wheeler", name: "Bajaj", slug: "bajaj-three-wheeler", is_popular: true },
       ],
       models: [
-        { id: "d1000000-0000-0000-0000-000000000001", make_id: "m1000000-0000-0000-0000-000000000001", name: "Corolla", slug: "corolla" },
-        { id: "d1000000-0000-0000-0000-000000000002", make_id: "m1000000-0000-0000-0000-000000000001", name: "Prius", slug: "prius" },
-        { id: "d1000000-0000-0000-0000-000000000007", make_id: "m1000000-0000-0000-0000-000000000002", name: "Civic", slug: "civic" },
-        { id: "d1000000-0000-0000-0000-000000000016", make_id: "m1000000-0000-0000-0000-000000000006", name: "RE 205 (4-Stroke)", slug: "re-205-4s" },
+        { id: "d1000000-0000-0000-0000-000000000001", make_id: "b1000000-0000-0000-0000-000000000001", name: "Corolla", slug: "corolla" },
+        { id: "d1000000-0000-0000-0000-000000000002", make_id: "b1000000-0000-0000-0000-000000000001", name: "Prius", slug: "prius" },
+        { id: "d1000000-0000-0000-0000-000000000007", make_id: "b1000000-0000-0000-0000-000000000002", name: "Civic", slug: "civic" },
+        { id: "d1000000-0000-0000-0000-000000000016", make_id: "b1000000-0000-0000-0000-000000000006", name: "RE 205 (4-Stroke)", slug: "re-205-4s" },
       ],
       variants: [
         {
-          id: "v1000000-0000-0000-0000-000000000002",
+          id: "e1000000-0000-0000-0000-000000000002",
           model_id: "d1000000-0000-0000-0000-000000000001",
           generation_chassis: "NZE121 (1NZ-FE 1.5L)",
           year_start: 2000,
@@ -291,7 +291,7 @@ describe("Phase 4.2: Product Validation & Helpers Suite", () => {
           fuel_type: "petrol",
         },
         {
-          id: "v1000000-0000-0000-0000-000000000004",
+          id: "e1000000-0000-0000-0000-000000000004",
           model_id: "d1000000-0000-0000-0000-000000000002",
           generation_chassis: "ZVW30 (3rd Gen Hybrid)",
           year_start: 2009,
@@ -301,7 +301,7 @@ describe("Phase 4.2: Product Validation & Helpers Suite", () => {
           fuel_type: "hybrid",
         },
         {
-          id: "v1000000-0000-0000-0000-000000000027",
+          id: "e1000000-0000-0000-0000-000000000027",
           model_id: "d1000000-0000-0000-0000-000000000016",
           generation_chassis: "RE Compact 4S FL / BS6",
           year_start: 2014,
@@ -438,7 +438,7 @@ describe("Phase 4.2: Product Validation & Helpers Suite", () => {
       assert.strictEqual(carMakes.length, 2);
 
       const toyotaModels = sampleTaxonomy.models.filter(
-        (m) => m.make_id === "m1000000-0000-0000-0000-000000000001"
+        (m) => m.make_id === "b1000000-0000-0000-0000-000000000001"
       );
       assert.strictEqual(toyotaModels.length, 2);
 
@@ -454,15 +454,15 @@ describe("Phase 4.2: Product Validation & Helpers Suite", () => {
         [
           {
             vehicle_type_id: "car",
-            make_id: "m1000000-0000-0000-0000-000000000001",
+            make_id: "b1000000-0000-0000-0000-000000000001",
             vehicle_model_id: "d1000000-0000-0000-0000-000000000001",
-            vehicle_variant_id: "v1000000-0000-0000-0000-000000000002",
+            vehicle_variant_id: "e1000000-0000-0000-0000-000000000002",
             notes: "Front disc brake pads only",
             is_exact_fit: true,
           },
           {
             vehicle_type_id: "car",
-            make_id: "m1000000-0000-0000-0000-000000000002",
+            make_id: "b1000000-0000-0000-0000-000000000002",
             vehicle_model_id: "d1000000-0000-0000-0000-000000000007",
             vehicle_variant_id: null,
             notes: "Fits all Honda Civic generations",
@@ -481,7 +481,7 @@ describe("Phase 4.2: Product Validation & Helpers Suite", () => {
         [
           {
             vehicle_model_id: "d1000000-0000-0000-0000-000000000001", // Corolla
-            vehicle_variant_id: "v1000000-0000-0000-0000-000000000004", // Prius ZVW30 variant!
+            vehicle_variant_id: "e1000000-0000-0000-0000-000000000004", // Prius ZVW30 variant!
             is_exact_fit: true,
           },
         ],
@@ -496,7 +496,7 @@ describe("Phase 4.2: Product Validation & Helpers Suite", () => {
       const res = validateCompatibilityEntries(
         [
           {
-            make_id: "m1000000-0000-0000-0000-000000000002", // Honda
+            make_id: "b1000000-0000-0000-0000-000000000002", // Honda
             vehicle_model_id: "d1000000-0000-0000-0000-000000000001", // Toyota Corolla!
             is_exact_fit: true,
           },
@@ -513,12 +513,12 @@ describe("Phase 4.2: Product Validation & Helpers Suite", () => {
         [
           {
             vehicle_model_id: "d1000000-0000-0000-0000-000000000001",
-            vehicle_variant_id: "v1000000-0000-0000-0000-000000000002",
+            vehicle_variant_id: "e1000000-0000-0000-0000-000000000002",
             is_exact_fit: true,
           },
           {
             vehicle_model_id: "d1000000-0000-0000-0000-000000000001",
-            vehicle_variant_id: "v1000000-0000-0000-0000-000000000002",
+            vehicle_variant_id: "e1000000-0000-0000-0000-000000000002",
             is_exact_fit: false,
           },
         ],
@@ -534,7 +534,7 @@ describe("Phase 4.2: Product Validation & Helpers Suite", () => {
         [
           {
             vehicle_model_id: "d1000000-0000-0000-0000-000000000001",
-            vehicle_variant_id: "v1000000-0000-0000-0000-000000000002",
+            vehicle_variant_id: "e1000000-0000-0000-0000-000000000002",
             is_exact_fit: true,
           },
         ],
@@ -543,6 +543,75 @@ describe("Phase 4.2: Product Validation & Helpers Suite", () => {
       );
       assert.strictEqual(res.valid, true);
       assert.strictEqual(res.normalized.length, 0);
+    });
+  });
+
+  describe("5. Vehicle Taxonomy Hex UUID Format & Foreign Key Integrity", () => {
+    test("all fallback vehicle taxonomy records have valid hex UUIDs and intact hierarchy", async () => {
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+
+      const taxonomyFilePath = path.resolve(process.cwd(), "src/lib/products/taxonomy.ts");
+      const fileContent = fs.readFileSync(taxonomyFilePath, "utf-8");
+
+      const makesMatch = fileContent.match(/export const FALLBACK_VEHICLE_MAKES[^=]*=\s*(\[[^;]+\]);/);
+      const modelsMatch = fileContent.match(/export const FALLBACK_VEHICLE_MODELS[^=]*=\s*(\[[^;]+\]);/);
+      const variantsMatch = fileContent.match(/export const FALLBACK_VEHICLE_VARIANTS[^=]*=\s*(\[[^;]+\]);/);
+
+      assert.ok(makesMatch, "Must extract FALLBACK_VEHICLE_MAKES");
+      assert.ok(modelsMatch, "Must extract FALLBACK_VEHICLE_MODELS");
+      assert.ok(variantsMatch, "Must extract FALLBACK_VEHICLE_VARIANTS");
+
+      const makes = eval(makesMatch[1]);
+      const models = eval(modelsMatch[1]);
+      const variants = eval(variantsMatch[1]);
+
+      const uuidHexRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+      // 1. Check makes
+      assert.strictEqual(makes.length, 21, "Must contain exactly 21 Sri Lankan vehicle makes");
+      const makeIds = new Set();
+      for (const make of makes) {
+        assert.ok(
+          uuidHexRegex.test(make.id),
+          `Make ID ${make.id} (${make.name}) must be a valid hex UUID (e.g. b1000000-...)`
+        );
+        assert.ok(!make.id.startsWith("m"), `Make ID ${make.id} must not start with non-hex 'm'`);
+        makeIds.add(make.id);
+      }
+
+      // 2. Check models
+      assert.strictEqual(models.length, 40, "Must contain exactly 40 popular vehicle models");
+      const modelIds = new Set();
+      for (const model of models) {
+        assert.ok(
+          uuidHexRegex.test(model.id),
+          `Model ID ${model.id} (${model.name}) must be a valid hex UUID (e.g. d1000000-...)`
+        );
+        assert.ok(
+          makeIds.has(model.make_id),
+          `Model ${model.name} references unknown make_id: ${model.make_id}`
+        );
+        modelIds.add(model.id);
+      }
+
+      // 3. Check variants
+      assert.strictEqual(variants.length, 50, "Must contain exactly 50 localized variants");
+      for (const variant of variants) {
+        assert.ok(
+          uuidHexRegex.test(variant.id),
+          `Variant ID ${variant.id} (${variant.generation_chassis}) must be a valid hex UUID (e.g. e1000000-...)`
+        );
+        assert.ok(!variant.id.startsWith("v"), `Variant ID ${variant.id} must not start with non-hex 'v'`);
+        assert.ok(
+          modelIds.has(variant.model_id),
+          `Variant ${variant.generation_chassis} references unknown model_id: ${variant.model_id}`
+        );
+        assert.ok(
+          ["petrol", "diesel", "electric", "hybrid", "cng"].includes(variant.fuel_type),
+          `Variant ${variant.generation_chassis} has normalized lowercase fuel_type: ${variant.fuel_type}`
+        );
+      }
     });
   });
 });

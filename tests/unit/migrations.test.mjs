@@ -208,5 +208,81 @@ describe("Database Migrations & Schema Architecture Verification", () => {
       "Must attach trg_validate_product_compatibility_hierarchy to product_compatibility"
     );
   });
+
+  test("enforces all taxonomy UUIDs in migrations and deployment scripts are strictly valid hex UUIDs", () => {
+    const deployDir = path.resolve(process.cwd(), "supabase/deploy");
+    const sqlFiles = [
+      ...migrationFiles.map((f) => path.join(migrationsDir, f)),
+      path.join(deployDir, "sparehub_complete_schema.sql"),
+      path.join(deployDir, "phase_4_3_vehicle_compatibility.sql"),
+    ];
+
+    const uuidRegex = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g;
+    const invalidPrefixRegex = /\b[g-zG-Z][0-9a-zA-Z]{7}-[0-9a-zA-Z]{4}-[0-9a-zA-Z]{4}-[0-9a-zA-Z]{4}-[0-9a-zA-Z]{12}\b/g;
+
+    for (const filePath of sqlFiles) {
+      if (!fs.existsSync(filePath)) continue;
+      const content = fs.readFileSync(filePath, "utf-8");
+
+      assert.ok(
+        !content.includes("m1000000-"),
+        `File ${path.basename(filePath)} must not contain non-hex make UUID prefix m1000000-`
+      );
+      assert.ok(
+        !content.includes("v1000000-"),
+        `File ${path.basename(filePath)} must not contain non-hex variant UUID prefix v1000000-`
+      );
+
+      const invalidMatches = content.match(invalidPrefixRegex) || [];
+      assert.deepEqual(
+        invalidMatches,
+        [],
+        `File ${path.basename(filePath)} contains invalid non-hex UUIDs: ${invalidMatches.join(", ")}`
+      );
+
+      // Verify files that seed vehicle taxonomy contain strictly valid hex UUIDs
+      if (
+        filePath.includes("vehicle_taxonomy") ||
+        filePath.includes("phase_4_3") ||
+        filePath.includes("sparehub_complete_schema")
+      ) {
+        const validMatches = content.match(uuidRegex) || [];
+        assert.ok(
+          validMatches.length > 0,
+          `File ${path.basename(filePath)} should contain valid hex UUIDs`
+        );
+      }
+    }
+  });
+
+  test("ensures vehicle taxonomy seeding statements use resilient foreign-key JOINs protecting against ID drift", () => {
+    const taxonomyMigrationPath = path.join(migrationsDir, "20261014000003_vehicle_taxonomy.sql");
+    const content = fs.readFileSync(taxonomyMigrationPath, "utf-8");
+
+    assert.ok(
+      content.includes("JOIN public.vehicle_makes m") &&
+      content.includes("m.id = v.make_id::uuid"),
+      "vehicle_models seed must join vehicle_makes to dynamically resolve foreign keys"
+    );
+
+    assert.ok(
+      content.includes("JOIN public.vehicle_models md") &&
+      content.includes("md.id = v.model_id::uuid"),
+      "vehicle_variants seed must join vehicle_models to dynamically resolve foreign keys"
+    );
+  });
+
+  test("includes Section 4 taxonomy verification query in phase_4_3 deployment script", () => {
+    const deployScriptPath = path.resolve(process.cwd(), "supabase/deploy/phase_4_3_vehicle_compatibility.sql");
+    const content = fs.readFileSync(deployScriptPath, "utf-8");
+
+    assert.ok(
+      content.includes("SELECT COUNT(*) FROM public.vehicle_types") &&
+      content.includes("SELECT COUNT(*) FROM public.vehicle_makes") &&
+      content.includes("SELECT COUNT(*) FROM public.vehicle_models") &&
+      content.includes("SELECT COUNT(*) FROM public.vehicle_variants"),
+      "Deployment script must include Section 4 verification query for taxonomy counts"
+    );
+  });
 });
 
