@@ -10,6 +10,7 @@ export interface CategoryOption {
 export interface VehicleTypeOption {
   id: string;
   name: string;
+  display_order?: number;
 }
 
 export interface VehicleMakeOption {
@@ -26,6 +27,24 @@ export interface VehicleModelOption {
   slug: string;
 }
 
+export interface VehicleVariantOption {
+  id: string;
+  model_id: string;
+  generation_chassis: string;
+  year_start: number;
+  year_end?: number | null;
+  engine_code?: string | null;
+  transmission?: string | null;
+  fuel_type?: string | null;
+}
+
+export interface VehicleTaxonomyHierarchy {
+  vehicleTypes: VehicleTypeOption[];
+  vehicleMakes: VehicleMakeOption[];
+  vehicleModels: VehicleModelOption[];
+  vehicleVariants: VehicleVariantOption[];
+}
+
 export const FALLBACK_CATEGORIES: CategoryOption[] = [
   { id: "c1000000-0000-0000-0000-000000000001", name: "Engine & Drivetrain", slug: "engine-drivetrain", icon_name: "Wrench" },
   { id: "c1000000-0000-0000-0000-000000000002", name: "Braking Systems", slug: "braking-systems", icon_name: "Disc" },
@@ -40,14 +59,14 @@ export const FALLBACK_CATEGORIES: CategoryOption[] = [
 ];
 
 export const FALLBACK_VEHICLE_TYPES: VehicleTypeOption[] = [
-  { id: "car", name: "Cars & SUVs" },
-  { id: "three_wheeler", name: "Three-Wheelers" },
-  { id: "motorcycle", name: "Motorcycles" },
-  { id: "van", name: "Vans" },
-  { id: "bus", name: "Buses" },
-  { id: "truck", name: "Lorries & Trucks" },
-  { id: "tractor", name: "Tractors" },
-  { id: "heavy_machinery", name: "Heavy Machinery" },
+  { id: "car", name: "Cars & SUVs", display_order: 10 },
+  { id: "three_wheeler", name: "Three-Wheelers", display_order: 20 },
+  { id: "motorcycle", name: "Motorcycles", display_order: 30 },
+  { id: "van", name: "Vans", display_order: 40 },
+  { id: "bus", name: "Buses", display_order: 50 },
+  { id: "truck", name: "Lorries & Trucks", display_order: 60 },
+  { id: "tractor", name: "Tractors", display_order: 70 },
+  { id: "heavy_machinery", name: "Heavy Machinery", display_order: 80 },
 ];
 
 export const FALLBACK_VEHICLE_MAKES: VehicleMakeOption[] = [
@@ -121,7 +140,149 @@ export const FALLBACK_VEHICLE_MODELS: VehicleModelOption[] = [
   // Tractors & Machinery
   { id: "d1000000-0000-0000-0000-000000000030", make_id: "m1000000-0000-0000-0000-000000000019", name: "MF 240", slug: "mf-240" },
   { id: "d1000000-0000-0000-0000-000000000031", make_id: "m1000000-0000-0000-0000-000000000020", name: "320D Excavator", slug: "cat-320d" },
+  // Nissan Cars
+  { id: "d1000000-0000-0000-0000-000000000032", make_id: "m1000000-0000-0000-0000-000000000003", name: "Sunny", slug: "sunny" },
+  { id: "d1000000-0000-0000-0000-000000000033", make_id: "m1000000-0000-0000-0000-000000000003", name: "Leaf", slug: "leaf" },
+  { id: "d1000000-0000-0000-0000-000000000034", make_id: "m1000000-0000-0000-0000-000000000003", name: "X-Trail", slug: "x-trail" },
+  // Mitsubishi Cars
+  { id: "d1000000-0000-0000-0000-000000000035", make_id: "m1000000-0000-0000-0000-000000000005", name: "Lancer", slug: "lancer" },
+  { id: "d1000000-0000-0000-0000-000000000036", make_id: "m1000000-0000-0000-0000-000000000005", name: "Montero / Pajero", slug: "montero" },
+  // Piaggio Three-Wheelers
+  { id: "d1000000-0000-0000-0000-000000000037", make_id: "m1000000-0000-0000-0000-000000000008", name: "Ape City / Xtra LDX", slug: "ape-city" },
+  // TVS Motorcycles
+  { id: "d1000000-0000-0000-0000-000000000038", make_id: "m1000000-0000-0000-0000-000000000012", name: "Apache RTR 160", slug: "apache-rtr-160" },
+  { id: "d1000000-0000-0000-0000-000000000039", make_id: "m1000000-0000-0000-0000-000000000012", name: "NTorq 125", slug: "ntorq-125" },
+  // Komatsu Heavy Machinery
+  { id: "d1000000-0000-0000-0000-000000000040", make_id: "m1000000-0000-0000-0000-000000000021", name: "PC200-8 Excavator", slug: "pc200-8" },
 ];
+
+export const FALLBACK_VEHICLE_VARIANTS: VehicleVariantOption[] = [
+  // Toyota Corolla (d1000000-0000-0000-0000-000000000001)
+  { id: "v1000000-0000-0000-0000-000000000001", model_id: "d1000000-0000-0000-0000-000000000001", generation_chassis: "AE110 (5A-FE 1.5L)", year_start: 1995, year_end: 2000, engine_code: "5A-FE", transmission: "Automatic / Manual", fuel_type: "Petrol" },
+  { id: "v1000000-0000-0000-0000-000000000002", model_id: "d1000000-0000-0000-0000-000000000001", generation_chassis: "NZE121 (1NZ-FE 1.5L)", year_start: 2000, year_end: 2006, engine_code: "1NZ-FE", transmission: "Automatic / Manual", fuel_type: "Petrol" },
+  { id: "v1000000-0000-0000-0000-000000000003", model_id: "d1000000-0000-0000-0000-000000000001", generation_chassis: "ZRE142 / NZE141", year_start: 2007, year_end: 2013, engine_code: "1NZ-FE / 1ZR-FE", transmission: "Automatic / CVT", fuel_type: "Petrol" },
+  // Toyota Prius (d1000000-0000-0000-0000-000000000002)
+  { id: "v1000000-0000-0000-0000-000000000004", model_id: "d1000000-0000-0000-0000-000000000002", generation_chassis: "ZVW30 (3rd Gen Hybrid)", year_start: 2009, year_end: 2015, engine_code: "2ZR-FXE 1.8L", transmission: "e-CVT", fuel_type: "Hybrid" },
+  { id: "v1000000-0000-0000-0000-000000000005", model_id: "d1000000-0000-0000-0000-000000000002", generation_chassis: "ZVW50 (4th Gen Hybrid)", year_start: 2015, year_end: 2022, engine_code: "2ZR-FXE 1.8L", transmission: "e-CVT", fuel_type: "Hybrid" },
+  // Toyota Aqua (d1000000-0000-0000-0000-000000000003)
+  { id: "v1000000-0000-0000-0000-000000000006", model_id: "d1000000-0000-0000-0000-000000000003", generation_chassis: "NHP10 (1NZ-FXE Hybrid)", year_start: 2011, year_end: 2021, engine_code: "1NZ-FXE 1.5L", transmission: "e-CVT", fuel_type: "Hybrid" },
+  // Toyota Vitz (d1000000-0000-0000-0000-000000000004)
+  { id: "v1000000-0000-0000-0000-000000000007", model_id: "d1000000-0000-0000-0000-000000000004", generation_chassis: "KSP90 / SCP90", year_start: 2005, year_end: 2010, engine_code: "1KR-FE / 2SZ-FE", transmission: "CVT", fuel_type: "Petrol" },
+  { id: "v1000000-0000-0000-0000-000000000008", model_id: "d1000000-0000-0000-0000-000000000004", generation_chassis: "KSP130 / NSP130", year_start: 2011, year_end: 2020, engine_code: "1KR-FE / 1NR-FE", transmission: "CVT", fuel_type: "Petrol" },
+  // Toyota Axio (d1000000-0000-0000-0000-000000000005)
+  { id: "v1000000-0000-0000-0000-000000000009", model_id: "d1000000-0000-0000-0000-000000000005", generation_chassis: "NZE141 (1.5L Petrol)", year_start: 2006, year_end: 2012, engine_code: "1NZ-FE", transmission: "CVT", fuel_type: "Petrol" },
+  { id: "v1000000-0000-0000-0000-000000000010", model_id: "d1000000-0000-0000-0000-000000000005", generation_chassis: "NKE165 (Hybrid) / NZE161", year_start: 2012, year_end: 2023, engine_code: "1NZ-FXE / 1NZ-FE", transmission: "e-CVT / CVT", fuel_type: "Hybrid / Petrol" },
+  // Toyota Premio (d1000000-0000-0000-0000-000000000006)
+  { id: "v1000000-0000-0000-0000-000000000011", model_id: "d1000000-0000-0000-0000-000000000006", generation_chassis: "NZT260 / ZRT260 (260 Series)", year_start: 2007, year_end: 2021, engine_code: "1NZ-FE / 2ZR-FAE", transmission: "CVT", fuel_type: "Petrol" },
+  // Honda Civic (d1000000-0000-0000-0000-000000000007)
+  { id: "v1000000-0000-0000-0000-000000000012", model_id: "d1000000-0000-0000-0000-000000000007", generation_chassis: "FD1 / FD4 (8th Gen)", year_start: 2006, year_end: 2011, engine_code: "R18A / R16A", transmission: "Automatic / Manual", fuel_type: "Petrol" },
+  { id: "v1000000-0000-0000-0000-000000000013", model_id: "d1000000-0000-0000-0000-000000000007", generation_chassis: "FC1 / FK7 (10th Gen Turbo)", year_start: 2016, year_end: 2021, engine_code: "L15B7 / P10A2", transmission: "CVT", fuel_type: "Petrol" },
+  // Honda Fit / Jazz (d1000000-0000-0000-0000-000000000008)
+  { id: "v1000000-0000-0000-0000-000000000014", model_id: "d1000000-0000-0000-0000-000000000008", generation_chassis: "GP1 (IMA Hybrid)", year_start: 2010, year_end: 2013, engine_code: "LDA 1.3L", transmission: "CVT", fuel_type: "Hybrid" },
+  { id: "v1000000-0000-0000-0000-000000000015", model_id: "d1000000-0000-0000-0000-000000000008", generation_chassis: "GP5 (i-DCD Hybrid)", year_start: 2013, year_end: 2020, engine_code: "LEB 1.5L", transmission: "7-Speed DCT", fuel_type: "Hybrid" },
+  // Honda Vezel (d1000000-0000-0000-0000-000000000009)
+  { id: "v1000000-0000-0000-0000-000000000016", model_id: "d1000000-0000-0000-0000-000000000009", generation_chassis: "RU3 / RU4 (Hybrid Z / RS)", year_start: 2013, year_end: 2021, engine_code: "LEB 1.5L", transmission: "7-Speed DCT", fuel_type: "Hybrid" },
+  // Honda Grace (d1000000-0000-0000-0000-000000000010)
+  { id: "v1000000-0000-0000-0000-000000000017", model_id: "d1000000-0000-0000-0000-000000000010", generation_chassis: "GM4 / GM5 (i-DCD Hybrid)", year_start: 2014, year_end: 2020, engine_code: "LEB 1.5L", transmission: "7-Speed DCT", fuel_type: "Hybrid" },
+  // Suzuki Alto (d1000000-0000-0000-0000-000000000011)
+  { id: "v1000000-0000-0000-0000-000000000018", model_id: "d1000000-0000-0000-0000-000000000011", generation_chassis: "Alto 800 (F8D Indian)", year_start: 2012, year_end: 2022, engine_code: "F8D 796cc", transmission: "5-Speed Manual", fuel_type: "Petrol" },
+  { id: "v1000000-0000-0000-0000-000000000019", model_id: "d1000000-0000-0000-0000-000000000011", generation_chassis: "HA36S / HA36V (Japanese 660cc)", year_start: 2014, year_end: 2021, engine_code: "R06A 660cc", transmission: "CVT / AGS", fuel_type: "Petrol / Hybrid" },
+  // Suzuki WagonR (d1000000-0000-0000-0000-000000000012)
+  { id: "v1000000-0000-0000-0000-000000000020", model_id: "d1000000-0000-0000-0000-000000000012", generation_chassis: "MH34S / MH44S (FZ / Stingray)", year_start: 2012, year_end: 2017, engine_code: "R06A 660cc", transmission: "CVT", fuel_type: "Hybrid" },
+  { id: "v1000000-0000-0000-0000-000000000021", model_id: "d1000000-0000-0000-0000-000000000012", generation_chassis: "MH35S / MH55S (FX / FZ / Stingray)", year_start: 2017, year_end: 2023, engine_code: "R06A 660cc", transmission: "CVT", fuel_type: "Hybrid" },
+  // Suzuki Swift (d1000000-0000-0000-0000-000000000013)
+  { id: "v1000000-0000-0000-0000-000000000022", model_id: "d1000000-0000-0000-0000-000000000013", generation_chassis: "ZC11S / ZC72S (1.2L / 1.3L)", year_start: 2004, year_end: 2016, engine_code: "M13A / K12B", transmission: "Automatic / CVT", fuel_type: "Petrol" },
+  { id: "v1000000-0000-0000-0000-000000000023", model_id: "d1000000-0000-0000-0000-000000000013", generation_chassis: "ZC13S / ZC83S (RS Turbo / Hybrid)", year_start: 2017, year_end: 2023, engine_code: "K10C / K12C", transmission: "6AT / CVT", fuel_type: "Petrol / Hybrid" },
+  // Suzuki Spacia (d1000000-0000-0000-0000-000000000014)
+  { id: "v1000000-0000-0000-0000-000000000024", model_id: "d1000000-0000-0000-0000-000000000014", generation_chassis: "MK42S / MK53S (Custom Z / XS)", year_start: 2015, year_end: 2023, engine_code: "R06A 660cc", transmission: "CVT", fuel_type: "Hybrid" },
+  // Bajaj Three-Wheelers (d1000000-0000-0000-0000-000000000015..17)
+  { id: "v1000000-0000-0000-0000-000000000025", model_id: "d1000000-0000-0000-0000-000000000015", generation_chassis: "RE 2S 145cc (2-Stroke)", year_start: 1998, year_end: 2008, engine_code: "RE145-2S", transmission: "4-Speed Hand Shift", fuel_type: "Petrol 2T" },
+  { id: "v1000000-0000-0000-0000-000000000026", model_id: "d1000000-0000-0000-0000-000000000016", generation_chassis: "RE 4S 175cc / 205cc", year_start: 2007, year_end: 2016, engine_code: "RE205-4S", transmission: "4-Speed Manual", fuel_type: "Petrol" },
+  { id: "v1000000-0000-0000-0000-000000000027", model_id: "d1000000-0000-0000-0000-000000000017", generation_chassis: "RE Compact 4S FL / BS6", year_start: 2014, year_end: null, engine_code: "DTS-i 198cc", transmission: "4-Speed Manual", fuel_type: "Petrol" },
+  // TVS Three-Wheelers (d1000000-0000-0000-0000-000000000018..19)
+  { id: "v1000000-0000-0000-0000-000000000028", model_id: "d1000000-0000-0000-0000-000000000018", generation_chassis: "King 4S 200cc Deluxe", year_start: 2010, year_end: null, engine_code: "TVS-200-4S", transmission: "4-Speed Manual", fuel_type: "Petrol" },
+  { id: "v1000000-0000-0000-0000-000000000029", model_id: "d1000000-0000-0000-0000-000000000019", generation_chassis: "King Duramax 225cc LC", year_start: 2018, year_end: null, engine_code: "TVS-225-LC", transmission: "4-Speed Manual", fuel_type: "Petrol" },
+  // Motorcycles (d1000000-0000-0000-0000-000000000020..23)
+  { id: "v1000000-0000-0000-0000-000000000030", model_id: "d1000000-0000-0000-0000-000000000020", generation_chassis: "UG4.5 / Twin Disc BS4/BS6", year_start: 2010, year_end: null, engine_code: "DTS-i 149cc", transmission: "5-Speed Manual", fuel_type: "Petrol" },
+  { id: "v1000000-0000-0000-0000-000000000031", model_id: "d1000000-0000-0000-0000-000000000021", generation_chassis: "Discover 125M / DRL Disc", year_start: 2011, year_end: 2021, engine_code: "DTS-i 124.5cc", transmission: "5-Speed Manual", fuel_type: "Petrol" },
+  { id: "v1000000-0000-0000-0000-000000000032", model_id: "d1000000-0000-0000-0000-000000000022", generation_chassis: "FZ-S V2.0 / V3.0 FI", year_start: 2014, year_end: null, engine_code: "BlueCore 149cc FI", transmission: "5-Speed Manual", fuel_type: "Petrol" },
+  { id: "v1000000-0000-0000-0000-000000000033", model_id: "d1000000-0000-0000-0000-000000000023", generation_chassis: "HET 110cc / DLX LED", year_start: 2012, year_end: null, engine_code: "HET 109.2cc", transmission: "V-Matic CVT", fuel_type: "Petrol" },
+  // Vans (d1000000-0000-0000-0000-000000000024..25)
+  { id: "v1000000-0000-0000-0000-000000000034", model_id: "d1000000-0000-0000-0000-000000000024", generation_chassis: "KDH200 / KDH201 / KDH222", year_start: 2004, year_end: 2020, engine_code: "1KD-FTV 3.0L / 2KD-FTV 2.5L", transmission: "Automatic / Manual", fuel_type: "Diesel" },
+  { id: "v1000000-0000-0000-0000-000000000035", model_id: "d1000000-0000-0000-0000-000000000025", generation_chassis: "E25 (ZD30) / NV350 E26 (YD25)", year_start: 2001, year_end: 2021, engine_code: "ZD30DDTi / YD25DDTi", transmission: "Automatic / Manual", fuel_type: "Diesel" },
+  // Trucks & Buses (d1000000-0000-0000-0000-000000000026..29)
+  { id: "v1000000-0000-0000-0000-000000000036", model_id: "d1000000-0000-0000-0000-000000000026", generation_chassis: "NKR66 / NPR75 (10.5ft / 14.5ft)", year_start: 1999, year_end: 2020, engine_code: "4HF1 4.3L / 4HK1 5.2L", transmission: "5/6-Speed Manual", fuel_type: "Diesel" },
+  { id: "v1000000-0000-0000-0000-000000000037", model_id: "d1000000-0000-0000-0000-000000000027", generation_chassis: "FE70 / FE85 / FBA", year_start: 2002, year_end: 2020, engine_code: "4D33 / 4M50", transmission: "5-Speed Manual", fuel_type: "Diesel" },
+  { id: "v1000000-0000-0000-0000-000000000038", model_id: "d1000000-0000-0000-0000-000000000028", generation_chassis: "Ace HT / EX2 (Dimo Batta)", year_start: 2006, year_end: 2020, engine_code: "275 IDI 702cc", transmission: "4/5-Speed Manual", fuel_type: "Diesel" },
+  { id: "v1000000-0000-0000-0000-000000000039", model_id: "d1000000-0000-0000-0000-000000000029", generation_chassis: "Viking 210 / 222 WB (H-Series)", year_start: 2005, year_end: null, engine_code: "HA6ETI 5.7L", transmission: "5/6-Speed Manual", fuel_type: "Diesel" },
+  // Tractors & Heavy Machinery (d1000000-0000-0000-0000-000000000030..31, 40)
+  { id: "v1000000-0000-0000-0000-000000000040", model_id: "d1000000-0000-0000-0000-000000000030", generation_chassis: "MF 240 2WD (50 HP)", year_start: 1985, year_end: null, engine_code: "Perkins AD3.152", transmission: "8F / 2R Sliding Spur", fuel_type: "Diesel" },
+  { id: "v1000000-0000-0000-0000-000000000041", model_id: "d1000000-0000-0000-0000-000000000031", generation_chassis: "320D / 320D2 Hydraulic Excavator", year_start: 2006, year_end: 2020, engine_code: "CAT C6.4 ACERT", transmission: "Hydrostatic", fuel_type: "Diesel" },
+  // Nissan Cars (d1000000-0000-0000-0000-000000000032..34)
+  { id: "v1000000-0000-0000-0000-000000000042", model_id: "d1000000-0000-0000-0000-000000000032", generation_chassis: "FB15 / N16 (Super Saloon / Ex Saloon)", year_start: 1998, year_end: 2006, engine_code: "QG15DE 1.5L", transmission: "Automatic / Manual", fuel_type: "Petrol" },
+  { id: "v1000000-0000-0000-0000-000000000043", model_id: "d1000000-0000-0000-0000-000000000033", generation_chassis: "ZE0 / AZE0 (24kWh / 30kWh) & ZE1 (40kWh)", year_start: 2011, year_end: 2022, engine_code: "EM57 / EM61", transmission: "Single-Speed Reduction", fuel_type: "Electric" },
+  { id: "v1000000-0000-0000-0000-000000000044", model_id: "d1000000-0000-0000-0000-000000000034", generation_chassis: "NT32 / HT32 (20X Hybrid)", year_start: 2014, year_end: 2021, engine_code: "MR20DD 2.0L", transmission: "Xtronic CVT", fuel_type: "Hybrid / Petrol" },
+  // Mitsubishi Cars (d1000000-0000-0000-0000-000000000035..36)
+  { id: "v1000000-0000-0000-0000-000000000045", model_id: "d1000000-0000-0000-0000-000000000035", generation_chassis: "CS2A / CS3A (GLX) & CY2A (EX)", year_start: 2001, year_end: 2016, engine_code: "4G15 / 4A91", transmission: "INVECS-III CVT / Manual", fuel_type: "Petrol" },
+  { id: "v1000000-0000-0000-0000-000000000046", model_id: "d1000000-0000-0000-0000-000000000036", generation_chassis: "V73 / V78 / V93 / V98 (3.2 DI-D)", year_start: 2000, year_end: 2019, engine_code: "4M41 3.2L / 6G72", transmission: "Automatic / Manual", fuel_type: "Diesel / Petrol" },
+  // Piaggio (d1000000-0000-0000-0000-000000000037)
+  { id: "v1000000-0000-0000-0000-000000000047", model_id: "d1000000-0000-0000-0000-000000000037", generation_chassis: "Ape City Diesel / Xtra LDX 435cc", year_start: 2008, year_end: null, engine_code: "Greaves G435", transmission: "4-Speed Manual", fuel_type: "Diesel" },
+  // TVS Motorcycles (d1000000-0000-0000-0000-000000000038..39)
+  { id: "v1000000-0000-0000-0000-000000000048", model_id: "d1000000-0000-0000-0000-000000000038", generation_chassis: "RTR 160 2V / 4V", year_start: 2012, year_end: null, engine_code: "RT-Fi 159.7cc", transmission: "5-Speed Manual", fuel_type: "Petrol" },
+  { id: "v1000000-0000-0000-0000-000000000049", model_id: "d1000000-0000-0000-0000-000000000039", generation_chassis: "NTorq 125 Race Edition / Disc", year_start: 2018, year_end: null, engine_code: "CVTi-REVV 124.8cc", transmission: "CVT", fuel_type: "Petrol" },
+  // Komatsu (d1000000-0000-0000-0000-000000000040)
+  { id: "v1000000-0000-0000-0000-000000000050", model_id: "d1000000-0000-0000-0000-000000000040", generation_chassis: "PC200-8 / PC200LC-8", year_start: 2006, year_end: 2020, engine_code: "SAA6D107E-1", transmission: "HydrauMind", fuel_type: "Diesel" },
+];
+
+/**
+ * Formats a vehicle variant year range cleanly (e.g. "2009–2015" or "2014–Present").
+ */
+export function formatVariantYearRange(
+  yearStart?: number | null,
+  yearEnd?: number | null
+): string {
+  if (!yearStart) return "";
+  if (yearEnd && yearEnd >= yearStart) {
+    return yearEnd === yearStart ? `${yearStart}` : `${yearStart}–${yearEnd}`;
+  }
+  return `${yearStart}–Present`;
+}
+
+/**
+ * Formats a concise human-readable label for a vehicle variant option.
+ */
+export function formatVariantLabel(variant: VehicleVariantOption): string {
+  const years = formatVariantYearRange(variant.year_start, variant.year_end);
+  const parts = [variant.generation_chassis];
+  if (years) parts[0] = `${variant.generation_chassis} (${years})`;
+  if (variant.engine_code) parts.push(variant.engine_code);
+  if (variant.fuel_type) parts.push(variant.fuel_type);
+  return parts.join(" • ");
+}
+
+function mergeByKey<T>(
+  primary: T[],
+  fallback: T[],
+  keyFn: (item: T) => string
+): T[] {
+  const seen = new Set<string>();
+  const result: T[] = [];
+  for (const item of primary) {
+    const k = keyFn(item);
+    if (!seen.has(k)) {
+      seen.add(k);
+      result.push(item);
+    }
+  }
+  for (const item of fallback) {
+    const k = keyFn(item);
+    if (!seen.has(k)) {
+      seen.add(k);
+      result.push(item);
+    }
+  }
+  return result;
+}
 
 /**
  * Fetch product categories from Supabase, falling back to comprehensive seeded defaults.
@@ -147,26 +308,61 @@ export async function getProductCategories(): Promise<CategoryOption[]> {
 }
 
 /**
- * Fetch hierarchical vehicle taxonomy for structured compatibility selection.
+ * Fetch hierarchical 4-level vehicle taxonomy (`Type -> Make -> Model -> Variant`)
+ * for structured compatibility selection and display.
  */
-export async function getVehicleTaxonomyHierarchy() {
+export async function getVehicleTaxonomyHierarchy(): Promise<VehicleTaxonomyHierarchy> {
   try {
     const supabase = await createServerSupabaseClient();
 
-    const [typesRes, makesRes, modelsRes] = await Promise.all([
-      supabase.from("vehicle_types").select("id, name, display_order").eq("is_active", true).order("display_order"),
-      supabase.from("vehicle_makes").select("id, vehicle_type_id, name, slug").order("name"),
-      supabase.from("vehicle_models").select("id, make_id, name, slug").order("name"),
+    const [typesRes, makesRes, modelsRes, variantsRes] = await Promise.all([
+      supabase
+        .from("vehicle_types")
+        .select("id, name, display_order")
+        .eq("is_active", true)
+        .order("display_order"),
+      supabase
+        .from("vehicle_makes")
+        .select("id, vehicle_type_id, name, slug")
+        .order("name"),
+      supabase
+        .from("vehicle_models")
+        .select("id, make_id, name, slug")
+        .order("name"),
+      supabase
+        .from("vehicle_variants")
+        .select(
+          "id, model_id, generation_chassis, year_start, year_end, engine_code, transmission, fuel_type"
+        )
+        .order("year_start", { ascending: false }),
     ]);
 
-    const vehicleTypes = typesRes.data && typesRes.data.length > 0 ? typesRes.data : FALLBACK_VEHICLE_TYPES;
-    const vehicleMakes = makesRes.data && makesRes.data.length > 0 ? makesRes.data : FALLBACK_VEHICLE_MAKES;
-    const vehicleModels = modelsRes.data && modelsRes.data.length > 0 ? modelsRes.data : FALLBACK_VEHICLE_MODELS;
+    const vehicleTypes = mergeByKey<VehicleTypeOption>(
+      (typesRes.data as VehicleTypeOption[]) || [],
+      FALLBACK_VEHICLE_TYPES,
+      (t) => t.id
+    );
+    const vehicleMakes = mergeByKey<VehicleMakeOption>(
+      (makesRes.data as VehicleMakeOption[]) || [],
+      FALLBACK_VEHICLE_MAKES,
+      (m) => m.id
+    );
+    const vehicleModels = mergeByKey<VehicleModelOption>(
+      (modelsRes.data as VehicleModelOption[]) || [],
+      FALLBACK_VEHICLE_MODELS,
+      (m) => m.id
+    );
+    const vehicleVariants = mergeByKey<VehicleVariantOption>(
+      (variantsRes.data as VehicleVariantOption[]) || [],
+      FALLBACK_VEHICLE_VARIANTS,
+      (v) => v.id
+    );
 
     return {
       vehicleTypes,
       vehicleMakes,
       vehicleModels,
+      vehicleVariants,
     };
   } catch (err) {
     console.warn("Using fallback vehicle taxonomy due to fetch error:", err);
@@ -174,6 +370,7 @@ export async function getVehicleTaxonomyHierarchy() {
       vehicleTypes: FALLBACK_VEHICLE_TYPES,
       vehicleMakes: FALLBACK_VEHICLE_MAKES,
       vehicleModels: FALLBACK_VEHICLE_MODELS,
+      vehicleVariants: FALLBACK_VEHICLE_VARIANTS,
     };
   }
 }

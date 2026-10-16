@@ -233,3 +233,101 @@ describe("Shop Approval State Transitions & Security Policies (Phase 4.1 Self-Se
     assert.equal(ONBOARDING_STEPS[3].title, "Publish and Start Selling");
   });
 });
+
+describe("Shop Branding Image Upload Validation & Ownership Protection (Phase 4.2 QA Fixes 1 & 2)", () => {
+  const SHOP_BRANDING_BUCKET = "product-images";
+  const ALLOWED_SHOP_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
+  const MAX_SHOP_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+
+  function validateShopBrandingFile(file) {
+    if (!file || file.size === 0) {
+      return { valid: false, error: "Please select a valid image file to upload." };
+    }
+    if (!ALLOWED_SHOP_IMAGE_MIME_TYPES.includes(file.type)) {
+      return {
+        valid: false,
+        error: "Unsupported file format. Please upload a JPG, PNG, or WEBP image.",
+      };
+    }
+    if (file.size > MAX_SHOP_IMAGE_SIZE_BYTES) {
+      return {
+        valid: false,
+        error: "Image file size exceeds the 5MB limit. Please choose a smaller image.",
+      };
+    }
+    return { valid: true };
+  }
+
+  function extractOwnedStoragePath(publicUrl, userId) {
+    if (!publicUrl || !userId) return null;
+    const marker = `/storage/v1/object/public/${SHOP_BRANDING_BUCKET}/`;
+    const idx = publicUrl.indexOf(marker);
+    if (idx === -1) return null;
+    const relativePath = decodeURIComponent(publicUrl.slice(idx + marker.length));
+    if (!relativePath.startsWith(`${userId}/`)) {
+      return null;
+    }
+    return relativePath;
+  }
+
+  test("accepts valid JPG, PNG, and WEBP shop logo and cover files under 5MB", () => {
+    for (const mime of ALLOWED_SHOP_IMAGE_MIME_TYPES) {
+      const res = validateShopBrandingFile({
+        size: 1024 * 500, // 500 KB
+        type: mime,
+        name: `branding.${mime.split("/")[1]}`,
+      });
+      assert.strictEqual(res.valid, true, `Should accept ${mime}`);
+    }
+  });
+
+  test("rejects unsupported MIME types (SVG, GIF, PDF)", () => {
+    const invalidTypes = ["image/svg+xml", "image/gif", "application/pdf", "text/plain"];
+    for (const mime of invalidTypes) {
+      const res = validateShopBrandingFile({
+        size: 1024 * 100,
+        type: mime,
+        name: "bad-file",
+      });
+      assert.strictEqual(res.valid, false, `Should reject ${mime}`);
+      assert.match(res.error, /Unsupported file format/i);
+    }
+  });
+
+  test("rejects oversized files (> 5MB) and empty files (0 bytes)", () => {
+    const oversized = validateShopBrandingFile({
+      size: MAX_SHOP_IMAGE_SIZE_BYTES + 1,
+      type: "image/jpeg",
+    });
+    assert.strictEqual(oversized.valid, false);
+    assert.match(oversized.error, /exceeds the 5MB limit/i);
+
+    const empty = validateShopBrandingFile({
+      size: 0,
+      type: "image/png",
+    });
+    assert.strictEqual(empty.valid, false);
+  });
+
+  test("extractOwnedStoragePath extracts path only when owned by the authenticated seller user.id", () => {
+    const sellerA = "11111111-1111-4111-a111-111111111111";
+    const sellerB = "22222222-2222-4222-a222-222222222222";
+    const ownedLogoUrl = `https://xyz.supabase.co/storage/v1/object/public/product-images/${sellerA}/shop-logo-1700000-abc.webp`;
+
+    assert.strictEqual(
+      extractOwnedStoragePath(ownedLogoUrl, sellerA),
+      `${sellerA}/shop-logo-1700000-abc.webp`
+    );
+    assert.strictEqual(
+      extractOwnedStoragePath(ownedLogoUrl, sellerB),
+      null,
+      "Must reject storage path belonging to another seller"
+    );
+    assert.strictEqual(
+      extractOwnedStoragePath("https://images.unsplash.com/photo-123", sellerA),
+      null,
+      "Must return null for external URLs"
+    );
+  });
+});
+

@@ -185,4 +185,28 @@ describe("Database Migrations & Schema Architecture Verification", () => {
       "Public must be able to view active shops (status != 'suspended')"
     );
   });
+
+  test("seeds 4-level Sri Lankan vehicle taxonomy (types, makes, models, variants) and enforces compatibility hierarchy trigger", () => {
+    assert.ok(
+      allSqlContent.includes("INSERT INTO public.vehicle_makes"),
+      "Must seed vehicle_makes"
+    );
+    assert.ok(
+      allSqlContent.includes("INSERT INTO public.vehicle_models"),
+      "Must seed vehicle_models"
+    );
+    assert.ok(
+      allSqlContent.includes("INSERT INTO public.vehicle_variants"),
+      "Must seed vehicle_variants"
+    );
+    assert.ok(
+      allSqlContent.includes("CREATE OR REPLACE FUNCTION public.validate_product_compatibility_hierarchy()"),
+      "Must define validate_product_compatibility_hierarchy trigger function"
+    );
+    assert.ok(
+      allSqlContent.includes("CREATE TRIGGER trg_validate_product_compatibility_hierarchy"),
+      "Must attach trg_validate_product_compatibility_hierarchy to product_compatibility"
+    );
+  });
 });
+

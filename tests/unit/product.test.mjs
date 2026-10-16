@@ -261,4 +261,289 @@ describe("Phase 4.2: Product Validation & Helpers Suite", () => {
       assert.equal(parsed.is_published, true);
     });
   });
+
+  describe("4. Phase 4.3: 4-Level Vehicle Compatibility & Hierarchy Validation", () => {
+    const sampleTaxonomy = {
+      types: [
+        { id: "car", name: "Cars & SUVs", display_order: 1 },
+        { id: "three_wheeler", name: "Three-Wheelers", display_order: 2 },
+      ],
+      makes: [
+        { id: "m1000000-0000-0000-0000-000000000001", vehicle_type_id: "car", name: "Toyota", slug: "toyota", is_popular: true },
+        { id: "m1000000-0000-0000-0000-000000000002", vehicle_type_id: "car", name: "Honda", slug: "honda", is_popular: true },
+        { id: "m1000000-0000-0000-0000-000000000006", vehicle_type_id: "three_wheeler", name: "Bajaj", slug: "bajaj-three-wheeler", is_popular: true },
+      ],
+      models: [
+        { id: "d1000000-0000-0000-0000-000000000001", make_id: "m1000000-0000-0000-0000-000000000001", name: "Corolla", slug: "corolla" },
+        { id: "d1000000-0000-0000-0000-000000000002", make_id: "m1000000-0000-0000-0000-000000000001", name: "Prius", slug: "prius" },
+        { id: "d1000000-0000-0000-0000-000000000007", make_id: "m1000000-0000-0000-0000-000000000002", name: "Civic", slug: "civic" },
+        { id: "d1000000-0000-0000-0000-000000000016", make_id: "m1000000-0000-0000-0000-000000000006", name: "RE 205 (4-Stroke)", slug: "re-205-4s" },
+      ],
+      variants: [
+        {
+          id: "v1000000-0000-0000-0000-000000000002",
+          model_id: "d1000000-0000-0000-0000-000000000001",
+          generation_chassis: "NZE121 (1NZ-FE 1.5L)",
+          year_start: 2000,
+          year_end: 2006,
+          engine_code: "1NZ-FE",
+          transmission: "Automatic / Manual",
+          fuel_type: "petrol",
+        },
+        {
+          id: "v1000000-0000-0000-0000-000000000004",
+          model_id: "d1000000-0000-0000-0000-000000000002",
+          generation_chassis: "ZVW30 (3rd Gen Hybrid)",
+          year_start: 2009,
+          year_end: 2015,
+          engine_code: "2ZR-FXE 1.8L",
+          transmission: "e-CVT",
+          fuel_type: "hybrid",
+        },
+        {
+          id: "v1000000-0000-0000-0000-000000000027",
+          model_id: "d1000000-0000-0000-0000-000000000016",
+          generation_chassis: "RE Compact 4S FL / BS6",
+          year_start: 2014,
+          year_end: null,
+          engine_code: "DTS-i 198cc",
+          transmission: "4-Speed Manual",
+          fuel_type: "petrol",
+        },
+      ],
+    };
+
+    function formatVariantYearRange(yearStart, yearEnd) {
+      return yearEnd ? `${yearStart}–${yearEnd}` : `${yearStart}–Present`;
+    }
+
+    function formatVariantLabel(v) {
+      const yearStr = formatVariantYearRange(v.year_start, v.year_end);
+      const chassis = v.generation_chassis || "Standard Variant";
+      return `${chassis} (${yearStr})`;
+    }
+
+    function validateCompatibilityEntries(compatibilities, isUniversal, taxonomy) {
+      if (isUniversal) {
+        return { valid: true, normalized: [] };
+      }
+
+      const modelMap = new Map(taxonomy.models.map((m) => [m.id, m]));
+      const makeMap = new Map(taxonomy.makes.map((m) => [m.id, m]));
+      const variantMap = new Map(taxonomy.variants.map((v) => [v.id, v]));
+
+      const seenKeys = new Set();
+      const normalized = [];
+
+      for (let i = 0; i < compatibilities.length; i++) {
+        const entry = compatibilities[i];
+        const modelId = entry.vehicle_model_id || null;
+        const variantId = entry.vehicle_variant_id || null;
+
+        if (!modelId && !variantId) {
+          return {
+            valid: false,
+            error: `Compatibility entry #${i + 1} must specify at least a vehicle model or variant.`,
+          };
+        }
+
+        let resolvedModelId = modelId;
+
+        if (variantId) {
+          const variant = variantMap.get(variantId);
+          if (!variant) {
+            return {
+              valid: false,
+              error: `Compatibility entry #${i + 1} references an invalid or unknown vehicle variant.`,
+            };
+          }
+          if (resolvedModelId && variant.model_id !== resolvedModelId) {
+            return {
+              valid: false,
+              error: `Compatibility entry #${i + 1}: Selected variant "${variant.generation_chassis}" does not belong to the selected vehicle model.`,
+            };
+          }
+          resolvedModelId = variant.model_id;
+        }
+
+        if (!resolvedModelId) {
+          return {
+            valid: false,
+            error: `Compatibility entry #${i + 1} is missing a valid vehicle model.`,
+          };
+        }
+
+        const model = modelMap.get(resolvedModelId);
+        if (!model) {
+          return {
+            valid: false,
+            error: `Compatibility entry #${i + 1} references an invalid or unknown vehicle model.`,
+          };
+        }
+
+        const make = makeMap.get(model.make_id);
+        if (!make) {
+          return {
+            valid: false,
+            error: `Compatibility entry #${i + 1} references a vehicle model with an invalid make.`,
+          };
+        }
+
+        if (entry.make_id && entry.make_id !== make.id) {
+          return {
+            valid: false,
+            error: `Compatibility entry #${i + 1}: Model "${model.name}" does not belong to the selected make.`,
+          };
+        }
+
+        if (entry.vehicle_type_id && entry.vehicle_type_id !== make.vehicle_type_id) {
+          return {
+            valid: false,
+            error: `Compatibility entry #${i + 1}: Make "${make.name}" does not belong to the selected vehicle type.`,
+          };
+        }
+
+        const dedupeKey = variantId ? `variant:${variantId}` : `model:${resolvedModelId}`;
+        if (seenKeys.has(dedupeKey)) {
+          return {
+            valid: false,
+            error: `Duplicate vehicle compatibility entry detected for ${make.name} ${model.name}.`,
+          };
+        }
+        seenKeys.add(dedupeKey);
+
+        normalized.push({
+          ...entry,
+          vehicle_model_id: resolvedModelId,
+          vehicle_variant_id: variantId,
+        });
+      }
+
+      return { valid: true, normalized };
+    }
+
+    test("formats variant labels and year ranges accurately", () => {
+      assert.strictEqual(
+        formatVariantLabel(sampleTaxonomy.variants[0]),
+        "NZE121 (1NZ-FE 1.5L) (2000–2006)"
+      );
+      assert.strictEqual(
+        formatVariantLabel(sampleTaxonomy.variants[2]),
+        "RE Compact 4S FL / BS6 (2014–Present)"
+      );
+    });
+
+    test("cascading filter narrows makes by type, models by make, and variants by model", () => {
+      const carMakes = sampleTaxonomy.makes.filter((m) => m.vehicle_type_id === "car");
+      assert.strictEqual(carMakes.length, 2);
+
+      const toyotaModels = sampleTaxonomy.models.filter(
+        (m) => m.make_id === "m1000000-0000-0000-0000-000000000001"
+      );
+      assert.strictEqual(toyotaModels.length, 2);
+
+      const corollaVariants = sampleTaxonomy.variants.filter(
+        (v) => v.model_id === "d1000000-0000-0000-0000-000000000001"
+      );
+      assert.strictEqual(corollaVariants.length, 1);
+      assert.strictEqual(corollaVariants[0].generation_chassis, "NZE121 (1NZ-FE 1.5L)");
+    });
+
+    test("accepts valid 4-level (Type -> Make -> Model -> Variant) and 3-level (All Variants) entries", () => {
+      const res = validateCompatibilityEntries(
+        [
+          {
+            vehicle_type_id: "car",
+            make_id: "m1000000-0000-0000-0000-000000000001",
+            vehicle_model_id: "d1000000-0000-0000-0000-000000000001",
+            vehicle_variant_id: "v1000000-0000-0000-0000-000000000002",
+            notes: "Front disc brake pads only",
+            is_exact_fit: true,
+          },
+          {
+            vehicle_type_id: "car",
+            make_id: "m1000000-0000-0000-0000-000000000002",
+            vehicle_model_id: "d1000000-0000-0000-0000-000000000007",
+            vehicle_variant_id: null,
+            notes: "Fits all Honda Civic generations",
+            is_exact_fit: false,
+          },
+        ],
+        false,
+        sampleTaxonomy
+      );
+      assert.strictEqual(res.valid, true);
+      assert.strictEqual(res.normalized.length, 2);
+    });
+
+    test("rejects mismatched variant that does not belong to selected model", () => {
+      const res = validateCompatibilityEntries(
+        [
+          {
+            vehicle_model_id: "d1000000-0000-0000-0000-000000000001", // Corolla
+            vehicle_variant_id: "v1000000-0000-0000-0000-000000000004", // Prius ZVW30 variant!
+            is_exact_fit: true,
+          },
+        ],
+        false,
+        sampleTaxonomy
+      );
+      assert.strictEqual(res.valid, false);
+      assert.match(res.error, /does not belong to the selected vehicle model/i);
+    });
+
+    test("rejects mismatched model that does not belong to selected make", () => {
+      const res = validateCompatibilityEntries(
+        [
+          {
+            make_id: "m1000000-0000-0000-0000-000000000002", // Honda
+            vehicle_model_id: "d1000000-0000-0000-0000-000000000001", // Toyota Corolla!
+            is_exact_fit: true,
+          },
+        ],
+        false,
+        sampleTaxonomy
+      );
+      assert.strictEqual(res.valid, false);
+      assert.match(res.error, /does not belong to the selected make/i);
+    });
+
+    test("rejects duplicate compatibility entries for the same product", () => {
+      const res = validateCompatibilityEntries(
+        [
+          {
+            vehicle_model_id: "d1000000-0000-0000-0000-000000000001",
+            vehicle_variant_id: "v1000000-0000-0000-0000-000000000002",
+            is_exact_fit: true,
+          },
+          {
+            vehicle_model_id: "d1000000-0000-0000-0000-000000000001",
+            vehicle_variant_id: "v1000000-0000-0000-0000-000000000002",
+            is_exact_fit: false,
+          },
+        ],
+        false,
+        sampleTaxonomy
+      );
+      assert.strictEqual(res.valid, false);
+      assert.match(res.error, /Duplicate vehicle compatibility entry/i);
+    });
+
+    test("clears compatibility entries when is_universal is true", () => {
+      const res = validateCompatibilityEntries(
+        [
+          {
+            vehicle_model_id: "d1000000-0000-0000-0000-000000000001",
+            vehicle_variant_id: "v1000000-0000-0000-0000-000000000002",
+            is_exact_fit: true,
+          },
+        ],
+        true,
+        sampleTaxonomy
+      );
+      assert.strictEqual(res.valid, true);
+      assert.strictEqual(res.normalized.length, 0);
+    });
+  });
 });
+

@@ -168,3 +168,103 @@ export const shopUpdateSchema = z.object({
 
 export type ShopCreateInput = z.infer<typeof shopCreateSchema>;
 export type ShopUpdateInput = z.infer<typeof shopUpdateSchema>;
+
+export const SHOP_BRANDING_BUCKET = "product-images" as const;
+
+export const ALLOWED_SHOP_IMAGE_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+] as const;
+
+export type AllowedShopImageMimeType = (typeof ALLOWED_SHOP_IMAGE_MIME_TYPES)[number];
+
+export const MAX_SHOP_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+
+export type ShopBrandingAssetType = "logo" | "cover";
+
+export interface ShopBrandingFileValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+/**
+ * Validates a shop branding image file (logo or cover banner) for MIME type and file size.
+ */
+export function validateShopBrandingFile(
+  file: { type?: string; size?: number; name?: string } | null | undefined,
+  assetLabel: string = "Image"
+): ShopBrandingFileValidationResult {
+  if (!file || typeof file.size !== "number" || file.size <= 0) {
+    return {
+      valid: false,
+      error: `Please select a valid ${assetLabel.toLowerCase()} file to upload.`,
+    };
+  }
+
+  if (
+    !file.type ||
+    !ALLOWED_SHOP_IMAGE_MIME_TYPES.includes(file.type as AllowedShopImageMimeType)
+  ) {
+    return {
+      valid: false,
+      error: `Invalid ${assetLabel.toLowerCase()} format. Only JPG, PNG, and WEBP images are allowed.`,
+    };
+  }
+
+  if (file.size > MAX_SHOP_IMAGE_SIZE_BYTES) {
+    return {
+      valid: false,
+      error: `${assetLabel} exceeds the 5 MB maximum size limit.`,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Extracts the storage object path within the public `product-images` bucket
+ * only if the URL belongs to the specified authenticated `userId` and is a shop branding asset.
+ * Returns null for external URLs or paths not owned by `userId`.
+ */
+export function extractOwnedStoragePath(
+  url: string | null | undefined,
+  userId: string
+): string | null {
+  if (!url || !userId || typeof url !== "string") {
+    return null;
+  }
+
+  const trimmedUrl = url.trim();
+  if (!trimmedUrl) return null;
+
+  const marker = `/storage/v1/object/public/${SHOP_BRANDING_BUCKET}/`;
+  const markerIndex = trimmedUrl.indexOf(marker);
+  if (markerIndex === -1) {
+    return null;
+  }
+
+  const rawPath = trimmedUrl
+    .slice(markerIndex + marker.length)
+    .split("?")[0]
+    .split("#")[0];
+
+  let decodedPath = rawPath;
+  try {
+    decodedPath = decodeURIComponent(rawPath);
+  } catch {
+    decodedPath = rawPath;
+  }
+
+  // Prevent path traversal and strictly enforce user folder ownership
+  if (
+    decodedPath.includes("..") ||
+    decodedPath.startsWith("/") ||
+    !decodedPath.startsWith(`${userId}/shop-`)
+  ) {
+    return null;
+  }
+
+  return decodedPath;
+}
+

@@ -120,6 +120,40 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_compat_product_model_unique
   ON public.product_compatibility (product_id, vehicle_model_id)
   WHERE vehicle_variant_id IS NULL;
 
+-- Enforce hierarchy consistency: if vehicle_variant_id is specified, it must belong to vehicle_model_id
+CREATE OR REPLACE FUNCTION public.validate_product_compatibility_hierarchy()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_variant_model_id uuid;
+BEGIN
+  IF NEW.vehicle_variant_id IS NOT NULL THEN
+    SELECT model_id INTO v_variant_model_id
+    FROM public.vehicle_variants
+    WHERE id = NEW.vehicle_variant_id;
+
+    IF v_variant_model_id IS NULL THEN
+      RAISE EXCEPTION 'Invalid vehicle_variant_id: %', NEW.vehicle_variant_id;
+    END IF;
+
+    IF NEW.vehicle_model_id IS NULL THEN
+      NEW.vehicle_model_id := v_variant_model_id;
+    ELSIF NEW.vehicle_model_id <> v_variant_model_id THEN
+      RAISE EXCEPTION 'vehicle_variant_id (%) does not belong to vehicle_model_id (%)', NEW.vehicle_variant_id, NEW.vehicle_model_id;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_validate_product_compatibility_hierarchy ON public.product_compatibility;
+CREATE TRIGGER trg_validate_product_compatibility_hierarchy
+  BEFORE INSERT OR UPDATE ON public.product_compatibility
+  FOR EACH ROW EXECUTE FUNCTION public.validate_product_compatibility_hierarchy();
+
 
 -- -----------------------------------------------------------------------------
 -- ROW LEVEL SECURITY POLICIES (Idempotent & Rerun-Safe)
@@ -244,6 +278,13 @@ DROP POLICY IF EXISTS "Sellers can manage compatibility of own products" ON publ
 CREATE POLICY "Sellers can manage compatibility of own products"
   ON public.product_compatibility FOR ALL
   USING (
+    EXISTS (
+      SELECT 1 FROM public.products p
+      WHERE p.id = product_compatibility.product_id AND public.owns_shop(p.shop_id)
+    )
+    OR public.is_platform_admin()
+  )
+  WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.products p
       WHERE p.id = product_compatibility.product_id AND public.owns_shop(p.shop_id)

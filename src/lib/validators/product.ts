@@ -51,15 +51,39 @@ export const productImageItemSchema = z.object({
   is_primary: z.boolean().default(false),
 });
 
-export const productCompatibilityItemSchema = z.object({
-  id: uuidSchema.optional(),
-  vehicle_model_id: uuidSchema.optional().nullable(),
-  vehicle_variant_id: uuidSchema.optional().nullable(),
-  make_name: z.string().optional(),
-  model_name: z.string().optional(),
-  notes: z.string().trim().max(200, "Notes cannot exceed 200 characters").optional().nullable().or(z.literal("")),
-  is_exact_fit: z.boolean().default(true),
-});
+export const productCompatibilityItemSchema = z
+  .object({
+    id: uuidSchema.optional(),
+    vehicle_type_id: z.string().trim().min(1).optional().nullable(),
+    vehicle_type_name: z.string().trim().optional().nullable(),
+    make_id: uuidSchema.optional().nullable(),
+    make_name: z.string().trim().optional().nullable(),
+    vehicle_model_id: uuidSchema.optional().nullable(),
+    model_name: z.string().trim().optional().nullable(),
+    vehicle_variant_id: uuidSchema.optional().nullable(),
+    variant_label: z.string().trim().optional().nullable(),
+    generation_chassis: z.string().trim().optional().nullable(),
+    year_start: z.number().int().min(1950).max(2100).optional().nullable(),
+    year_end: z.number().int().min(1950).max(2100).optional().nullable(),
+    engine_code: z.string().trim().optional().nullable(),
+    transmission: z.string().trim().optional().nullable(),
+    fuel_type: z.string().trim().optional().nullable(),
+    notes: z
+      .string()
+      .trim()
+      .max(200, "Notes cannot exceed 200 characters")
+      .optional()
+      .nullable()
+      .or(z.literal("")),
+    is_exact_fit: z.boolean().default(true),
+  })
+  .refine(
+    (item) => Boolean(item.vehicle_model_id || item.vehicle_variant_id),
+    {
+      message:
+        "Each vehicle compatibility entry must specify a valid vehicle model or variant.",
+    }
+  );
 
 export const productCreateSchema = z.object({
   title: z
@@ -207,3 +231,190 @@ export type ProductCreateInput = z.infer<typeof productCreateSchema>;
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
 export type ProductImageItem = z.infer<typeof productImageItemSchema>;
 export type ProductCompatibilityItem = z.infer<typeof productCompatibilityItemSchema>;
+
+export interface TaxonomyValidationLookup {
+  vehicleTypes?: Array<{ id: string; name: string }>;
+  vehicleMakes: Array<{ id: string; vehicle_type_id: string; name: string }>;
+  vehicleModels: Array<{ id: string; make_id: string; name: string }>;
+  vehicleVariants: Array<{
+    id: string;
+    model_id: string;
+    generation_chassis: string;
+    year_start: number;
+    year_end?: number | null;
+    engine_code?: string | null;
+    transmission?: string | null;
+    fuel_type?: string | null;
+  }>;
+}
+
+export interface NormalizedCompatibilityRecord {
+  vehicle_model_id: string;
+  vehicle_variant_id: string | null;
+  notes: string | null;
+  is_exact_fit: boolean;
+}
+
+export interface CompatibilityValidationResult {
+  valid: boolean;
+  error?: string;
+  normalized: NormalizedCompatibilityRecord[];
+}
+
+/**
+ * Validates an array of vehicle compatibility items against the 4-level vehicle taxonomy
+ * (`Vehicle Type -> Make -> Model -> Variant`), rejecting invalid hierarchy combinations,
+ * missing identifiers, and duplicate entries for the same product.
+ */
+export function validateCompatibilityEntries(
+  compatibilities: ProductCompatibilityItem[],
+  isUniversal: boolean,
+  taxonomy: TaxonomyValidationLookup
+): CompatibilityValidationResult {
+  if (isUniversal) {
+    return { valid: true, normalized: [] };
+  }
+
+  const seenKeys = new Set<string>();
+  const normalized: NormalizedCompatibilityRecord[] = [];
+
+  for (const item of compatibilities) {
+    let modelId = item.vehicle_model_id || null;
+    const variantId = item.vehicle_variant_id || null;
+
+    if (!modelId && !variantId) {
+      return {
+        valid: false,
+        error:
+          "Each vehicle compatibility entry must specify a valid vehicle model or variant.",
+        normalized: [],
+      };
+    }
+
+    if (variantId) {
+      const variant = taxonomy.vehicleVariants.find((v) => v.id === variantId);
+      if (!variant) {
+        return {
+          valid: false,
+          error: "Selected vehicle variant does not exist.",
+          normalized: [],
+        };
+      }
+
+      if (modelId && variant.model_id !== modelId) {
+        return {
+          valid: false,
+          error:
+            "Selected vehicle variant does not belong to the selected vehicle model.",
+          normalized: [],
+        };
+      }
+
+      modelId = variant.model_id;
+    }
+
+    if (!modelId) {
+      return {
+        valid: false,
+        error: "Selected vehicle model does not exist.",
+        normalized: [],
+      };
+    }
+
+    const model = taxonomy.vehicleModels.find((m) => m.id === modelId);
+    if (!model) {
+      return {
+        valid: false,
+        error: "Selected vehicle model does not exist.",
+        normalized: [],
+      };
+    }
+
+    if (item.make_id && model.make_id !== item.make_id) {
+      return {
+        valid: false,
+        error:
+          "Selected vehicle model does not belong to the selected vehicle make.",
+        normalized: [],
+      };
+    }
+
+    const make = taxonomy.vehicleMakes.find((mk) => mk.id === model.make_id);
+    if (!make) {
+      return {
+        valid: false,
+        error: "Selected vehicle make does not exist.",
+        normalized: [],
+      };
+    }
+
+    if (item.vehicle_type_id && make.vehicle_type_id !== item.vehicle_type_id) {
+      return {
+        valid: false,
+        error:
+          "Selected vehicle make does not belong to the selected vehicle type.",
+        normalized: [],
+      };
+    }
+
+    const dedupeKey = variantId ? `variant:${variantId}` : `model:${modelId}`;
+    if (seenKeys.has(dedupeKey)) {
+      return {
+        valid: false,
+        error:
+          "Duplicate vehicle compatibility entry detected for the same vehicle model/variant.",
+        normalized: [],
+      };
+    }
+    seenKeys.add(dedupeKey);
+
+    normalized.push({
+      vehicle_model_id: modelId,
+      vehicle_variant_id: variantId,
+      notes: item.notes?.trim() ? item.notes.trim() : null,
+      is_exact_fit: item.is_exact_fit ?? true,
+    });
+  }
+
+  return {
+    valid: true,
+    normalized,
+  };
+}
+
+/**
+ * Formats a vehicle variant year range for UI display (e.g., "2009–2015" or "2018–Present").
+ */
+export function formatVariantYearRange(
+  yearStart?: number | null,
+  yearEnd?: number | null
+): string {
+  if (!yearStart) return "";
+  return yearEnd ? `${yearStart}–${yearEnd}` : `${yearStart}–Present`;
+}
+
+/**
+ * Formats a concise human-readable label for a vehicle variant option.
+ */
+export function formatVariantLabel(variant: {
+  generation_chassis?: string | null;
+  year_start: number;
+  year_end?: number | null;
+  engine_code?: string | null;
+  fuel_type?: string | null;
+}): string {
+  const yearRange = formatVariantYearRange(variant.year_start, variant.year_end);
+  const parts: string[] = [];
+  if (variant.generation_chassis) {
+    parts.push(variant.generation_chassis);
+  }
+  if (yearRange) {
+    parts.push(`(${yearRange})`);
+  }
+  if (variant.engine_code && !variant.generation_chassis?.includes(variant.engine_code)) {
+    parts.push(`• ${variant.engine_code}`);
+  }
+  return parts.join(" ") || `Model Year ${yearRange}`;
+}
+
+

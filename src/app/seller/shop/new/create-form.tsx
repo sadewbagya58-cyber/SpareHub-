@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { ShopBrandingUploader } from "@/components/seller/shop-branding-uploader";
 import { SRI_LANKA_DISTRICTS } from "@/lib/constants";
 import { SellerType } from "@/lib/types";
 import { createShopAction, type ShopActionResult } from "@/lib/seller/actions";
@@ -301,34 +302,36 @@ export function CreateShopForm({ initialEmail = "", initialSellerType = "retail_
         </CardContent>
       </Card>
 
-      {/* Optional Branding URLs */}
+      {/* Storefront Branding Uploaders */}
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             <ImageIcon className="w-4 h-4 text-sparehub-orange" />
-            4. Storefront Media (Optional)
+            4. Storefront Branding Assets (Optional)
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Logo URL (Optional)"
-              value={logoUrl}
-              onChange={(e) => setLogoUrl(e.target.value)}
-              placeholder="https://.../logo.png"
-              disabled={isPending}
-              helperText="Square 1:1 image URL."
-            />
+        <CardContent className="space-y-6">
+          <ShopBrandingUploader
+            assetType="logo"
+            name="logo_url"
+            label="Shop Logo Image (Optional)"
+            helperText="Square 1:1 image recommended for your shop profile badge and product pages."
+            value={logoUrl}
+            onChange={setLogoUrl}
+            shopName={name}
+            disabled={isPending}
+          />
 
-            <Input
-              label="Cover Banner URL (Optional)"
-              value={coverUrl}
-              onChange={(e) => setCoverUrl(e.target.value)}
-              placeholder="https://.../cover.jpg"
-              disabled={isPending}
-              helperText="Wide 16:9 or 3:1 banner URL."
-            />
-          </div>
+          <ShopBrandingUploader
+            assetType="cover"
+            name="cover_url"
+            label="Storefront Cover Banner (Optional)"
+            helperText="Wide 16:9 or 3:1 header banner displayed at the top of your public shop page."
+            value={coverUrl}
+            onChange={setCoverUrl}
+            shopName={name}
+            disabled={isPending}
+          />
         </CardContent>
       </Card>
 

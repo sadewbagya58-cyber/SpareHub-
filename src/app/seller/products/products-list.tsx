@@ -123,10 +123,10 @@ export function ProductsList({
       )}
 
       {/* Control Bar: Search & Filters */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-sparehub-border shadow-xs">
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white p-3.5 sm:p-4 rounded-2xl border border-sparehub-border shadow-xs">
         {/* Search Input */}
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+        <div className="relative flex-1 min-w-0">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             placeholder="Search by part title, SKU/part number, brand..."
@@ -136,13 +136,13 @@ export function ProductsList({
           />
         </div>
 
-        {/* Filter Dropdowns */}
-        <div className="flex items-center gap-2">
+        {/* Filter Dropdowns & Add Part Action */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:items-center gap-2 w-full md:w-auto">
           {/* Category Filter */}
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="text-xs py-2 px-3 border border-sparehub-border rounded-xl bg-white focus:border-sparehub-orange focus:outline-none"
+            className="w-full md:w-auto min-w-0 text-xs py-2 px-3 border border-sparehub-border rounded-xl bg-white focus:border-sparehub-orange focus:outline-none truncate"
           >
             <option value="all">All Categories</option>
             {categories.map((c) => (
@@ -156,7 +156,7 @@ export function ProductsList({
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="text-xs py-2 px-3 border border-sparehub-border rounded-xl bg-white focus:border-sparehub-orange focus:outline-none"
+            className="w-full md:w-auto min-w-0 text-xs py-2 px-3 border border-sparehub-border rounded-xl bg-white focus:border-sparehub-orange focus:outline-none truncate"
           >
             <option value="all">All Statuses</option>
             <option value="published">Published (Live)</option>
@@ -167,17 +167,17 @@ export function ProductsList({
           {/* Add Part Button */}
           <Link
             href="/seller/products/new"
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-sparehub-orange hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors whitespace-nowrap"
+            className="w-full sm:col-span-2 md:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-sparehub-orange hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors whitespace-nowrap shrink-0"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             Add Part
           </Link>
         </div>
       </div>
 
-      {/* Products Table or Empty State */}
+      {/* Products Table / Mobile Cards or Empty State */}
       {filteredProducts.length === 0 ? (
-        <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-gray-300 space-y-4">
+        <div className="p-8 sm:p-12 text-center bg-white rounded-2xl border border-dashed border-gray-300 space-y-4">
           <div className="w-16 h-16 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto text-sparehub-orange">
             <Package className="w-8 h-8" />
           </div>
@@ -196,16 +196,180 @@ export function ProductsList({
           <div>
             <Link
               href="/seller/products/new"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-sparehub-orange hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+              className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 bg-sparehub-orange hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 shrink-0" />
               List Your First Part Now
             </Link>
           </div>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-sparehub-border shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile Product Cards (< md) */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {filteredProducts.map((p) => (
+              <div
+                key={p.id}
+                className="p-4 space-y-3 hover:bg-sparehub-light/30 transition-colors"
+              >
+                {/* Top row: Image, Title, Brand/SKU */}
+                <div className="flex items-start gap-3">
+                  <div className="relative w-14 h-14 rounded-xl bg-gray-100 overflow-hidden border border-gray-200 shrink-0">
+                    {p.primary_image_url ? (
+                      <Image
+                        src={p.primary_image_url}
+                        alt={p.title}
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400 font-black text-sm">
+                        ⚙️
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <Link
+                      href={`/seller/products/${p.id}/edit`}
+                      className="text-sm font-bold text-sparehub-dark hover:text-sparehub-orange transition-colors line-clamp-2 leading-snug"
+                    >
+                      {p.title}
+                    </Link>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[11px] text-gray-500 font-mono">
+                      <span className="font-semibold text-gray-700">
+                        {p.brand_name}
+                      </span>
+                      {p.part_number && (
+                        <>
+                          <span>•</span>
+                          <span className="break-all">SKU: {p.part_number}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Badges row: Condition, Category, Publication Status */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge
+                    variant={
+                      p.condition === "brand_new"
+                        ? "success"
+                        : p.condition === "reconditioned"
+                        ? "orange"
+                        : "neutral"
+                    }
+                    size="sm"
+                    className="whitespace-nowrap shrink-0"
+                  >
+                    {p.condition === "brand_new"
+                      ? "Brand New"
+                      : p.condition === "reconditioned"
+                      ? "Reconditioned"
+                      : "Used"}
+                  </Badge>
+
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 text-[11px] font-medium">
+                    {p.category_name || "Uncategorized"}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTogglePublish(p.id, p.is_published)}
+                    disabled={isPending}
+                    className={`ml-auto inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all shrink-0 ${
+                      p.is_published
+                        ? "bg-green-100 text-sparehub-success hover:bg-green-200"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    {p.is_published ? (
+                      <>
+                        <Eye className="w-3 h-3" />
+                        Live
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="w-3 h-3" />
+                        Draft
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Bottom row: Price, Stock, Actions */}
+                <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-extrabold text-sparehub-dark text-sm">
+                        {formatLKR(p.price_minor_units)}
+                      </span>
+                      {p.compare_at_price_lkr && (
+                        <span className="text-[10px] text-gray-400 line-through">
+                          Rs. {p.compare_at_price_lkr.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-0.5 text-[11px]">
+                      {p.stock_quantity > 0 ? (
+                        <span className="inline-flex items-center gap-1 font-bold text-sparehub-dark">
+                          <span className="w-1.5 h-1.5 rounded-full bg-sparehub-success" />
+                          {p.stock_quantity} in stock
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 font-bold text-red-600">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                          Out of stock
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="inline-flex items-center gap-1 shrink-0">
+                    {p.is_published && (
+                      <Link
+                        href={`/products/${p.slug}`}
+                        target="_blank"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:text-sparehub-dark bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors"
+                        title="View public product page"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span className="sr-only sm:not-sr-only">View</span>
+                      </Link>
+                    )}
+
+                    <Link
+                      href={`/seller/products/${p.id}/edit`}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-sparehub-dark hover:text-sparehub-orange bg-gray-50 hover:bg-orange-50 border border-gray-200 rounded-lg transition-colors"
+                      title="Edit product"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Edit</span>
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(p.id, p.title)}
+                      disabled={deletingId === p.id}
+                      className="inline-flex items-center justify-center p-1.5 text-gray-500 hover:text-red-600 bg-gray-50 hover:bg-red-50 border border-gray-200 rounded-lg transition-colors disabled:opacity-50"
+                      title="Delete listing"
+                    >
+                      {deletingId === p.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-red-600" />
+                      ) : (
+                        <Trash2 className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Product Table (>= md) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50/75 border-b border-sparehub-border text-[11px] font-bold text-gray-500 uppercase tracking-wider">
@@ -265,12 +429,12 @@ export function ProductsList({
                     </td>
 
                     {/* Category */}
-                    <td className="py-3 px-4 text-gray-600 font-medium">
+                    <td className="py-3 px-4 text-gray-600 font-medium whitespace-nowrap">
                       {p.category_name || "Uncategorized"}
                     </td>
 
                     {/* Condition */}
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4 whitespace-nowrap">
                       <Badge
                         variant={
                           p.condition === "brand_new"
@@ -280,6 +444,7 @@ export function ProductsList({
                             : "neutral"
                         }
                         size="sm"
+                        className="whitespace-nowrap"
                       >
                         {p.condition === "brand_new"
                           ? "Brand New"
@@ -290,7 +455,7 @@ export function ProductsList({
                     </td>
 
                     {/* Stock */}
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4 whitespace-nowrap">
                       {p.stock_quantity > 0 ? (
                         <span className="inline-flex items-center gap-1 font-bold text-sparehub-dark">
                           <span className="w-2 h-2 rounded-full bg-sparehub-success" />
@@ -305,7 +470,7 @@ export function ProductsList({
                     </td>
 
                     {/* Price */}
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4 whitespace-nowrap">
                       <span className="font-bold text-sparehub-dark text-sm">
                         {formatLKR(p.price_minor_units)}
                       </span>
@@ -317,7 +482,7 @@ export function ProductsList({
                     </td>
 
                     {/* Visibility & Instant Publish Toggle */}
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4 whitespace-nowrap">
                       <button
                         type="button"
                         onClick={() => handleTogglePublish(p.id, p.is_published)}
@@ -348,7 +513,7 @@ export function ProductsList({
                     </td>
 
                     {/* Actions */}
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1">
                         {p.is_published && (
                           <Link
@@ -391,7 +556,7 @@ export function ProductsList({
           </div>
 
           {/* Table Footer info */}
-          <div className="p-4 bg-gray-50/50 border-t border-sparehub-border flex items-center justify-between text-xs text-gray-500">
+          <div className="p-4 bg-gray-50/50 border-t border-sparehub-border flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-gray-500">
             <span>
               Showing {filteredProducts.length} of {initialProducts.length} items
             </span>

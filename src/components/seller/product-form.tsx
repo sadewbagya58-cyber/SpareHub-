@@ -33,6 +33,7 @@ import {
   type VehicleTypeOption,
   type VehicleMakeOption,
   type VehicleModelOption,
+  type VehicleVariantOption,
 } from "@/lib/products/taxonomy";
 
 interface ProductFormProps {
@@ -43,6 +44,7 @@ interface ProductFormProps {
     vehicleTypes: VehicleTypeOption[];
     vehicleMakes: VehicleMakeOption[];
     vehicleModels: VehicleModelOption[];
+    vehicleVariants?: VehicleVariantOption[];
   };
 }
 
@@ -571,6 +573,7 @@ export function ProductForm({
           vehicleTypes={vehicleTaxonomy.vehicleTypes}
           vehicleMakes={vehicleTaxonomy.vehicleMakes}
           vehicleModels={vehicleTaxonomy.vehicleModels}
+          vehicleVariants={vehicleTaxonomy.vehicleVariants}
         />
       </div>
 

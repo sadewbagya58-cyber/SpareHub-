@@ -12,18 +12,14 @@ import {
   Layers,
   ExternalLink,
 } from "lucide-react";
-import { getPublicProductBySlug } from "@/lib/products/actions";
+import {
+  getPublicProductBySlug,
+  type EnrichedCompatibilityItem,
+} from "@/lib/products/actions";
+import { formatVariantYearRange } from "@/lib/products/taxonomy";
 import { formatLKR } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ProductGallery } from "@/components/marketplace/product-gallery";
-
-interface ProductFitmentItem {
-  id: string;
-  notes?: string | null;
-  is_exact_fit: boolean;
-  make_name: string;
-  model_name: string;
-}
 
 interface ProductPageProps {
   params: Promise<{ slug: string }>;
@@ -58,7 +54,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
       {/* Breadcrumb Navigation */}
-      <div className="flex items-center gap-2 text-xs font-semibold text-gray-500">
+      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500">
         <Link href="/" className="hover:text-sparehub-orange transition-colors">
           Home
         </Link>
@@ -88,12 +84,20 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
           <ProductGallery images={product.images} title={product.title} />
 
           {/* Vehicle Compatibility Section */}
-          <div className="bg-white rounded-2xl border border-sparehub-border p-6 space-y-4 shadow-xs">
-            <div className="flex items-center gap-2 pb-3 border-b border-sparehub-border">
-              <Car className="w-5 h-5 text-sparehub-orange" />
-              <h3 className="font-bold text-base text-sparehub-dark">
-                Vehicle Fitment & Compatibility
-              </h3>
+          <div className="bg-white rounded-2xl border border-sparehub-border p-5 sm:p-6 space-y-4 shadow-xs">
+            <div className="flex items-center justify-between gap-2 pb-3 border-b border-sparehub-border">
+              <div className="flex items-center gap-2">
+                <Car className="w-5 h-5 text-sparehub-orange shrink-0" />
+                <h3 className="font-bold text-base text-sparehub-dark">
+                  Vehicle Fitment &amp; Compatibility
+                </h3>
+              </div>
+              {!product.is_universal && product.compatibilities?.length > 0 && (
+                <span className="text-xs font-semibold text-gray-500">
+                  {product.compatibilities.length} Compatible{" "}
+                  {product.compatibilities.length === 1 ? "Vehicle" : "Vehicles"}
+                </span>
+              )}
             </div>
 
             {product.is_universal ? (
@@ -111,30 +115,93 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
             ) : product.compatibilities && product.compatibilities.length > 0 ? (
               <div className="space-y-3">
                 <p className="text-xs text-gray-500">
-                  Verified compatibility for Sri Lankan vehicles:
+                  Verified compatibility for Sri Lankan vehicles (Type, Make, Model, Variant &amp; Year range):
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {product.compatibilities.map((c: ProductFitmentItem) => (
-                    <div
-                      key={c.id}
-                      className="p-3 rounded-xl border border-sparehub-border bg-gray-50/50 flex items-start gap-2.5"
-                    >
-                      <CheckCircle2 className="w-4 h-4 text-sparehub-success shrink-0 mt-0.5" />
-                      <div className="min-w-0">
-                        <span className="text-xs font-bold text-sparehub-dark block truncate">
-                          {c.make_name} {c.model_name}
-                        </span>
-                        {c.notes && (
-                          <span className="text-[11px] text-gray-500 block">
-                            {c.notes}
-                          </span>
-                        )}
-                        <span className="text-[10px] font-bold text-sparehub-success uppercase tracking-wider block mt-0.5">
-                          {c.is_exact_fit ? "Direct OEM Fit" : "Compatible"}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {product.compatibilities.map(
+                    (c: EnrichedCompatibilityItem, idx: number) => {
+                      const yearRange = formatVariantYearRange(
+                        c.year_start,
+                        c.year_end
+                      );
+
+                      return (
+                        <div
+                          key={c.id || idx}
+                          className="p-3.5 rounded-xl border border-sparehub-border bg-gray-50/60 flex items-start gap-2.5"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-sparehub-success shrink-0 mt-0.5" />
+                          <div className="min-w-0 flex-1 space-y-1.5">
+                            <div className="flex flex-wrap items-center justify-between gap-1.5">
+                              {c.vehicle_type_name && (
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white border border-gray-200 text-gray-600">
+                                  {c.vehicle_type_name}
+                                </span>
+                              )}
+                              <span
+                                className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                                  c.is_exact_fit
+                                    ? "bg-green-100 text-sparehub-success"
+                                    : "bg-blue-100 text-blue-700"
+                                }`}
+                              >
+                                {c.is_exact_fit ? "Direct OEM Fit" : "Compatible"}
+                              </span>
+                            </div>
+
+                            <div className="text-sm font-bold text-sparehub-dark">
+                              {c.make_name} {c.model_name}
+                            </div>
+
+                            <div className="text-[11px] text-gray-600 space-y-0.5">
+                              {c.generation_chassis ? (
+                                <div className="font-medium text-gray-800">
+                                  Variant / Chassis:{" "}
+                                  <span className="font-mono">
+                                    {c.generation_chassis}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="text-gray-500">
+                                  Variant: All Generations / Model-Wide
+                                </div>
+                              )}
+
+                              {yearRange && (
+                                <div>
+                                  Years:{" "}
+                                  <span className="font-semibold text-gray-800">
+                                    {yearRange}
+                                  </span>
+                                </div>
+                              )}
+
+                              {(c.engine_code || c.fuel_type || c.transmission) && (
+                                <div className="text-gray-500">
+                                  {[
+                                    c.engine_code ? `Engine: ${c.engine_code}` : null,
+                                    c.fuel_type,
+                                    c.transmission,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" • ")}
+                                </div>
+                              )}
+                            </div>
+
+                            {c.notes && (
+                              <div className="pt-1 border-t border-gray-200/70 text-[11px] text-gray-600">
+                                <span className="font-semibold text-gray-700">
+                                  Fitment Note:
+                                </span>{" "}
+                                {c.notes}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                  )}
                 </div>
               </div>
             ) : (
@@ -149,7 +216,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
             <div className="flex items-center gap-2 pb-3 border-b border-sparehub-border">
               <Layers className="w-5 h-5 text-sparehub-orange" />
               <h3 className="font-bold text-base text-sparehub-dark">
-                Description & Specifications
+                Description &amp; Specifications
               </h3>
             </div>
             <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
@@ -282,58 +349,83 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
 
           {/* Seller Storefront Card */}
           {shop && (
-            <div className="bg-white rounded-2xl border border-sparehub-border p-6 space-y-4 shadow-xs">
-              <div className="flex items-center justify-between pb-3 border-b border-sparehub-border">
-                <div className="flex items-center gap-2">
-                  <Store className="w-5 h-5 text-sparehub-orange" />
-                  <h3 className="font-bold text-sm text-sparehub-dark uppercase tracking-wider">
-                    Sold By
-                  </h3>
+            <div className="bg-white rounded-2xl border border-sparehub-border overflow-hidden shadow-xs">
+              {shop.cover_url && (
+                <div className="relative h-24 w-full bg-neutral-900 overflow-hidden border-b border-sparehub-border">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={shop.cover_url}
+                    alt={`${shop.name} cover banner`}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              )}
+              <div className="p-6 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-sparehub-border">
+                  <div className="flex items-center gap-2">
+                    <Store className="w-5 h-5 text-sparehub-orange" />
+                    <h3 className="font-bold text-sm text-sparehub-dark uppercase tracking-wider">
+                      Sold By
+                    </h3>
+                  </div>
+
+                  <Link
+                    href={`/shop/${shop.slug}`}
+                    className="inline-flex items-center gap-1 text-xs font-bold text-sparehub-orange hover:underline"
+                  >
+                    Visit Store
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </Link>
                 </div>
 
-                <Link
-                  href={`/shop/${shop.slug}`}
-                  target="_blank"
-                  className="inline-flex items-center gap-1 text-xs font-bold text-sparehub-orange hover:underline"
-                >
-                  Visit Store
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </Link>
-              </div>
-
-              <div>
-                <h4 className="text-base font-bold text-sparehub-dark">
-                  {shop.name}
-                </h4>
-                {shop.description && (
-                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                    {shop.description}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2 text-xs text-gray-600 pt-1">
-                {shop.city && (
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
-                    <span>
-                      {shop.address_line1 ? `${shop.address_line1}, ` : ""}
-                      {shop.city}, {shop.district}
-                    </span>
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-xl bg-sparehub-light border border-sparehub-border overflow-hidden flex items-center justify-center shrink-0">
+                    {shop.logo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={shop.logo_url}
+                        alt={`${shop.name} logo`}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Store className="w-6 h-6 text-sparehub-orange" />
+                    )}
                   </div>
-                )}
-                {shop.phone && (
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-gray-400 shrink-0" />
-                    <span>{shop.phone}</span>
+                  <div className="min-w-0">
+                    <h4 className="text-base font-bold text-sparehub-dark truncate">
+                      {shop.name}
+                    </h4>
+                    {shop.description && (
+                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                        {shop.description}
+                      </p>
+                    )}
                   </div>
-                )}
-              </div>
+                </div>
 
-              <div className="pt-2 border-t border-sparehub-border/60">
-                <div className="flex items-center gap-1.5 text-[11px] text-sparehub-success font-semibold">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  Direct Sri Lankan Automotive Vendor
+                <div className="space-y-2 text-xs text-gray-600 pt-1">
+                  {shop.city && (
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span>
+                        {shop.address_line1 ? `${shop.address_line1}, ` : ""}
+                        {shop.city}, {shop.district}
+                      </span>
+                    </div>
+                  )}
+                  {shop.phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span>{shop.phone}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-sparehub-border/60">
+                  <div className="flex items-center gap-1.5 text-[11px] text-sparehub-success font-semibold">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Direct Sri Lankan Automotive Vendor
+                  </div>
                 </div>
               </div>
             </div>

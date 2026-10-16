@@ -8,9 +8,19 @@ import {
   productSlugify,
   lkrToMinorUnits,
   minorUnitsToLKR,
+  validateCompatibilityEntries,
   type ProductCreateInput,
   type ProductUpdateInput,
 } from "@/lib/validators/product";
+import {
+  FALLBACK_VEHICLE_TYPES,
+  FALLBACK_VEHICLE_MAKES,
+  FALLBACK_VEHICLE_MODELS,
+  FALLBACK_VEHICLE_VARIANTS,
+  formatVariantLabel,
+  formatVariantYearRange,
+  getVehicleTaxonomyHierarchy,
+} from "@/lib/products/taxonomy";
 
 export interface ProductActionResult {
   success?: boolean;
@@ -18,6 +28,26 @@ export interface ProductActionResult {
   message?: string;
   productId?: string;
   slug?: string;
+}
+
+export interface EnrichedCompatibilityItem {
+  id?: string;
+  vehicle_type_id?: string | null;
+  vehicle_type_name?: string | null;
+  make_id?: string | null;
+  make_name: string;
+  vehicle_model_id?: string | null;
+  model_name: string;
+  vehicle_variant_id?: string | null;
+  variant_label?: string | null;
+  generation_chassis?: string | null;
+  year_start?: number | null;
+  year_end?: number | null;
+  engine_code?: string | null;
+  transmission?: string | null;
+  fuel_type?: string | null;
+  notes?: string | null;
+  is_exact_fit: boolean;
 }
 
 export interface SellerProductListItem {
@@ -54,15 +84,7 @@ export interface SellerProductDetail extends SellerProductListItem {
     display_order: number;
     is_primary: boolean;
   }>;
-  compatibilities: Array<{
-    id?: string;
-    vehicle_model_id?: string | null;
-    vehicle_variant_id?: string | null;
-    make_name?: string;
-    model_name?: string;
-    notes?: string | null;
-    is_exact_fit: boolean;
-  }>;
+  compatibilities: EnrichedCompatibilityItem[];
 }
 
 interface DBImageRow {
@@ -82,11 +104,87 @@ interface DBCompatibilityJoinRow {
   vehicle_models?: {
     id: string;
     name: string;
+    make_id?: string;
     vehicle_makes?: {
       id: string;
       name: string;
+      vehicle_type_id?: string;
+      vehicle_types?: {
+        id: string;
+        name: string;
+      } | null;
     } | null;
   } | null;
+  vehicle_variants?: {
+    id: string;
+    model_id: string;
+    generation_chassis: string;
+    year_start: number;
+    year_end?: number | null;
+    engine_code?: string | null;
+    transmission?: string | null;
+    fuel_type?: string | null;
+  } | null;
+}
+
+function enrichCompatibilityRow(c: DBCompatibilityJoinRow): EnrichedCompatibilityItem {
+  const fallbackVariant = c.vehicle_variant_id
+    ? FALLBACK_VEHICLE_VARIANTS.find((v) => v.id === c.vehicle_variant_id)
+    : undefined;
+  const variantData = c.vehicle_variants || fallbackVariant;
+
+  const resolvedModelId =
+    c.vehicle_model_id || variantData?.model_id || c.vehicle_models?.id || null;
+  const fallbackModel = resolvedModelId
+    ? FALLBACK_VEHICLE_MODELS.find((m) => m.id === resolvedModelId)
+    : undefined;
+
+  const resolvedMakeId =
+    c.vehicle_models?.make_id ||
+    c.vehicle_models?.vehicle_makes?.id ||
+    fallbackModel?.make_id ||
+    null;
+  const fallbackMake = resolvedMakeId
+    ? FALLBACK_VEHICLE_MAKES.find((mk) => mk.id === resolvedMakeId)
+    : undefined;
+
+  const resolvedTypeId =
+    c.vehicle_models?.vehicle_makes?.vehicle_type_id ||
+    c.vehicle_models?.vehicle_makes?.vehicle_types?.id ||
+    fallbackMake?.vehicle_type_id ||
+    null;
+  const fallbackType = resolvedTypeId
+    ? FALLBACK_VEHICLE_TYPES.find((t) => t.id === resolvedTypeId)
+    : undefined;
+
+  const makeName =
+    c.vehicle_models?.vehicle_makes?.name || fallbackMake?.name || "";
+  const modelName =
+    c.vehicle_models?.name || fallbackModel?.name || "All Models";
+  const typeName =
+    c.vehicle_models?.vehicle_makes?.vehicle_types?.name ||
+    fallbackType?.name ||
+    null;
+
+  return {
+    id: c.id,
+    vehicle_type_id: resolvedTypeId,
+    vehicle_type_name: typeName,
+    make_id: resolvedMakeId,
+    make_name: makeName,
+    vehicle_model_id: resolvedModelId,
+    model_name: modelName,
+    vehicle_variant_id: c.vehicle_variant_id || null,
+    variant_label: variantData ? formatVariantLabel(variantData) : null,
+    generation_chassis: variantData?.generation_chassis || null,
+    year_start: variantData?.year_start ?? null,
+    year_end: variantData?.year_end ?? null,
+    engine_code: variantData?.engine_code ?? null,
+    transmission: variantData?.transmission ?? null,
+    fuel_type: variantData?.fuel_type ?? null,
+    notes: c.notes ?? null,
+    is_exact_fit: c.is_exact_fit ?? true,
+  };
 }
 
 interface DBProductQueryRow {
@@ -143,9 +241,12 @@ interface DBPublicProductRow {
     slug: string;
     city: string | null;
     district: string | null;
+    logo_url?: string | null;
+    cover_url?: string | null;
     status: string;
   } | null;
   product_images?: DBImageRow[] | null;
+  product_compatibility?: DBCompatibilityJoinRow[] | null;
 }
 
 interface DBPublicProductDetailRow extends DBPublicProductRow {
@@ -162,6 +263,8 @@ interface DBPublicProductDetailRow extends DBPublicProductRow {
     city: string | null;
     district: string | null;
     address_line1: string | null;
+    logo_url?: string | null;
+    cover_url?: string | null;
     status: string;
     created_at: string;
   } | null;
@@ -327,7 +430,23 @@ export async function getSellerProductById(
           vehicle_models (
             id,
             name,
-            vehicle_makes (id, name)
+            make_id,
+            vehicle_makes (
+              id,
+              name,
+              vehicle_type_id,
+              vehicle_types (id, name)
+            )
+          ),
+          vehicle_variants (
+            id,
+            model_id,
+            generation_chassis,
+            year_start,
+            year_end,
+            engine_code,
+            transmission,
+            fuel_type
           )
         ),
         shops!inner (
@@ -357,15 +476,9 @@ export async function getSellerProductById(
         a.display_order - b.display_order
     );
 
-    const compatibilities = (row.product_compatibility || []).map((c) => ({
-      id: c.id,
-      vehicle_model_id: c.vehicle_model_id,
-      vehicle_variant_id: c.vehicle_variant_id,
-      make_name: c.vehicle_models?.vehicle_makes?.name || "",
-      model_name: c.vehicle_models?.name || "",
-      notes: c.notes,
-      is_exact_fit: c.is_exact_fit,
-    }));
+    const compatibilities = (row.product_compatibility || []).map((c) =>
+      enrichCompatibilityRow(c)
+    );
 
     const product: SellerProductDetail = {
       id: row.id,
@@ -406,6 +519,78 @@ export async function getSellerProductById(
 }
 
 /**
+ * Helper: Persist normalized compatibility records for a product, with graceful fallback
+ * if a remote DB has not yet seeded a specific `vehicle_variants` row.
+ */
+async function persistProductCompatibilities(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  productId: string,
+  normalized: Array<{
+    vehicle_model_id: string;
+    vehicle_variant_id: string | null;
+    notes: string | null;
+    is_exact_fit: boolean;
+  }>
+): Promise<{ error?: string }> {
+  if (normalized.length === 0) {
+    return {};
+  }
+
+  const compatRows = normalized.map((c) => ({
+    product_id: productId,
+    vehicle_model_id: c.vehicle_model_id,
+    vehicle_variant_id: c.vehicle_variant_id,
+    notes: c.notes,
+    is_exact_fit: c.is_exact_fit,
+  }));
+
+  const { error: compatError } = await supabase
+    .from("product_compatibility")
+    .insert(compatRows);
+
+  if (!compatError) {
+    return {};
+  }
+
+  // If the remote database has not yet seeded `vehicle_variants`, retry storing model-level compatibility
+  // while preserving variant metadata in fitment notes so no compatibility data is lost.
+  if (
+    compatError.message.includes("vehicle_variant_id") &&
+    compatError.message.includes("foreign key")
+  ) {
+    const fallbackRows = normalized.map((c) => {
+      const variantMeta = c.vehicle_variant_id
+        ? FALLBACK_VEHICLE_VARIANTS.find((v) => v.id === c.vehicle_variant_id)
+        : undefined;
+      const variantNote = variantMeta ? formatVariantLabel(variantMeta) : "";
+      const combinedNotes = [variantNote, c.notes]
+        .filter(Boolean)
+        .join(" — ")
+        .slice(0, 200);
+
+      return {
+        product_id: productId,
+        vehicle_model_id: c.vehicle_model_id,
+        vehicle_variant_id: null,
+        notes: combinedNotes || null,
+        is_exact_fit: c.is_exact_fit,
+      };
+    });
+
+    const { error: retryErr } = await supabase
+      .from("product_compatibility")
+      .insert(fallbackRows);
+
+    if (retryErr) {
+      return { error: retryErr.message };
+    }
+    return {};
+  }
+
+  return { error: compatError.message };
+}
+
+/**
  * Server Action: Create a new product listing (Self-service, instant publication).
  */
 export async function createProductAction(
@@ -442,7 +627,30 @@ export async function createProductAction(
     }
 
     // Validate payload with Zod
-    const validated = productCreateSchema.parse(input);
+    const parseRes = productCreateSchema.safeParse(input);
+    if (!parseRes.success) {
+      return {
+        error:
+          parseRes.error.issues[0]?.message ||
+          "Invalid product data submitted.",
+      };
+    }
+    const validated = parseRes.data;
+
+    // Validate 4-level vehicle compatibility hierarchy & duplicates before DB write
+    const taxonomy = await getVehicleTaxonomyHierarchy();
+    const compatValidation = validateCompatibilityEntries(
+      validated.compatibilities || [],
+      Boolean(validated.is_universal),
+      taxonomy
+    );
+    if (!compatValidation.valid) {
+      return {
+        error:
+          compatValidation.error ||
+          "Invalid vehicle compatibility configuration.",
+      };
+    }
 
     // Build URL-safe unique slug
     let candidateSlug =
@@ -529,31 +737,17 @@ export async function createProductAction(
     }
 
     // Insert structured vehicle compatibilities if provided
-    if (
-      !validated.is_universal &&
-      validated.compatibilities &&
-      validated.compatibilities.length > 0
-    ) {
-      const validCompats = validated.compatibilities.filter(
-        (c) => c.vehicle_model_id || c.vehicle_variant_id
+    if (!validated.is_universal && compatValidation.normalized.length > 0) {
+      const { error: compatError } = await persistProductCompatibilities(
+        supabase,
+        productId,
+        compatValidation.normalized
       );
-
-      if (validCompats.length > 0) {
-        const compatRows = validCompats.map((c) => ({
-          product_id: productId,
-          vehicle_model_id: c.vehicle_model_id || null,
-          vehicle_variant_id: c.vehicle_variant_id || null,
-          notes: c.notes || null,
-          is_exact_fit: c.is_exact_fit ?? true,
-        }));
-
-        const { error: compatError } = await supabase
-          .from("product_compatibility")
-          .insert(compatRows);
-
-        if (compatError) {
-          console.error("Error inserting compatibility entries:", compatError);
-        }
+      if (compatError) {
+        console.error("Error inserting compatibility entries:", compatError);
+        return {
+          error: `Product was created, but saving vehicle compatibility failed: ${compatError}`,
+        };
       }
     }
 
@@ -591,7 +785,15 @@ export async function updateProductAction(
       return { error: "Authentication required to update products." };
     }
 
-    const validated = productUpdateSchema.parse(input);
+    const parseRes = productUpdateSchema.safeParse(input);
+    if (!parseRes.success) {
+      return {
+        error:
+          parseRes.error.issues[0]?.message ||
+          "Invalid product data submitted.",
+      };
+    }
+    const validated = parseRes.data;
 
     // Verify ownership
     const { data: currentProduct, error: fetchErr } = await supabase
@@ -610,6 +812,21 @@ export async function updateProductAction(
     const ownerUserId = typedProd.shops?.seller_profiles?.user_id;
     if (ownerUserId !== user.id) {
       return { error: "Unauthorized: You do not own this product listing." };
+    }
+
+    // Validate 4-level vehicle compatibility hierarchy & duplicates before DB write
+    const taxonomy = await getVehicleTaxonomyHierarchy();
+    const compatValidation = validateCompatibilityEntries(
+      validated.compatibilities || [],
+      Boolean(validated.is_universal),
+      taxonomy
+    );
+    if (!compatValidation.valid) {
+      return {
+        error:
+          compatValidation.error ||
+          "Invalid vehicle compatibility configuration.",
+      };
     }
 
     const priceMinorUnits = lkrToMinorUnits(validated.price);
@@ -674,21 +891,17 @@ export async function updateProductAction(
       .delete()
       .eq("product_id", validated.productId);
 
-    if (!validated.is_universal && validated.compatibilities && validated.compatibilities.length > 0) {
-      const validCompats = validated.compatibilities.filter(
-        (c) => c.vehicle_model_id || c.vehicle_variant_id
+    if (!validated.is_universal && compatValidation.normalized.length > 0) {
+      const { error: compatError } = await persistProductCompatibilities(
+        supabase,
+        validated.productId,
+        compatValidation.normalized
       );
-
-      if (validCompats.length > 0) {
-        const compatRows = validCompats.map((c) => ({
-          product_id: validated.productId,
-          vehicle_model_id: c.vehicle_model_id || null,
-          vehicle_variant_id: c.vehicle_variant_id || null,
-          notes: c.notes || null,
-          is_exact_fit: c.is_exact_fit ?? true,
-        }));
-
-        await supabase.from("product_compatibility").insert(compatRows);
+      if (compatError) {
+        console.error("Error updating compatibility entries:", compatError);
+        return {
+          error: `Product details were updated, but saving vehicle compatibility failed: ${compatError}`,
+        };
       }
     }
 
@@ -837,7 +1050,10 @@ export async function getPublicProducts(options?: {
   search?: string;
   category?: string;
   condition?: string;
+  vehicleTypeId?: string;
+  vehicleMakeId?: string;
   vehicleModelId?: string;
+  vehicleVariantId?: string;
   limit?: number;
 }) {
   try {
@@ -859,8 +1075,32 @@ export async function getPublicProducts(options?: {
         stock_quantity,
         is_universal,
         categories (name, slug),
-        shops!inner (id, name, slug, city, district, status),
-        product_images (image_url, is_primary, display_order)
+        shops!inner (id, name, slug, city, district, logo_url, status),
+        product_images (image_url, is_primary, display_order),
+        product_compatibility (
+          id,
+          vehicle_model_id,
+          vehicle_variant_id,
+          notes,
+          is_exact_fit,
+          vehicle_models (
+            id,
+            name,
+            make_id,
+            vehicle_makes (
+              id,
+              name,
+              vehicle_type_id
+            )
+          ),
+          vehicle_variants (
+            id,
+            model_id,
+            generation_chassis,
+            year_start,
+            year_end
+          )
+        )
       `
       )
       .eq("is_published", true)
@@ -894,13 +1134,88 @@ export async function getPublicProducts(options?: {
       return [];
     }
 
-    const items = data as unknown as DBPublicProductRow[];
-    return items.map((item) => {
+    const rawItems = data as unknown as DBPublicProductRow[];
+
+    // Apply vehicle compatibility filtering when requested
+    const filteredItems = rawItems.filter((item) => {
+      const hasVehicleFilter = Boolean(
+        (options?.vehicleTypeId && options.vehicleTypeId !== "all") ||
+          (options?.vehicleMakeId && options.vehicleMakeId !== "all") ||
+          (options?.vehicleModelId && options.vehicleModelId !== "all") ||
+          (options?.vehicleVariantId && options.vehicleVariantId !== "all")
+      );
+      if (!hasVehicleFilter) return true;
+      if (item.is_universal) return true;
+
+      const enrichedCompats = (item.product_compatibility || []).map((c) =>
+        enrichCompatibilityRow(c)
+      );
+      if (enrichedCompats.length === 0) return false;
+
+      return enrichedCompats.some((c) => {
+        if (
+          options?.vehicleVariantId &&
+          options.vehicleVariantId !== "all" &&
+          c.vehicle_variant_id &&
+          c.vehicle_variant_id !== options.vehicleVariantId
+        ) {
+          return false;
+        }
+        if (
+          options?.vehicleModelId &&
+          options.vehicleModelId !== "all" &&
+          c.vehicle_model_id !== options.vehicleModelId
+        ) {
+          return false;
+        }
+        if (
+          options?.vehicleMakeId &&
+          options.vehicleMakeId !== "all" &&
+          c.make_id !== options.vehicleMakeId
+        ) {
+          return false;
+        }
+        if (
+          options?.vehicleTypeId &&
+          options.vehicleTypeId !== "all" &&
+          c.vehicle_type_id !== options.vehicleTypeId
+        ) {
+          return false;
+        }
+        return true;
+      });
+    });
+
+    return filteredItems.map((item) => {
       const images = (item.product_images || []).sort(
         (a, b) =>
           (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0) ||
           a.display_order - b.display_order
       );
+
+      const enrichedCompats = (item.product_compatibility || []).map((c) =>
+        enrichCompatibilityRow(c)
+      );
+
+      let compatSummary = "Verified Fitment Available";
+      if (item.is_universal) {
+        compatSummary = "Universal Fit (All Vehicles)";
+      } else if (enrichedCompats.length > 0) {
+        const first = enrichedCompats[0];
+        const years = formatVariantYearRange(first.year_start, first.year_end);
+        const firstLabel = [
+          first.make_name,
+          first.model_name,
+          first.generation_chassis ? `(${first.generation_chassis})` : years ? `(${years})` : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+        compatSummary =
+          enrichedCompats.length > 1
+            ? `Fits ${firstLabel} +${enrichedCompats.length - 1} more`
+            : `Fits ${firstLabel}`;
+      }
+
       return {
         id: item.id,
         title: item.title,
@@ -913,12 +1228,11 @@ export async function getPublicProducts(options?: {
         compareAtPriceMinorUnits: item.compare_at_price_minor_units || undefined,
         stockQuantity: item.stock_quantity,
         shopName: item.shops?.name || "Verified Seller",
+        shopLogoUrl: item.shops?.logo_url || null,
         shopLocation: item.shops?.city
           ? `${item.shops.city}, ${item.shops.district || "Sri Lanka"}`
           : "Sri Lanka",
-        vehicleCompatibilitySummary: item.is_universal
-          ? "Universal Fit"
-          : "Verified Fitment Available",
+        vehicleCompatibilitySummary: compatSummary,
         category: item.categories?.name || "Spare Parts",
         imageUrl: images[0]?.image_url || "/images/placeholders/brake-pads.png",
         isDemo: false,
@@ -953,6 +1267,8 @@ export async function getPublicProductBySlug(slug: string) {
           city,
           district,
           address_line1,
+          logo_url,
+          cover_url,
           status,
           created_at
         ),
@@ -966,7 +1282,23 @@ export async function getPublicProductBySlug(slug: string) {
           vehicle_models (
             id,
             name,
-            vehicle_makes (id, name)
+            make_id,
+            vehicle_makes (
+              id,
+              name,
+              vehicle_type_id,
+              vehicle_types (id, name)
+            )
+          ),
+          vehicle_variants (
+            id,
+            model_id,
+            generation_chassis,
+            year_start,
+            year_end,
+            engine_code,
+            transmission,
+            fuel_type
           )
         )
       `
@@ -988,13 +1320,9 @@ export async function getPublicProductBySlug(slug: string) {
         a.display_order - b.display_order
     );
 
-    const compatibilities = (row.product_compatibility || []).map((c: DBCompatibilityJoinRow) => ({
-      id: c.id,
-      notes: c.notes,
-      is_exact_fit: c.is_exact_fit,
-      make_name: c.vehicle_models?.vehicle_makes?.name || "Universal",
-      model_name: c.vehicle_models?.name || "All Models",
-    }));
+    const compatibilities = (row.product_compatibility || []).map(
+      (c: DBCompatibilityJoinRow) => enrichCompatibilityRow(c)
+    );
 
     return {
       ...row,

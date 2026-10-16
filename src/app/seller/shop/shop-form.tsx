@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import Image from "next/image";
 import { 
   Store, 
   MapPin, 
@@ -15,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { ShopBrandingUploader } from "@/components/seller/shop-branding-uploader";
 import { SRI_LANKA_DISTRICTS } from "@/lib/constants";
 import { updateShopAction, submitShopForReviewAction, type ShopActionResult } from "@/lib/seller/actions";
 import { slugify } from "@/lib/validators/shop";
@@ -120,88 +120,109 @@ export function ShopForm({ shop, sellerType }: ShopFormProps) {
 
   return (
     <div className="space-y-8">
-      {/* Storefront Status Banner */}
-      <div className="p-6 rounded-2xl bg-white border border-sparehub-border shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-sparehub-light flex items-center justify-center text-sparehub-dark border border-sparehub-border">
-              <Store className="w-6 h-6 text-sparehub-orange" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-sparehub-dark">{shop.name}</h2>
-                <Badge variant={statusBadgeVariant} className="text-[10px] uppercase font-bold">
-                  {shop.status === "suspended" ? "Suspended" : shop.status === "draft" ? "Draft Mode" : "Storefront Active"}
-                </Badge>
+      {/* Storefront Status & Branding Banner */}
+      <div className="overflow-hidden rounded-2xl bg-white border border-sparehub-border shadow-xs">
+        {coverUrl && (
+          <div className="relative h-32 sm:h-40 w-full bg-neutral-900 overflow-hidden border-b border-sparehub-border">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={coverUrl}
+              alt={`${name || shop.name} cover banner`}
+              className="h-full w-full object-cover"
+            />
+          </div>
+        )}
+        <div className="p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-14 h-14 rounded-xl bg-sparehub-light flex items-center justify-center text-sparehub-dark border border-sparehub-border overflow-hidden shrink-0 shadow-2xs">
+                {logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={logoUrl}
+                    alt={`${name || shop.name} logo`}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Store className="w-6 h-6 text-sparehub-orange" />
+                )}
               </div>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Marketplace URL: <code className="text-sparehub-dark font-mono">/shop/{shop.slug}</code>
-                {sellerType && <span className="ml-2 capitalize text-gray-400">({sellerType.replace("_", " ")})</span>}
-              </p>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-bold text-sparehub-dark truncate">{name || shop.name}</h2>
+                  <Badge variant={statusBadgeVariant} className="text-[10px] uppercase font-bold">
+                    {shop.status === "suspended" ? "Suspended" : shop.status === "draft" ? "Draft Mode" : "Storefront Active"}
+                  </Badge>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5 truncate">
+                  Marketplace URL: <code className="text-sparehub-dark font-mono">/shop/{slug || shop.slug}</code>
+                  {sellerType && <span className="ml-2 capitalize text-gray-400">({sellerType.replace("_", " ")})</span>}
+                </p>
+              </div>
             </div>
+
+            {/* Action button based on state */}
+            {shop.status === "draft" && (
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={handleActivateShop}
+                disabled={isSubmittingReview}
+                className="gap-2 shrink-0 bg-green-600 hover:bg-green-700"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                {isSubmittingReview ? "Activating..." : "Activate Storefront Live"}
+              </Button>
+            )}
+
+            {isLive && (
+              <div className="flex items-center gap-2 text-xs font-semibold text-sparehub-success bg-green-50 px-3 py-1.5 rounded-lg border border-green-200 shrink-0">
+                <ShieldCheck className="w-4 h-4" />
+                Storefront Live &amp; Self-Service Ready
+              </div>
+            )}
           </div>
 
-          {/* Action button based on state */}
+          {/* Status contextual alert message */}
           {shop.status === "draft" && (
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              onClick={handleActivateShop}
-              disabled={isSubmittingReview}
-              className="gap-2 shrink-0 bg-green-600 hover:bg-green-700"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              {isSubmittingReview ? "Activating..." : "Activate Storefront Live"}
-            </Button>
+            <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+              <div>
+                <p className="font-bold">Your shop is currently in Draft mode.</p>
+                <p className="text-amber-800 mt-0.5">
+                  Click <strong>&quot;Activate Storefront Live&quot;</strong> whenever you are ready to publish parts and receive customer orders. No platform approval wait required.
+                </p>
+              </div>
+            </div>
           )}
 
-          {isLive && (
-            <div className="flex items-center gap-2 text-xs font-semibold text-sparehub-success bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">
-              <ShieldCheck className="w-4 h-4" />
-              Storefront Live &amp; Self-Service Ready
+          {shop.status === "suspended" && (
+            <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-900 flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-sparehub-error mt-0.5" />
+              <div>
+                <p className="font-bold">Storefront Suspended</p>
+                <p className="text-red-800 mt-0.5">
+                  Platform administration has placed your shop on hold: <em>&quot;{shop.status_reason || "Compliance review required."}&quot;</em>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Activation Feedback */}
+          {reviewResult?.error && (
+            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs font-medium text-sparehub-error flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {reviewResult.error}
+            </div>
+          )}
+          {reviewResult?.success && (
+            <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-xs font-medium text-sparehub-success flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              {reviewResult.message}
             </div>
           )}
         </div>
-
-        {/* Status contextual alert message */}
-        {shop.status === "draft" && (
-          <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5">
-            <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
-            <div>
-              <p className="font-bold">Your shop is currently in Draft mode.</p>
-              <p className="text-amber-800 mt-0.5">
-                Click <strong>&quot;Activate Storefront Live&quot;</strong> whenever you are ready to publish parts and receive customer orders. No platform approval wait required.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {shop.status === "suspended" && (
-          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-900 flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-sparehub-error mt-0.5" />
-            <div>
-              <p className="font-bold">Storefront Suspended</p>
-              <p className="text-red-800 mt-0.5">
-                Platform administration has placed your shop on hold: <em>&quot;{shop.status_reason || "Compliance review required."}&quot;</em>
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Activation Feedback */}
-        {reviewResult?.error && (
-          <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs font-medium text-sparehub-error flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            {reviewResult.error}
-          </div>
-        )}
-        {reviewResult?.success && (
-          <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-xs font-medium text-sparehub-success flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            {reviewResult.message}
-          </div>
-        )}
       </div>
 
       {/* Shop Details Edit Form */}
@@ -225,7 +246,7 @@ export function ShopForm({ shop, sellerType }: ShopFormProps) {
           <CardHeader>
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <Store className="w-4 h-4 text-sparehub-orange" />
-              Storefront Identity & URL
+              Storefront Identity &amp; URL
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -280,7 +301,7 @@ export function ShopForm({ shop, sellerType }: ShopFormProps) {
 
             <div className="space-y-1.5">
               <label className="block text-xs font-bold uppercase tracking-wider text-sparehub-dark">
-                Shop Description & Overview
+                Shop Description &amp; Overview
               </label>
               <textarea
                 value={description}
@@ -304,7 +325,7 @@ export function ShopForm({ shop, sellerType }: ShopFormProps) {
           <CardHeader>
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <MapPin className="w-4 h-4 text-sparehub-orange" />
-              Location & Official Contacts
+              Location &amp; Official Contacts
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -395,67 +416,40 @@ export function ShopForm({ shop, sellerType }: ShopFormProps) {
           <CardHeader>
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <ImageIcon className="w-4 h-4 text-sparehub-orange" />
-              Storefront Branding Assets (URLs)
+              Storefront Branding Assets
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Input
-                  label="Logo Image URL"
-                  value={logoUrl}
-                  onChange={(e) => setLogoUrl(e.target.value)}
-                  placeholder="https://example.com/logo.png"
-                  disabled={isUpdating}
-                  helperText="Square 1:1 image recommended (PNG, JPG, WebP)."
-                />
-                {logoUrl && (
-                  <div className="flex items-center gap-3 p-2 rounded-lg bg-sparehub-light border border-sparehub-border">
-                    <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-sparehub-border bg-white shrink-0">
-                      <Image
-                        src={logoUrl}
-                        alt="Logo preview"
-                        fill
-                        unoptimized
-                        className="object-contain"
-                        onError={() => setLogoUrl("")}
-                      />
-                    </div>
-                    <span className="text-[11px] text-gray-500">Logo Preview</span>
-                  </div>
-                )}
-              </div>
+          <CardContent className="space-y-6">
+            <ShopBrandingUploader
+              assetType="logo"
+              name="logo_url"
+              label="Shop Logo Image"
+              helperText="Square 1:1 image recommended for your shop profile badge and product pages."
+              value={logoUrl}
+              onChange={setLogoUrl}
+              shopId={shop.id}
+              shopName={name}
+              disabled={isUpdating}
+            />
 
-              <div className="space-y-2">
-                <Input
-                  label="Cover Banner URL"
-                  value={coverUrl}
-                  onChange={(e) => setCoverUrl(e.target.value)}
-                  placeholder="https://example.com/cover.jpg"
-                  disabled={isUpdating}
-                  helperText="Wide 16:9 or 3:1 storefront header banner."
-                />
-                {coverUrl && (
-                  <div className="relative h-16 w-full rounded-lg overflow-hidden border border-sparehub-border bg-gray-100">
-                    <Image
-                      src={coverUrl}
-                      alt="Cover preview"
-                      fill
-                      unoptimized
-                      className="object-cover"
-                      onError={() => setCoverUrl("")}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
+            <ShopBrandingUploader
+              assetType="cover"
+              name="cover_url"
+              label="Storefront Cover Banner"
+              helperText="Wide 16:9 or 3:1 header banner displayed at the top of your public shop page."
+              value={coverUrl}
+              onChange={setCoverUrl}
+              shopId={shop.id}
+              shopName={name}
+              disabled={isUpdating}
+            />
           </CardContent>
         </Card>
 
         {/* Form Actions Footer */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-sparehub-border">
           <p className="text-xs text-gray-400">
-            Changes to your profile are saved immediately. Approval status is managed by platform administration.
+            Changes to your shop profile and branding assets are saved immediately to your storefront.
           </p>
 
           <Button

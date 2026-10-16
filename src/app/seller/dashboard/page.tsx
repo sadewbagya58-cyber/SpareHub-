@@ -74,75 +74,96 @@ export default async function SellerDashboardPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-8">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-white border border-sparehub-border shadow-xs">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-sparehub-dark text-white flex items-center justify-center font-black text-xl shadow-sm">
-            <Store className="w-7 h-7 text-sparehub-orange" />
+      <div className="overflow-hidden rounded-2xl bg-white border border-sparehub-border shadow-xs">
+        {shop?.cover_url && (
+          <div className="relative h-28 sm:h-36 w-full bg-neutral-900 overflow-hidden border-b border-sparehub-border">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={shop.cover_url}
+              alt={`${shop.name} cover banner`}
+              className="h-full w-full object-cover"
+            />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-sparehub-dark">
-                {shop?.name || profile?.full_name || "Vendor Store"}
-              </h1>
-              {shop?.status && (
-                <Badge
-                  variant={statusBadgeVariant}
-                  className="capitalize text-[10px] uppercase font-bold"
-                >
-                  {isSuspended ? "Suspended" : isDraft ? "Draft Mode" : "Storefront Active"}
-                </Badge>
+        )}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 sm:p-6">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div className="w-14 h-14 rounded-2xl bg-sparehub-dark text-white flex items-center justify-center font-black text-xl shadow-sm overflow-hidden shrink-0 border border-sparehub-border">
+              {shop?.logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={shop.logo_url}
+                  alt={`${shop.name} logo`}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Store className="w-7 h-7 text-sparehub-orange" />
               )}
             </div>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Seller Type:{" "}
-              <span className="font-semibold capitalize text-sparehub-dark">
-                {sellerProfile?.seller_type?.replace("_", " ") || "Registered Seller"}
-              </span>
-              {shop?.district && (
-                <span className="ml-2 text-gray-400">
-                  • Operating District: <span className="font-medium text-sparehub-dark">{shop.district}</span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-bold text-sparehub-dark truncate">
+                  {shop?.name || profile?.full_name || "Vendor Store"}
+                </h1>
+                {shop?.status && (
+                  <Badge
+                    variant={statusBadgeVariant}
+                    className="capitalize text-[10px] uppercase font-bold shrink-0"
+                  >
+                    {isSuspended ? "Suspended" : isDraft ? "Draft Mode" : "Storefront Active"}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Seller Type:{" "}
+                <span className="font-semibold capitalize text-sparehub-dark">
+                  {sellerProfile?.seller_type?.replace("_", " ") || "Registered Seller"}
                 </span>
-              )}
-            </p>
+                {shop?.district && (
+                  <span className="ml-2 text-gray-400">
+                    • Operating District: <span className="font-medium text-sparehub-dark">{shop.district}</span>
+                  </span>
+                )}
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          {shop ? (
-            <>
-              <Link href="/seller/products/new">
-                <Button variant="primary" size="sm" className="gap-1.5">
-                  <PlusCircle className="w-4 h-4" />
-                  Add Product
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+            {shop ? (
+              <>
+                <Link href="/seller/products/new" className="w-full sm:w-auto">
+                  <Button variant="primary" size="sm" className="w-full sm:w-auto gap-1.5 justify-center">
+                    <PlusCircle className="w-4 h-4 shrink-0" />
+                    Add Product
+                  </Button>
+                </Link>
+                <Link href="/seller/products" className="flex-1 sm:flex-initial">
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto gap-1.5 justify-center">
+                    <Package className="w-4 h-4 shrink-0" />
+                    My Products ({productCount})
+                  </Button>
+                </Link>
+                <Link href="/seller/shop" className="flex-1 sm:flex-initial">
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto gap-1.5 justify-center">
+                    <Settings className="w-4 h-4 shrink-0" />
+                    Shop Settings
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <Link href="/seller/shop/new" className="w-full sm:w-auto">
+                <Button variant="primary" size="sm" className="w-full sm:w-auto gap-1.5 justify-center">
+                  <PlusCircle className="w-4 h-4 shrink-0" />
+                  Create Your Shop
                 </Button>
               </Link>
-              <Link href="/seller/products">
-                <Button variant="outline" size="sm" className="gap-1.5">
-                  <Package className="w-4 h-4" />
-                  My Products ({productCount})
-                </Button>
-              </Link>
-              <Link href="/seller/shop">
-                <Button variant="outline" size="sm" className="gap-1.5">
-                  <Settings className="w-4 h-4" />
-                  Shop Settings
-                </Button>
-              </Link>
-            </>
-          ) : (
-            <Link href="/seller/shop/new">
-              <Button variant="primary" size="sm" className="gap-1.5">
-                <PlusCircle className="w-4 h-4" />
-                Create Your Shop
+            )}
+
+            <Link href="/account" className="w-full sm:w-auto">
+              <Button variant="ghost" size="sm" className="w-full sm:w-auto justify-center">
+                Account
               </Button>
             </Link>
-          )}
-
-          <Link href="/account">
-            <Button variant="ghost" size="sm">
-              Account
-            </Button>
-          </Link>
+          </div>
         </div>
       </div>
 
