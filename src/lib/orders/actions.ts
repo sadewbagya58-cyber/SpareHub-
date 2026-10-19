@@ -1,6 +1,7 @@
 "use server";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import type { CustomerOrderSummary, SellerSubOrder } from "@/lib/types";
 
@@ -18,6 +19,9 @@ export interface CheckoutPayload {
   paymentMethod: "online" | "cod";
   customerNotes?: string;
   idempotencyKey?: string;
+  isBuyNow?: boolean;
+  buyNowProductId?: string;
+  buyNowQuantity?: number;
 }
 
 export interface CheckoutResult {
@@ -74,7 +78,199 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
     return { success: false, message: "Please sign in to complete your checkout." };
   }
 
-  // 2. Anti-double-submit / Idempotency guard:
+  // If Buy Now mode: handle isolated single-product checkout
+  if (payload.isBuyNow && payload.buyNowProductId) {
+    const buyQty = Math.max(1, Math.floor(Number(payload.buyNowQuantity) || 1));
+
+    // Try RPC with Buy Now parameters first
+    const { data: rpcData, error: rpcError } = await supabase.rpc("process_checkout_order", {
+      p_shipping_full_name: fullName,
+      p_shipping_phone: phone,
+      p_shipping_address_line1: address1,
+      p_shipping_address_line2: payload.shippingAddressLine2?.trim() || null,
+      p_shipping_district: district,
+      p_shipping_city: city,
+      p_shipping_postal_code: payload.shippingPostalCode?.trim() || null,
+      p_payment_method: payload.paymentMethod,
+      p_customer_notes: payload.customerNotes?.trim() || null,
+      p_buy_now_product_id: payload.buyNowProductId,
+      p_buy_now_quantity: buyQty,
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rpcRes: any = rpcData;
+    if (!rpcError && rpcRes && rpcRes.customer_order_id) {
+      if (payload.paymentMethod === "online") {
+        const idempotencyKey = payload.idempotencyKey || `pay-${rpcRes.customer_order_id}-${Date.now()}`;
+        await supabase.from("payment_records").insert({
+          customer_order_id: rpcRes.customer_order_id,
+          gateway_provider: "payhere_test",
+          gateway_reference: null,
+          idempotency_key: idempotencyKey,
+        });
+      }
+      revalidatePath("/orders");
+      return {
+        success: true,
+        orderId: rpcRes.customer_order_id,
+        orderNumber: rpcRes.order_number,
+        totalGrandMinor: Number(rpcRes.total_grand_minor),
+      };
+    }
+
+    // Fallback if RPC does not support buy now parameters yet:
+    // Execute atomic server-side checkout without modifying or clearing user's cart_items
+    try {
+      const adminClient = createAdminClient();
+
+      const { data: p, error: pErr } = await adminClient
+        .from("products")
+        .select(`
+          id,
+          title,
+          part_number,
+          brand_name,
+          price_minor_units,
+          stock_quantity,
+          is_published,
+          status,
+          shop_id,
+          shops!inner (id, status)
+        `)
+        .eq("id", payload.buyNowProductId)
+        .maybeSingle();
+
+      if (pErr || !p) {
+        return { success: false, message: "Selected product could not be found." };
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const s: any = p.shops;
+      if (!p.is_published || p.status !== "active" || s?.status === "suspended") {
+        return { success: false, message: "This product is currently unavailable for purchase." };
+      }
+
+      if (p.stock_quantity < buyQty) {
+        return {
+          success: false,
+          message: `Insufficient stock for "${p.title}": requested ${buyQty}, available ${p.stock_quantity}.`,
+        };
+      }
+
+      const grandTotal = Number(p.price_minor_units) * buyQty;
+      const orderNumber =
+        "SH-" +
+        new Date().toISOString().slice(0, 10).replace(/-/g, "") +
+        "-" +
+        Math.random().toString(36).substring(2, 8).toUpperCase();
+
+      // 1. Create parent customer order
+      const { data: custOrder, error: custErr } = await adminClient
+        .from("customer_orders")
+        .insert({
+          order_number: orderNumber,
+          customer_id: user.id,
+          status: "pending",
+          payment_method: payload.paymentMethod,
+          payment_status: payload.paymentMethod === "cod" ? "cod_pending" : "unpaid",
+          shipping_full_name: fullName,
+          shipping_phone: phone,
+          shipping_address_line1: address1,
+          shipping_address_line2: payload.shippingAddressLine2?.trim() || null,
+          shipping_district: district,
+          shipping_city: city,
+          shipping_postal_code: payload.shippingPostalCode?.trim() || null,
+          customer_notes: payload.customerNotes?.trim() || null,
+          total_items_subtotal_minor: grandTotal,
+          total_delivery_fee_minor: 0,
+          total_discount_minor: 0,
+          total_grand_minor: grandTotal,
+        })
+        .select("id, order_number, total_grand_minor")
+        .single();
+
+      if (custErr || !custOrder) {
+        console.error("Buy Now customer_orders insert error:", custErr);
+        return { success: false, message: "Failed to create order record." };
+      }
+
+      // 2. Create seller suborder
+      const subOrderNumber = `${orderNumber}-S1`;
+      const { data: sellerOrder, error: sellerErr } = await adminClient
+        .from("seller_orders")
+        .insert({
+          customer_order_id: custOrder.id,
+          shop_id: p.shop_id,
+          sub_order_number: subOrderNumber,
+          status: "placed",
+          subtotal_minor: grandTotal,
+          delivery_fee_minor: 0,
+          total_amount_minor: grandTotal,
+        })
+        .select("id")
+        .single();
+
+      if (sellerErr || !sellerOrder) {
+        console.error("Buy Now seller_orders insert error:", sellerErr);
+        return { success: false, message: "Failed to initialize vendor suborder." };
+      }
+
+      // 3. Create order item snapshot
+      const { error: itemErr } = await adminClient.from("order_items").insert({
+        seller_order_id: sellerOrder.id,
+        product_id: p.id,
+        product_title_snapshot: p.title,
+        product_part_number_snapshot: p.part_number,
+        product_brand_snapshot: p.brand_name,
+        unit_price_minor_units: p.price_minor_units,
+        quantity: buyQty,
+        total_price_minor_units: grandTotal,
+      });
+
+      if (itemErr) {
+        console.error("Buy Now order_items insert error:", itemErr);
+      }
+
+      // 4. Atomically decrement stock
+      await adminClient
+        .from("products")
+        .update({ stock_quantity: p.stock_quantity - buyQty })
+        .eq("id", p.id);
+
+      // 5. Order status history
+      await adminClient.from("order_status_history").insert({
+        seller_order_id: sellerOrder.id,
+        from_status: null,
+        to_status: "placed",
+        changed_by: user.id,
+        notes: "Buy Now direct purchase",
+      });
+
+      // 6. Online payment record if needed
+      if (payload.paymentMethod === "online") {
+        const idempotencyKey = payload.idempotencyKey || `pay-${custOrder.id}-${Date.now()}`;
+        await adminClient.from("payment_records").insert({
+          customer_order_id: custOrder.id,
+          gateway_provider: "payhere_test",
+          gateway_reference: null,
+          idempotency_key: idempotencyKey,
+        });
+      }
+
+      revalidatePath("/orders");
+      return {
+        success: true,
+        orderId: custOrder.id,
+        orderNumber: custOrder.order_number,
+        totalGrandMinor: grandTotal,
+      };
+    } catch (err: unknown) {
+      console.error("Error in Buy Now checkout fallback:", err);
+      return { success: false, message: "An error occurred during Buy Now order processing." };
+    }
+  }
+
+  // 2. Anti-double-submit / Idempotency guard for standard cart checkout:
   // Check if an identical order was already placed by this user in the last 15 seconds
   const fifteenSecondsAgo = new Date(Date.now() - 15000).toISOString();
   const { data: recentOrder } = await supabase

@@ -32,16 +32,11 @@ export function ProductBuyBox({
 
   const isOutOfStock = stockQuantity <= 0 || !isPublished;
 
-  const handleAddToCart = async (redirectCheckout = false) => {
+  const handleAddToCart = async () => {
     if (isOutOfStock) return;
     setErrorMessage(null);
     setSuccessMessage(null);
-
-    if (redirectCheckout) {
-      setBuyNowLoading(true);
-    } else {
-      setLoading(true);
-    }
+    setLoading(true);
 
     try {
       const res = await addToCartAction(productId, quantity);
@@ -52,20 +47,29 @@ export function ProductBuyBox({
         }
         setErrorMessage(res.message || "Failed to add to cart.");
       } else {
-        if (redirectCheckout) {
-          router.push("/checkout");
-        } else {
-          setSuccessMessage("Added to cart!");
-          setTimeout(() => setSuccessMessage(null), 3000);
-          router.refresh();
+        if (typeof res.cartCount === "number") {
+          window.dispatchEvent(
+            new CustomEvent("sparehub:cart-updated", {
+              detail: { count: res.cartCount },
+            })
+          );
         }
+        setSuccessMessage("Added to cart!");
+        setTimeout(() => setSuccessMessage(null), 3000);
       }
     } catch {
       setErrorMessage("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
-      setBuyNowLoading(false);
     }
+  };
+
+  const handleBuyNow = () => {
+    if (isOutOfStock) return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setBuyNowLoading(true);
+    router.push(`/checkout?buyNow=${encodeURIComponent(productId)}&qty=${quantity}`);
   };
 
   return (
@@ -122,7 +126,7 @@ export function ProductBuyBox({
           variant="primary"
           size="lg"
           disabled={isOutOfStock || loading || buyNowLoading}
-          onClick={() => handleAddToCart(false)}
+          onClick={handleAddToCart}
           className="w-full font-bold text-sm rounded-xl py-3 shadow-sm gap-2 justify-center"
         >
           <ShoppingCart className="w-4 h-4" />
@@ -134,11 +138,11 @@ export function ProductBuyBox({
           variant="secondary"
           size="lg"
           disabled={isOutOfStock || loading || buyNowLoading}
-          onClick={() => handleAddToCart(true)}
+          onClick={handleBuyNow}
           className="w-full font-bold text-sm rounded-xl py-3 gap-2 justify-center border-sparehub-dark bg-sparehub-dark text-white hover:bg-neutral-800"
         >
           <Zap className="w-4 h-4 text-sparehub-orange" />
-          {buyNowLoading ? "Redirecting..." : "Buy Now"}
+          {buyNowLoading ? "Redirecting to Checkout..." : "Buy Now"}
         </Button>
       </div>
 

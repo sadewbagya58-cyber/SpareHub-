@@ -596,7 +596,7 @@ export async function getPublicShopBySlug(slug: string) {
       .from("shops")
       .select("*")
       .eq("slug", slug)
-      .eq("status", "approved")
+      .neq("status", "suspended")
       .maybeSingle();
 
     if (error || !shop) {

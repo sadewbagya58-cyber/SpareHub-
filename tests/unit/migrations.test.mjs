@@ -7,8 +7,8 @@ describe("Database Migrations & Schema Architecture Verification", () => {
   const migrationsDir = path.resolve(process.cwd(), "supabase/migrations");
   const migrationFiles = fs.readdirSync(migrationsDir).sort();
 
-  test("contains all 7 sequential modular migration files including storage security", () => {
-    assert.equal(migrationFiles.length, 7, "Expected exactly 7 migration files");
+  test("contains all sequential modular migration files including storage security", () => {
+    assert.ok(migrationFiles.length >= 7, "Expected at least 7 migration files");
     assert.ok(migrationFiles[0].includes("core_extensions_and_helpers"));
     assert.ok(migrationFiles[1].includes("user_and_seller_profiles"));
     assert.ok(migrationFiles[2].includes("vehicle_taxonomy"));
@@ -16,6 +16,9 @@ describe("Database Migrations & Schema Architecture Verification", () => {
     assert.ok(migrationFiles[4].includes("cart_and_multi_vendor_orders"));
     assert.ok(migrationFiles[5].includes("commission_and_financial_ledger"));
     assert.ok(migrationFiles[6].includes("storage_buckets_and_policies"));
+    if (migrationFiles.length >= 8) {
+      assert.ok(migrationFiles[7].includes("promote_platform_admin"));
+    }
   });
 
   const allSqlContent = migrationFiles

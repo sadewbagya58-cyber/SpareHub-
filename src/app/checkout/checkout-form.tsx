@@ -25,9 +25,18 @@ interface CheckoutFormProps {
     phone?: string;
     email?: string;
   };
+  isBuyNow?: boolean;
+  buyNowProductId?: string;
+  buyNowQuantity?: number;
 }
 
-export function CheckoutForm({ cart, initialProfile }: CheckoutFormProps) {
+export function CheckoutForm({
+  cart,
+  initialProfile,
+  isBuyNow = false,
+  buyNowProductId,
+  buyNowQuantity,
+}: CheckoutFormProps) {
   const router = useRouter();
 
   // Form State
@@ -64,6 +73,9 @@ export function CheckoutForm({ cart, initialProfile }: CheckoutFormProps) {
       paymentMethod,
       customerNotes: customerNotes || undefined,
       idempotencyKey,
+      isBuyNow,
+      buyNowProductId,
+      buyNowQuantity,
     };
 
     try {
@@ -72,6 +84,14 @@ export function CheckoutForm({ cart, initialProfile }: CheckoutFormProps) {
         setErrorMessage(res.message || "Failed to process order.");
         setLoading(false);
       } else if (res.orderId) {
+        if (!isBuyNow) {
+          // Standard cart checkout clears the cart
+          window.dispatchEvent(
+            new CustomEvent("sparehub:cart-updated", {
+              detail: { count: 0 },
+            })
+          );
+        }
         // Successful order placement -> redirect to customer order tracking page
         router.push(`/orders/${res.orderId}`);
       }

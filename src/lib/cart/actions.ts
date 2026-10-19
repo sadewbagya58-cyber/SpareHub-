@@ -46,7 +46,11 @@ export async function getCartAction(): Promise<CartResponse> {
         stock_quantity,
         is_published,
         status,
-        images,
+        product_images (
+          image_url,
+          is_primary,
+          display_order
+        ),
         shop:shops (
           id,
           name,
@@ -79,7 +83,15 @@ export async function getCartAction(): Promise<CartResponse> {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const s: any = p.shop;
-    const firstImg = Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : undefined;
+    const sortedImages = Array.isArray(p.product_images)
+      ? [...p.product_images].sort(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (a: any, b: any) =>
+            (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0) ||
+            (a.display_order ?? 0) - (b.display_order ?? 0)
+        )
+      : [];
+    const firstImg = sortedImages[0]?.image_url;
 
     items.push({
       id: row.id,
@@ -92,7 +104,7 @@ export async function getCartAction(): Promise<CartResponse> {
       imageUrl: firstImg,
       priceMinorUnits: Number(p.price_minor_units) || 0,
       stockQuantity: Number(p.stock_quantity) || 0,
-      isPublished: Boolean(p.is_published && p.status === "active" && s?.status === "approved"),
+      isPublished: Boolean(p.is_published && p.status === "active" && s?.status !== "suspended"),
       shopId: s?.id || "",
       shopName: s?.name || "Verified Vendor",
       shopSlug: s?.slug,
@@ -177,7 +189,7 @@ export async function addToCartAction(productId: string, quantity: number = 1): 
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const shopStatus = (product.shop as any)?.status;
-  if (!product.is_published || product.status !== "active" || shopStatus !== "approved") {
+  if (!product.is_published || product.status !== "active" || shopStatus === "suspended") {
     return { success: false, message: "This product is currently unavailable for purchase." };
   }
 
@@ -219,8 +231,14 @@ export async function addToCartAction(productId: string, quantity: number = 1): 
     }
   }
 
+  const { data: allItems } = await supabase
+    .from("cart_items")
+    .select("quantity")
+    .eq("user_id", user.id);
+  const totalCartCount = (allItems || []).reduce((acc, row) => acc + (row.quantity || 0), 0);
+
   revalidatePath("/cart");
-  return { success: true, message: "Part added to shopping cart." };
+  return { success: true, message: "Part added to shopping cart.", cartCount: totalCartCount };
 }
 
 /**
@@ -229,6 +247,7 @@ export async function addToCartAction(productId: string, quantity: number = 1): 
 export async function updateCartQuantityAction(cartItemId: string, quantity: number): Promise<{
   success: boolean;
   message?: string;
+  cartCount?: number;
 }> {
   const qty = Math.floor(Number(quantity));
   if (!qty || qty <= 0) {
@@ -275,8 +294,14 @@ export async function updateCartQuantityAction(cartItemId: string, quantity: num
     return { success: false, message: "Failed to update item quantity." };
   }
 
+  const { data: allItems } = await supabase
+    .from("cart_items")
+    .select("quantity")
+    .eq("user_id", user.id);
+  const totalCartCount = (allItems || []).reduce((acc, row) => acc + (row.quantity || 0), 0);
+
   revalidatePath("/cart");
-  return { success: true };
+  return { success: true, cartCount: totalCartCount };
 }
 
 /**
@@ -285,6 +310,7 @@ export async function updateCartQuantityAction(cartItemId: string, quantity: num
 export async function removeCartItemAction(cartItemId: string): Promise<{
   success: boolean;
   message?: string;
+  cartCount?: number;
 }> {
   const supabase = await createServerSupabaseClient();
   const {
@@ -305,14 +331,20 @@ export async function removeCartItemAction(cartItemId: string): Promise<{
     return { success: false, message: "Failed to remove item from cart." };
   }
 
+  const { data: allItems } = await supabase
+    .from("cart_items")
+    .select("quantity")
+    .eq("user_id", user.id);
+  const totalCartCount = (allItems || []).reduce((acc, row) => acc + (row.quantity || 0), 0);
+
   revalidatePath("/cart");
-  return { success: true };
+  return { success: true, cartCount: totalCartCount };
 }
 
 /**
  * Clear the entire cart for the current user.
  */
-export async function clearCartAction(): Promise<{ success: boolean; message?: string }> {
+export async function clearCartAction(): Promise<{ success: boolean; message?: string; cartCount?: number }> {
   const supabase = await createServerSupabaseClient();
   const {
     data: { user },
@@ -329,7 +361,7 @@ export async function clearCartAction(): Promise<{ success: boolean; message?: s
   }
 
   revalidatePath("/cart");
-  return { success: true };
+  return { success: true, cartCount: 0 };
 }
 
 /**

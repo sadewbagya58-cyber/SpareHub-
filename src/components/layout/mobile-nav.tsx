@@ -6,10 +6,12 @@ import { usePathname } from "next/navigation";
 import { Home, Search, Store, ShoppingCart, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { getCartCountAction } from "@/lib/cart/actions";
 
 export function MobileNav() {
   const pathname = usePathname();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [cartCount, setCartCount] = useState<number>(0);
 
   useEffect(() => {
     const supabase = createClient();
@@ -26,11 +28,44 @@ export function MobileNav() {
     };
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+    async function loadCount() {
+      try {
+        const c = await getCartCountAction();
+        if (isMounted) setCartCount(c);
+      } catch {
+        // fallback
+      }
+    }
+    loadCount();
+
+    const handleCartUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent<{ count?: number }>;
+      if (typeof customEvent.detail?.count === "number") {
+        setCartCount(customEvent.detail.count);
+      } else {
+        loadCount();
+      }
+    };
+
+    window.addEventListener("sparehub:cart-updated", handleCartUpdated);
+    return () => {
+      isMounted = false;
+      window.removeEventListener("sparehub:cart-updated", handleCartUpdated);
+    };
+  }, []);
+
   const navItems = [
     { label: "Home", href: "/", icon: Home },
     { label: "Search", href: "/search", icon: Search },
     { label: "Sell", href: "/sell", icon: Store },
-    { label: "Cart", href: "/cart", icon: ShoppingCart, badge: "0" },
+    {
+      label: "Cart",
+      href: "/cart",
+      icon: ShoppingCart,
+      badge: cartCount > 0 ? (cartCount > 99 ? "99+" : String(cartCount)) : undefined,
+    },
     {
       label: isLoggedIn ? "Account" : "Sign In",
       href: isLoggedIn ? "/account" : "/login",

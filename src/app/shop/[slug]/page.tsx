@@ -12,15 +12,10 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { getPublicShopBySlug } from "@/lib/seller/actions";
-import { formatLKR } from "@/lib/utils";
+import { ProductCard } from "@/components/marketplace/product-card";
+import type { DemoProduct } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-
-const CONDITION_LABELS: Record<string, string> = {
-  brand_new: "Brand New",
-  reconditioned: "Reconditioned",
-  used: "Used",
-};
 
 export default async function PublicShopStorefrontPage({
   params,
@@ -164,73 +159,37 @@ export default async function PublicShopStorefrontPage({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-5">
             {products.map((product) => {
               const categoryObj = product.categories as unknown as {
                 name: string;
                 slug: string;
               } | null;
 
-              return (
-                <Link
-                  key={product.id}
-                  href={`/products/${product.slug}`}
-                  className="group rounded-2xl border border-neutral-200 bg-white overflow-hidden shadow-2xs hover:shadow-md hover:border-[#FF6B00]/50 transition-all flex flex-col"
-                >
-                  <div className="relative aspect-4/3 w-full bg-neutral-100 overflow-hidden border-b border-neutral-100 flex items-center justify-center">
-                    {product.primaryImage ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={product.primaryImage}
-                        alt={product.title}
-                        className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : (
-                      <Package className="h-10 w-10 text-neutral-300" />
-                    )}
-                    <span className="absolute top-2.5 left-2.5 rounded-md bg-neutral-900/80 backdrop-blur-xs px-2 py-0.5 text-[10px] font-bold text-white whitespace-nowrap">
-                      {CONDITION_LABELS[product.condition] || product.condition}
-                    </span>
-                  </div>
+              const cardProduct: DemoProduct = {
+                id: product.id,
+                slug: product.slug,
+                title: product.title,
+                partNumber: product.part_number || "N/A",
+                oemNumber: product.oem_part_number || undefined,
+                brand: product.brand_name || "OEM / Aftermarket",
+                condition: product.condition,
+                priceMinorUnits: Number(product.price_minor_units) || 0,
+                compareAtPriceMinorUnits: product.compare_at_price_minor_units
+                  ? Number(product.compare_at_price_minor_units)
+                  : undefined,
+                stockQuantity: Number(product.stock_quantity) || 0,
+                shopName: shop.name,
+                shopLocation: `${shop.city}, ${shop.district}`,
+                vehicleCompatibilitySummary: product.is_universal
+                  ? "Universal Fit (All Vehicles)"
+                  : "Verified by seller",
+                category: categoryObj?.name || "Spare Parts",
+                imageUrl: product.primaryImage || undefined,
+                isDemo: false,
+              };
 
-                  <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                    <div>
-                      {categoryObj?.name && (
-                        <p className="text-[11px] font-semibold text-[#FF6B00] uppercase tracking-wider">
-                          {categoryObj.name}
-                        </p>
-                      )}
-                      <h3 className="text-sm font-bold text-neutral-900 line-clamp-2 mt-0.5 group-hover:text-[#FF6B00] transition-colors">
-                        {product.title}
-                      </h3>
-                      {(product.brand_name || product.part_number) && (
-                        <p className="text-xs text-neutral-500 mt-1 truncate">
-                          {product.brand_name}
-                          {product.brand_name && product.part_number ? " • " : ""}
-                          {product.part_number ? `PN: ${product.part_number}` : ""}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="pt-2 border-t border-neutral-100 flex items-baseline justify-between gap-2">
-                      <span className="text-base font-extrabold text-neutral-900">
-                        {formatLKR(product.price_minor_units)}
-                      </span>
-                      <span
-                        className={`text-[11px] font-semibold ${
-                          product.stock_quantity > 0
-                            ? "text-emerald-600"
-                            : "text-red-500"
-                        }`}
-                      >
-                        {product.stock_quantity > 0
-                          ? `${product.stock_quantity} in stock`
-                          : "Out of stock"}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              );
+              return <ProductCard key={product.id} product={cardProduct} />;
             })}
           </div>
         )}

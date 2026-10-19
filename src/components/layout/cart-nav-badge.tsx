@@ -19,8 +19,20 @@ export function CartNavBadge() {
       }
     }
     loadCount();
+
+    const handleCartUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent<{ count?: number }>;
+      if (typeof customEvent.detail?.count === "number") {
+        setCount(customEvent.detail.count);
+      } else {
+        loadCount();
+      }
+    };
+
+    window.addEventListener("sparehub:cart-updated", handleCartUpdated);
     return () => {
       isMounted = false;
+      window.removeEventListener("sparehub:cart-updated", handleCartUpdated);
     };
   }, []);
 
