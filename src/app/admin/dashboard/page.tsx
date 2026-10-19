@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ShieldCheck, Store, Users, FileText, Clock } from "lucide-react";
+import { ShieldCheck, Store, Users, FileText, Clock, ShoppingCart } from "lucide-react";
 import { getCurrentUserProfile } from "@/lib/auth/actions";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -35,7 +35,7 @@ export default async function AdminDashboardPage() {
 
   const supabase = await createServerSupabaseClient();
 
-  // Fetch count of active shops, suspended shops, and users
+  // Fetch count of active shops, suspended shops, users, and customer orders
   const { count: activeShopCount } = await supabase
     .from("shops")
     .select("*", { count: "exact", head: true })
@@ -48,6 +48,10 @@ export default async function AdminDashboardPage() {
 
   const { count: userCount } = await supabase
     .from("user_profiles")
+    .select("*", { count: "exact", head: true });
+
+  const { count: orderCount } = await supabase
+    .from("customer_orders")
     .select("*", { count: "exact", head: true });
 
   // Fetch shops with linked seller profile for supervision and moderation
@@ -87,54 +91,73 @@ export default async function AdminDashboardPage() {
       </div>
 
       {/* Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Link href="/admin/orders" className="group">
+          <Card className="hover:border-sparehub-orange transition-all">
+            <CardContent className="p-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">
+                  Platform Orders
+                </p>
+                <h2 className="text-2xl font-black text-sparehub-dark mt-1 group-hover:text-sparehub-orange transition-colors">
+                  {orderCount ?? 0}
+                </h2>
+                <span className="text-[10px] text-gray-400">GMV &amp; sub-orders →</span>
+              </div>
+              <div className="p-3 rounded-xl bg-orange-50 text-sparehub-orange">
+                <ShoppingCart className="w-6 h-6" />
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
         <Card>
-          <CardContent className="p-6 flex items-center justify-between">
+          <CardContent className="p-5 flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">
                 Active Storefronts
               </p>
-              <h2 className="text-3xl font-black text-sparehub-success mt-2">
+              <h2 className="text-2xl font-black text-sparehub-success mt-1">
                 {activeShopCount ?? 0}
               </h2>
-              <span className="text-[11px] text-gray-400">Live self-service merchants</span>
+              <span className="text-[10px] text-gray-400">Live merchants</span>
             </div>
-            <div className="p-3.5 rounded-2xl bg-green-50 text-sparehub-success">
-              <Store className="w-7 h-7" />
+            <div className="p-3 rounded-xl bg-green-50 text-sparehub-success">
+              <Store className="w-6 h-6" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6 flex items-center justify-between">
+          <CardContent className="p-5 flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                Suspended Storefronts
+                Suspended Shops
               </p>
-              <h2 className="text-3xl font-black text-red-600 mt-2">
+              <h2 className="text-2xl font-black text-red-600 mt-1">
                 {suspendedShopCount ?? 0}
               </h2>
-              <span className="text-[11px] text-gray-400">Under policy moderation hold</span>
+              <span className="text-[10px] text-gray-400">Policy hold</span>
             </div>
-            <div className="p-3.5 rounded-2xl bg-red-50 text-red-600">
-              <Clock className="w-7 h-7" />
+            <div className="p-3 rounded-xl bg-red-50 text-red-600">
+              <Clock className="w-6 h-6" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6 flex items-center justify-between">
+          <CardContent className="p-5 flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">
-                Registered Platform Users
+                Registered Users
               </p>
-              <h2 className="text-3xl font-black text-sparehub-dark mt-2">
+              <h2 className="text-2xl font-black text-sparehub-dark mt-1">
                 {userCount ?? 0}
               </h2>
-              <span className="text-[11px] text-gray-400">Customers, sellers, &amp; admins</span>
+              <span className="text-[10px] text-gray-400">Platform members</span>
             </div>
-            <div className="p-3.5 rounded-2xl bg-blue-50 text-blue-600">
-              <Users className="w-7 h-7" />
+            <div className="p-3 rounded-xl bg-blue-50 text-blue-600">
+              <Users className="w-6 h-6" />
             </div>
           </CardContent>
         </Card>

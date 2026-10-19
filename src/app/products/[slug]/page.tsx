@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ShieldCheck,
   Phone,
-  Mail,
   MapPin,
   Car,
   Layers,
@@ -20,6 +19,7 @@ import { formatVariantYearRange } from "@/lib/products/taxonomy";
 import { formatLKR } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ProductGallery } from "@/components/marketplace/product-gallery";
+import { ProductBuyBox } from "@/components/marketplace/product-buy-box";
 
 interface ProductPageProps {
   params: Promise<{ slug: string }>;
@@ -323,28 +323,15 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
               </div>
             )}
 
-            {/* Action Buttons */}
-            <div className="space-y-2 pt-2">
-              {shop?.phone && (
-                <a
-                  href={`tel:${shop.phone}`}
-                  className="w-full py-3 px-4 bg-sparehub-orange hover:bg-orange-600 text-white font-bold text-sm rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
-                >
-                  <Phone className="w-4 h-4" />
-                  Call Seller: {shop.phone}
-                </a>
-              )}
-
-              {shop?.email && (
-                <a
-                  href={`mailto:${shop.email}?subject=SpareHub Inquiry: ${encodeURIComponent(product.title)}`}
-                  className="w-full py-2.5 px-4 bg-sparehub-light hover:bg-gray-200 text-sparehub-dark border border-sparehub-border font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-2"
-                >
-                  <Mail className="w-4 h-4 text-gray-500" />
-                  Send In-Stock Inquiry via Email
-                </a>
-              )}
-            </div>
+            {/* E-Commerce Action Buttons & Contacts */}
+            <ProductBuyBox
+              productId={product.id}
+              stockQuantity={product.stock_quantity}
+              isPublished={true}
+              shopPhone={shop?.phone}
+              shopEmail={shop?.email}
+              productTitle={product.title}
+            />
           </div>
 
           {/* Seller Storefront Card */}

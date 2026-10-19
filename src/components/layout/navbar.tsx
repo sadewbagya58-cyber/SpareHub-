@@ -5,7 +5,6 @@ import Link from "next/link";
 import { 
   Wrench, 
   Search, 
-  ShoppingCart, 
   Store, 
   Menu, 
   X, 
@@ -14,6 +13,7 @@ import {
   Phone 
 } from "lucide-react";
 import { AuthNav } from "./auth-nav";
+import { CartNavBadge } from "./cart-nav-badge";
 import { Button } from "@/components/ui/button";
 
 export function Navbar() {
@@ -104,16 +104,7 @@ export function Navbar() {
               <Search className="w-5 h-5" />
             </Link>
 
-            <Link
-              href="/cart"
-              aria-label="Shopping Cart"
-              className="relative p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors"
-            >
-              <ShoppingCart className="w-5 h-5" />
-              <span className="absolute top-1 right-1 bg-sparehub-orange text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
-                0
-              </span>
-            </Link>
+            <CartNavBadge />
 
             <AuthNav />
 

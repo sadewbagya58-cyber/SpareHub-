@@ -139,6 +139,24 @@ export default async function AccountPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <Link
+                href="/account/orders"
+                className="flex items-center justify-between p-3.5 rounded-xl border border-sparehub-border hover:bg-sparehub-light transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+                    <ShoppingBag className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xs font-bold text-sparehub-dark group-hover:text-sparehub-orange transition-colors">
+                      My Orders &amp; Tracking
+                    </h2>
+                    <p className="text-[11px] text-gray-500">View order status &amp; courier tracking</p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-gray-400">&rarr;</span>
+              </Link>
+
+              <Link
                 href="/cart"
                 className="flex items-center justify-between p-3.5 rounded-xl border border-sparehub-border hover:bg-sparehub-light transition-colors group"
               >

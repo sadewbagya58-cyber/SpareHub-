@@ -19,6 +19,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatLKR } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -59,12 +60,27 @@ export default async function SellerDashboardPage() {
   const shop = sellerProfile?.shops?.[0];
 
   let productCount = 0;
+  let orderCount = 0;
+  let netEarningsMinor = 0;
+
   if (shop) {
     const { count } = await supabase
       .from("products")
       .select("*", { count: "exact", head: true })
       .eq("shop_id", shop.id);
     productCount = count ?? 0;
+
+    const { count: oCount, data: ordersData } = await supabase
+      .from("seller_orders")
+      .select("total_amount_minor, status")
+      .eq("shop_id", shop.id);
+
+    orderCount = oCount ?? (ordersData ? ordersData.length : 0);
+    if (ordersData) {
+      netEarningsMinor = ordersData
+        .filter((o) => o.status !== "cancelled")
+        .reduce((acc, o) => acc + (Number(o.total_amount_minor) || 0), 0);
+    }
   }
 
   const isSuspended = shop?.status === "suspended";
@@ -265,31 +281,39 @@ export default async function SellerDashboardPage() {
               </Card>
             </Link>
 
-            <Card>
-              <CardContent className="p-5 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Customer Orders</p>
-                  <h2 className="text-2xl font-black text-sparehub-dark mt-1">0</h2>
-                  <span className="text-[10px] text-gray-400">Fulfillment queue</span>
-                </div>
-                <div className="p-3 rounded-xl bg-blue-50 text-blue-600">
-                  <ShoppingCart className="w-6 h-6" />
-                </div>
-              </CardContent>
-            </Card>
+            <Link href="/seller/orders" className="group">
+              <Card className="hover:border-sparehub-orange transition-all">
+                <CardContent className="p-5 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Customer Orders</p>
+                    <h2 className="text-2xl font-black text-sparehub-dark mt-1 group-hover:text-sparehub-orange transition-colors">
+                      {orderCount}
+                    </h2>
+                    <span className="text-[10px] text-gray-400">Fulfillment queue →</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-blue-50 text-blue-600">
+                    <ShoppingCart className="w-6 h-6" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
 
-            <Card>
-              <CardContent className="p-5 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Net Earnings</p>
-                  <h2 className="text-2xl font-black text-sparehub-dark mt-1">LKR 0.00</h2>
-                  <span className="text-[10px] text-gray-400">Ledger balance</span>
-                </div>
-                <div className="p-3 rounded-xl bg-green-50 text-sparehub-success">
-                  <DollarSign className="w-6 h-6" />
-                </div>
-              </CardContent>
-            </Card>
+            <Link href="/seller/orders" className="group">
+              <Card className="hover:border-sparehub-orange transition-all">
+                <CardContent className="p-5 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Gross Sales</p>
+                    <h2 className="text-xl sm:text-2xl font-black text-sparehub-dark mt-1 group-hover:text-sparehub-orange transition-colors">
+                      {formatLKR(netEarningsMinor)}
+                    </h2>
+                    <span className="text-[10px] text-gray-400">Fulfilled orders →</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-green-50 text-sparehub-success">
+                    <DollarSign className="w-6 h-6" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
 
             <Card>
               <CardContent className="p-5 flex items-center justify-between">

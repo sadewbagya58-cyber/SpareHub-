@@ -40,3 +40,113 @@ export interface VehicleSelection {
 }
 
 export type SellerType = "retail_shop" | "individual" | "wholesaler" | "importer";
+
+export interface CartItem {
+  id: string;
+  productId: string;
+  quantity: number;
+  productTitle: string;
+  productSlug?: string;
+  partNumber?: string;
+  brandName?: string;
+  imageUrl?: string;
+  priceMinorUnits: number; // in cents
+  stockQuantity: number;
+  isPublished: boolean;
+  shopId: string;
+  shopName: string;
+  shopSlug?: string;
+  shopDistrict?: string;
+}
+
+export interface MultiVendorCartGroup {
+  shopId: string;
+  shopName: string;
+  shopSlug?: string;
+  shopDistrict?: string;
+  items: CartItem[];
+  subtotalMinorUnits: number;
+}
+
+export interface OrderItemSnapshot {
+  id: string;
+  sellerOrderId: string;
+  productId: string;
+  productTitle: string;
+  partNumber?: string | null;
+  brandName?: string | null;
+  unitPriceMinorUnits: number;
+  quantity: number;
+  totalPriceMinorUnits: number;
+  imageUrl?: string | null;
+}
+
+export interface OrderStatusHistoryItem {
+  id: string;
+  sellerOrderId: string;
+  fromStatus?: string | null;
+  toStatus: string;
+  changedBy?: string | null;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface SellerSubOrder {
+  id: string;
+  customerOrderId: string;
+  shopId: string;
+  shopName?: string;
+  subOrderNumber: string;
+  status: "placed" | "confirmed" | "processing" | "dispatched" | "delivered" | "cancelled" | "returned";
+  fulfillmentType: string;
+  courierName?: string | null;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+  dispatchedAt?: string | null;
+  deliveredAt?: string | null;
+  cancelledAt?: string | null;
+  cancellationReason?: string | null;
+  subtotalMinor: number;
+  deliveryFeeMinor: number;
+  totalAmountMinor: number;
+  createdAt: string;
+  items?: OrderItemSnapshot[];
+  customerOrder?: {
+    orderNumber: string;
+    shippingFullName: string;
+    shippingPhone: string;
+    shippingAddressLine1: string;
+    shippingAddressLine2?: string | null;
+    shippingDistrict: string;
+    shippingCity: string;
+    shippingPostalCode?: string | null;
+    customerNotes?: string | null;
+    paymentMethod: string;
+    paymentStatus: string;
+    createdAt: string;
+  };
+  history?: OrderStatusHistoryItem[];
+}
+
+export interface CustomerOrderSummary {
+  id: string;
+  orderNumber: string;
+  status: "pending" | "confirmed" | "processing" | "partially_dispatched" | "completed" | "cancelled";
+  paymentMethod: "online" | "cod";
+  paymentStatus: "unpaid" | "authorized" | "captured" | "cod_pending" | "failed" | "refunded";
+  shippingFullName: string;
+  shippingPhone: string;
+  shippingAddressLine1: string;
+  shippingAddressLine2?: string | null;
+  shippingDistrict: string;
+  shippingCity: string;
+  shippingPostalCode?: string | null;
+  customerNotes?: string | null;
+  totalItemsSubtotalMinor: number;
+  totalDeliveryFeeMinor: number;
+  totalDiscountMinor: number;
+  totalGrandMinor: number;
+  createdAt: string;
+  sellerOrders?: SellerSubOrder[];
+}
+
