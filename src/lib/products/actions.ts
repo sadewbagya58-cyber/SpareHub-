@@ -20,6 +20,7 @@ import {
   formatVariantLabel,
   formatVariantYearRange,
   getVehicleTaxonomyHierarchy,
+  evaluateProductFitment,
 } from "@/lib/products/taxonomy";
 
 export interface ProductActionResult {
@@ -1046,16 +1047,29 @@ export async function deleteProductAction(
  * Server Helper: Fetch public marketplace products.
  * Includes only published, active products from non-suspended shops.
  */
-export async function getPublicProducts(options?: {
+export interface PublicProductsQueryOptions {
   search?: string;
   category?: string;
   condition?: string;
+  brand?: string;
+  minPriceMinorUnits?: number;
+  maxPriceMinorUnits?: number;
   vehicleTypeId?: string;
   vehicleMakeId?: string;
   vehicleModelId?: string;
   vehicleVariantId?: string;
+  sort?: "newest" | "price_asc" | "price_desc" | "name_asc";
+  page?: number;
+  pageSize?: number;
   limit?: number;
-}) {
+}
+
+/**
+ * Server Helper: Fetch public marketplace products.
+ * Includes only published, active products from non-suspended shops.
+ * Filters by 4-level vehicle taxonomy compatibility, category, brand, condition, and keyword.
+ */
+export async function getPublicProducts(options?: PublicProductsQueryOptions) {
   try {
     const supabase = await createServerSupabaseClient();
 
@@ -1105,17 +1119,23 @@ export async function getPublicProducts(options?: {
       )
       .eq("is_published", true)
       .eq("status", "active")
-      .neq("shops.status", "suspended")
-      .order("created_at", { ascending: false });
+      .neq("shops.status", "suspended");
 
-    if (options?.limit) {
-      query = query.limit(options.limit);
+    // Dynamic sorting
+    if (options?.sort === "price_asc") {
+      query = query.order("price_minor_units", { ascending: true });
+    } else if (options?.sort === "price_desc") {
+      query = query.order("price_minor_units", { ascending: false });
+    } else if (options?.sort === "name_asc") {
+      query = query.order("title", { ascending: true });
+    } else {
+      query = query.order("created_at", { ascending: false });
     }
 
     if (options?.search && options.search.trim()) {
       const term = options.search.trim();
       query = query.or(
-        `title.ilike.%${term}%,part_number.ilike.%${term}%,brand_name.ilike.%${term}%`
+        `title.ilike.%${term}%,part_number.ilike.%${term}%,brand_name.ilike.%${term}%,oem_part_number.ilike.%${term}%`
       );
     }
 
@@ -1127,6 +1147,18 @@ export async function getPublicProducts(options?: {
       query = query.eq("condition", options.condition);
     }
 
+    if (options?.brand && options.brand !== "all") {
+      query = query.ilike("brand_name", `%${options.brand.trim()}%`);
+    }
+
+    if (options?.minPriceMinorUnits !== undefined) {
+      query = query.gte("price_minor_units", options.minPriceMinorUnits);
+    }
+
+    if (options?.maxPriceMinorUnits !== undefined) {
+      query = query.lte("price_minor_units", options.maxPriceMinorUnits);
+    }
+
     const { data, error } = await query;
 
     if (error || !data) {
@@ -1136,84 +1168,83 @@ export async function getPublicProducts(options?: {
 
     const rawItems = data as unknown as DBPublicProductRow[];
 
-    // Apply vehicle compatibility filtering when requested
-    const filteredItems = rawItems.filter((item) => {
-      const hasVehicleFilter = Boolean(
-        (options?.vehicleTypeId && options.vehicleTypeId !== "all") ||
-          (options?.vehicleMakeId && options.vehicleMakeId !== "all") ||
-          (options?.vehicleModelId && options.vehicleModelId !== "all") ||
-          (options?.vehicleVariantId && options.vehicleVariantId !== "all")
-      );
-      if (!hasVehicleFilter) return true;
-      if (item.is_universal) return true;
+    const vehicleFilter = {
+      vehicleTypeId: options?.vehicleTypeId,
+      vehicleMakeId: options?.vehicleMakeId,
+      vehicleModelId: options?.vehicleModelId,
+      vehicleVariantId: options?.vehicleVariantId,
+    };
 
+    // Evaluate compatibility fitment against 4-level taxonomy
+    const matchedProducts: Array<{
+      item: DBPublicProductRow;
+      fitment: ReturnType<typeof evaluateProductFitment>;
+      enrichedCompats: EnrichedCompatibilityItem[];
+    }> = [];
+
+    for (const item of rawItems) {
       const enrichedCompats = (item.product_compatibility || []).map((c) =>
         enrichCompatibilityRow(c)
       );
-      if (enrichedCompats.length === 0) return false;
 
-      return enrichedCompats.some((c) => {
-        if (
-          options?.vehicleVariantId &&
-          options.vehicleVariantId !== "all" &&
-          c.vehicle_variant_id &&
-          c.vehicle_variant_id !== options.vehicleVariantId
-        ) {
-          return false;
-        }
-        if (
-          options?.vehicleModelId &&
-          options.vehicleModelId !== "all" &&
-          c.vehicle_model_id !== options.vehicleModelId
-        ) {
-          return false;
-        }
-        if (
-          options?.vehicleMakeId &&
-          options.vehicleMakeId !== "all" &&
-          c.make_id !== options.vehicleMakeId
-        ) {
-          return false;
-        }
-        if (
-          options?.vehicleTypeId &&
-          options.vehicleTypeId !== "all" &&
-          c.vehicle_type_id !== options.vehicleTypeId
-        ) {
-          return false;
-        }
-        return true;
-      });
-    });
+      const fitment = evaluateProductFitment(
+        {
+          is_universal: item.is_universal,
+          product_compatibility: enrichedCompats,
+        },
+        vehicleFilter
+      );
 
-    return filteredItems.map((item) => {
+      if (fitment.isMatch) {
+        matchedProducts.push({
+          item,
+          fitment,
+          enrichedCompats,
+        });
+      }
+    }
+
+    // Apply pagination if specified
+    let finalSlice = matchedProducts;
+    if (options?.page && options?.pageSize) {
+      const start = (options.page - 1) * options.pageSize;
+      finalSlice = matchedProducts.slice(start, start + options.pageSize);
+    } else if (options?.limit) {
+      finalSlice = matchedProducts.slice(0, options.limit);
+    }
+
+    return finalSlice.map(({ item, fitment, enrichedCompats }) => {
       const images = (item.product_images || []).sort(
         (a, b) =>
           (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0) ||
           a.display_order - b.display_order
       );
 
-      const enrichedCompats = (item.product_compatibility || []).map((c) =>
-        enrichCompatibilityRow(c)
-      );
-
-      let compatSummary = "Verified Fitment Available";
-      if (item.is_universal) {
-        compatSummary = "Universal Fit (All Vehicles)";
-      } else if (enrichedCompats.length > 0) {
-        const first = enrichedCompats[0];
-        const years = formatVariantYearRange(first.year_start, first.year_end);
-        const firstLabel = [
-          first.make_name,
-          first.model_name,
-          first.generation_chassis ? `(${first.generation_chassis})` : years ? `(${years})` : "",
-        ]
-          .filter(Boolean)
-          .join(" ");
-        compatSummary =
-          enrichedCompats.length > 1
-            ? `Fits ${firstLabel} +${enrichedCompats.length - 1} more`
-            : `Fits ${firstLabel}`;
+      let compatSummary = fitment.fitmentDetails;
+      if (!compatSummary || compatSummary === "Verified Compatibility") {
+        if (item.is_universal) {
+          compatSummary = "Universal Fit (All Vehicles)";
+        } else if (enrichedCompats.length > 0) {
+          const first = enrichedCompats[0];
+          const years = formatVariantYearRange(first.year_start, first.year_end);
+          const firstLabel = [
+            first.make_name,
+            first.model_name,
+            first.generation_chassis
+              ? `(${first.generation_chassis})`
+              : years
+              ? `(${years})`
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+          compatSummary =
+            enrichedCompats.length > 1
+              ? `Fits ${firstLabel} +${enrichedCompats.length - 1} more`
+              : `Fits ${firstLabel}`;
+        } else {
+          compatSummary = "Fitment verified by seller";
+        }
       }
 
       return {
@@ -1236,6 +1267,9 @@ export async function getPublicProducts(options?: {
         category: item.categories?.name || "Spare Parts",
         imageUrl: images[0]?.image_url || "/images/placeholders/brake-pads.png",
         isDemo: false,
+        fitmentBadge: fitment.fitmentBadge,
+        fitmentType: fitment.fitmentType,
+        isExactFit: fitment.isExactFit,
       };
     });
   } catch (err) {

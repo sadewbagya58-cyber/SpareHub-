@@ -27,6 +27,9 @@ export interface DemoProduct {
   category: string;
   imageUrl: string;
   isDemo?: boolean;
+  fitmentBadge?: string;
+  fitmentType?: string;
+  isExactFit?: boolean;
 }
 
 export interface VehicleSelection {

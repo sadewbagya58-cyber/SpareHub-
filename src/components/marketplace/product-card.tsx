@@ -107,7 +107,20 @@ export function ProductCard({ product }: ProductCardProps) {
         {/* Compatibility Notice */}
         <div className="mt-2 flex items-start gap-1 text-[11px] text-gray-600 bg-gray-50 p-2 rounded-md border border-gray-100">
           <CheckCircle2 className="w-3.5 h-3.5 text-sparehub-success shrink-0 mt-0.5" />
-          <span className="line-clamp-1">{product.vehicleCompatibilitySummary}</span>
+          <div className="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
+            {product.fitmentBadge && (
+              <span
+                className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                  product.fitmentType === "exact_variant" || product.fitmentType === "universal"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-blue-100 text-blue-800"
+                }`}
+              >
+                {product.fitmentBadge}
+              </span>
+            )}
+            <span className="line-clamp-1">{product.vehicleCompatibilitySummary}</span>
+          </div>
         </div>
 
         {/* Seller Info */}

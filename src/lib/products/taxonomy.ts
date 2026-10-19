@@ -1,49 +1,29 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-export interface CategoryOption {
-  id: string;
-  name: string;
-  slug: string;
-  icon_name?: string | null;
-}
+export type {
+  CategoryOption,
+  VehicleTypeOption,
+  VehicleMakeOption,
+  VehicleModelOption,
+  VehicleVariantOption,
+  VehicleTaxonomyHierarchy,
+} from "./taxonomy-constants";
 
-export interface VehicleTypeOption {
-  id: string;
-  name: string;
-  display_order?: number;
-}
+export {
+  formatVariantYearRange,
+  formatVariantLabel,
+  resolveAndValidateVehicleQueryParams,
+  evaluateProductFitment,
+} from "./taxonomy-constants";
 
-export interface VehicleMakeOption {
-  id: string;
-  vehicle_type_id: string;
-  name: string;
-  slug: string;
-}
-
-export interface VehicleModelOption {
-  id: string;
-  make_id: string;
-  name: string;
-  slug: string;
-}
-
-export interface VehicleVariantOption {
-  id: string;
-  model_id: string;
-  generation_chassis: string;
-  year_start: number;
-  year_end?: number | null;
-  engine_code?: string | null;
-  transmission?: string | null;
-  fuel_type?: string | null;
-}
-
-export interface VehicleTaxonomyHierarchy {
-  vehicleTypes: VehicleTypeOption[];
-  vehicleMakes: VehicleMakeOption[];
-  vehicleModels: VehicleModelOption[];
-  vehicleVariants: VehicleVariantOption[];
-}
+import type {
+  CategoryOption,
+  VehicleTypeOption,
+  VehicleMakeOption,
+  VehicleModelOption,
+  VehicleVariantOption,
+  VehicleTaxonomyHierarchy,
+} from "./taxonomy-constants";
 
 export const FALLBACK_CATEGORIES: CategoryOption[] = [
   { id: "c1000000-0000-0000-0000-000000000001", name: "Engine & Drivetrain", slug: "engine-drivetrain", icon_name: "Wrench" },
@@ -205,60 +185,34 @@ export const FALLBACK_VEHICLE_VARIANTS: VehicleVariantOption[] = [
   // Motorcycles (d1000000-0000-0000-0000-000000000020..23)
   { id: "e1000000-0000-0000-0000-000000000030", model_id: "d1000000-0000-0000-0000-000000000020", generation_chassis: "UG4.5 / Twin Disc BS4/BS6", year_start: 2010, year_end: null, engine_code: "DTS-i 149cc", transmission: "5-Speed Manual", fuel_type: "petrol" },
   { id: "e1000000-0000-0000-0000-000000000031", model_id: "d1000000-0000-0000-0000-000000000021", generation_chassis: "Discover 125M / DRL Disc", year_start: 2011, year_end: 2021, engine_code: "DTS-i 124.5cc", transmission: "5-Speed Manual", fuel_type: "petrol" },
-  { id: "e1000000-0000-0000-0000-000000000032", model_id: "d1000000-0000-0000-0000-000000000022", generation_chassis: "FZ-S V2.0 / V3.0 FI", year_start: 2014, year_end: null, engine_code: "BlueCore 149cc FI", transmission: "5-Speed Manual", fuel_type: "petrol" },
-  { id: "e1000000-0000-0000-0000-000000000033", model_id: "d1000000-0000-0000-0000-000000000023", generation_chassis: "HET 110cc / DLX LED", year_start: 2012, year_end: null, engine_code: "HET 109.2cc", transmission: "V-Matic CVT", fuel_type: "petrol" },
+  { id: "e1000000-0000-0000-0000-000000000022", model_id: "d1000000-0000-0000-0000-000000000022", generation_chassis: "FZ-S V2.0 / V3.0 FI", year_start: 2014, year_end: null, engine_code: "BlueCore 149cc FI", transmission: "5-Speed Manual", fuel_type: "petrol" },
+  { id: "e1000000-0000-0000-0000-000000000023", model_id: "d1000000-0000-0000-0000-000000000023", generation_chassis: "HET 110cc / DLX LED", year_start: 2012, year_end: null, engine_code: "HET 109.2cc", transmission: "V-Matic CVT", fuel_type: "petrol" },
   // Vans (d1000000-0000-0000-0000-000000000024..25)
-  { id: "e1000000-0000-0000-0000-000000000034", model_id: "d1000000-0000-0000-0000-000000000024", generation_chassis: "KDH200 / KDH201 / KDH222", year_start: 2004, year_end: 2020, engine_code: "1KD-FTV 3.0L / 2KD-FTV 2.5L", transmission: "Automatic / Manual", fuel_type: "diesel" },
-  { id: "e1000000-0000-0000-0000-000000000035", model_id: "d1000000-0000-0000-0000-000000000025", generation_chassis: "E25 (ZD30) / NV350 E26 (YD25)", year_start: 2001, year_end: 2021, engine_code: "ZD30DDTi / YD25DDTi", transmission: "Automatic / Manual", fuel_type: "diesel" },
+  { id: "e1000000-0000-0000-0000-000000000024", model_id: "d1000000-0000-0000-0000-000000000024", generation_chassis: "KDH200 / KDH201 / KDH222", year_start: 2004, year_end: 2020, engine_code: "1KD-FTV 3.0L / 2KD-FTV 2.5L", transmission: "Automatic / Manual", fuel_type: "diesel" },
+  { id: "e1000000-0000-0000-0000-000000000025", model_id: "d1000000-0000-0000-0000-000000000025", generation_chassis: "E25 (ZD30) / NV350 E26 (YD25)", year_start: 2001, year_end: 2021, engine_code: "ZD30DDTi / YD25DDTi", transmission: "Automatic / Manual", fuel_type: "diesel" },
   // Trucks & Buses (d1000000-0000-0000-0000-000000000026..29)
-  { id: "e1000000-0000-0000-0000-000000000036", model_id: "d1000000-0000-0000-0000-000000000026", generation_chassis: "NKR66 / NPR75 (10.5ft / 14.5ft)", year_start: 1999, year_end: 2020, engine_code: "4HF1 4.3L / 4HK1 5.2L", transmission: "5/6-Speed Manual", fuel_type: "diesel" },
-  { id: "e1000000-0000-0000-0000-000000000037", model_id: "d1000000-0000-0000-0000-000000000027", generation_chassis: "FE70 / FE85 / FBA", year_start: 2002, year_end: 2020, engine_code: "4D33 / 4M50", transmission: "5-Speed Manual", fuel_type: "diesel" },
-  { id: "e1000000-0000-0000-0000-000000000038", model_id: "d1000000-0000-0000-0000-000000000028", generation_chassis: "Ace HT / EX2 (Dimo Batta)", year_start: 2006, year_end: 2020, engine_code: "275 IDI 702cc", transmission: "4/5-Speed Manual", fuel_type: "diesel" },
-  { id: "e1000000-0000-0000-0000-000000000039", model_id: "d1000000-0000-0000-0000-000000000029", generation_chassis: "Viking 210 / 222 WB (H-Series)", year_start: 2005, year_end: null, engine_code: "HA6ETI 5.7L", transmission: "5/6-Speed Manual", fuel_type: "diesel" },
+  { id: "e1000000-0000-0000-0000-000000000026", model_id: "d1000000-0000-0000-0000-000000000026", generation_chassis: "NKR66 / NPR75 (10.5ft / 14.5ft)", year_start: 1999, year_end: 2020, engine_code: "4HF1 4.3L / 4HK1 5.2L", transmission: "5/6-Speed Manual", fuel_type: "diesel" },
+  { id: "e1000000-0000-0000-0000-000000000027", model_id: "d1000000-0000-0000-0000-000000000027", generation_chassis: "FE70 / FE85 / FBA", year_start: 2002, year_end: 2020, engine_code: "4D33 / 4M50", transmission: "5-Speed Manual", fuel_type: "diesel" },
+  { id: "e1000000-0000-0000-0000-000000000028", model_id: "d1000000-0000-0000-0000-000000000028", generation_chassis: "Ace HT / EX2 (Dimo Batta)", year_start: 2006, year_end: 2020, engine_code: "275 IDI 702cc", transmission: "4/5-Speed Manual", fuel_type: "diesel" },
+  { id: "e1000000-0000-0000-0000-000000000029", model_id: "d1000000-0000-0000-0000-000000000029", generation_chassis: "Viking 210 / 222 WB (H-Series)", year_start: 2005, year_end: null, engine_code: "HA6ETI 5.7L", transmission: "5/6-Speed Manual", fuel_type: "diesel" },
   // Tractors & Heavy Machinery (d1000000-0000-0000-0000-000000000030..31, 40)
-  { id: "e1000000-0000-0000-0000-000000000040", model_id: "d1000000-0000-0000-0000-000000000030", generation_chassis: "MF 240 2WD (50 HP)", year_start: 1985, year_end: null, engine_code: "Perkins AD3.152", transmission: "8F / 2R Sliding Spur", fuel_type: "diesel" },
-  { id: "e1000000-0000-0000-0000-000000000041", model_id: "d1000000-0000-0000-0000-000000000031", generation_chassis: "320D / 320D2 Hydraulic Excavator", year_start: 2006, year_end: 2020, engine_code: "CAT C6.4 ACERT", transmission: "Hydrostatic", fuel_type: "diesel" },
+  { id: "e1000000-0000-0000-0000-000000000030", model_id: "d1000000-0000-0000-0000-000000000030", generation_chassis: "MF 240 2WD (50 HP)", year_start: 1985, year_end: null, engine_code: "Perkins AD3.152", transmission: "8F / 2R Sliding Spur", fuel_type: "diesel" },
+  { id: "e1000000-0000-0000-0000-000000000031", model_id: "d1000000-0000-0000-0000-000000000031", generation_chassis: "320D / 320D2 Hydraulic Excavator", year_start: 2006, year_end: 2020, engine_code: "CAT C6.4 ACERT", transmission: "Hydrostatic", fuel_type: "diesel" },
   // Nissan Cars (d1000000-0000-0000-0000-000000000032..34)
-  { id: "e1000000-0000-0000-0000-000000000042", model_id: "d1000000-0000-0000-0000-000000000032", generation_chassis: "FB15 / N16 (Super Saloon / Ex Saloon)", year_start: 1998, year_end: 2006, engine_code: "QG15DE 1.5L", transmission: "Automatic / Manual", fuel_type: "petrol" },
-  { id: "e1000000-0000-0000-0000-000000000043", model_id: "d1000000-0000-0000-0000-000000000033", generation_chassis: "ZE0 / AZE0 (24kWh / 30kWh) & ZE1 (40kWh)", year_start: 2011, year_end: 2022, engine_code: "EM57 / EM61", transmission: "Single-Speed Reduction", fuel_type: "electric" },
-  { id: "e1000000-0000-0000-0000-000000000044", model_id: "d1000000-0000-0000-0000-000000000034", generation_chassis: "NT32 / HT32 (20X Hybrid)", year_start: 2014, year_end: 2021, engine_code: "MR20DD 2.0L", transmission: "Xtronic CVT", fuel_type: "hybrid" },
+  { id: "e1000000-0000-0000-0000-000000000032", model_id: "d1000000-0000-0000-0000-000000000032", generation_chassis: "FB15 / N16 (Super Saloon / Ex Saloon)", year_start: 1998, year_end: 2006, engine_code: "QG15DE 1.5L", transmission: "Automatic / Manual", fuel_type: "petrol" },
+  { id: "e1000000-0000-0000-0000-000000000033", model_id: "d1000000-0000-0000-0000-000000000033", generation_chassis: "ZE0 / AZE0 (24kWh / 30kWh) & ZE1 (40kWh)", year_start: 2011, year_end: 2022, engine_code: "EM57 / EM61", transmission: "Single-Speed Reduction", fuel_type: "electric" },
+  { id: "e1000000-0000-0000-0000-000000000034", model_id: "d1000000-0000-0000-0000-000000000034", generation_chassis: "NT32 / HT32 (20X Hybrid)", year_start: 2014, year_end: 2021, engine_code: "MR20DD 2.0L", transmission: "Xtronic CVT", fuel_type: "hybrid" },
   // Mitsubishi Cars (d1000000-0000-0000-0000-000000000035..36)
-  { id: "e1000000-0000-0000-0000-000000000045", model_id: "d1000000-0000-0000-0000-000000000035", generation_chassis: "CS2A / CS3A (GLX) & CY2A (EX)", year_start: 2001, year_end: 2016, engine_code: "4G15 / 4A91", transmission: "INVECS-III CVT / Manual", fuel_type: "petrol" },
-  { id: "e1000000-0000-0000-0000-000000000046", model_id: "d1000000-0000-0000-0000-000000000036", generation_chassis: "V73 / V78 / V93 / V98 (3.2 DI-D)", year_start: 2000, year_end: 2019, engine_code: "4M41 3.2L / 6G72", transmission: "Automatic / Manual", fuel_type: "diesel" },
+  { id: "e1000000-0000-0000-0000-000000000035", model_id: "d1000000-0000-0000-0000-000000000035", generation_chassis: "CS2A / CS3A (GLX) & CY2A (EX)", year_start: 2001, year_end: 2016, engine_code: "4G15 / 4A91", transmission: "INVECS-III CVT / Manual", fuel_type: "petrol" },
+  { id: "e1000000-0000-0000-0000-000000000036", model_id: "d1000000-0000-0000-0000-000000000035", generation_chassis: "V73 / V78 / V93 / V98 (3.2 DI-D)", year_start: 2000, year_end: 2019, engine_code: "4M41 3.2L / 6G72", transmission: "Automatic / Manual", fuel_type: "diesel" },
   // Piaggio (d1000000-0000-0000-0000-000000000037)
-  { id: "e1000000-0000-0000-0000-000000000047", model_id: "d1000000-0000-0000-0000-000000000037", generation_chassis: "Ape City Diesel / Xtra LDX 435cc", year_start: 2008, year_end: null, engine_code: "Greaves G435", transmission: "4-Speed Manual", fuel_type: "diesel" },
+  { id: "e1000000-0000-0000-0000-000000000037", model_id: "d1000000-0000-0000-0000-000000000037", generation_chassis: "Ape City Diesel / Xtra LDX 435cc", year_start: 2008, year_end: null, engine_code: "Greaves G435", transmission: "4-Speed Manual", fuel_type: "diesel" },
   // TVS Motorcycles (d1000000-0000-0000-0000-000000000038..39)
-  { id: "e1000000-0000-0000-0000-000000000048", model_id: "d1000000-0000-0000-0000-000000000038", generation_chassis: "RTR 160 2V / 4V", year_start: 2012, year_end: null, engine_code: "RT-Fi 159.7cc", transmission: "5-Speed Manual", fuel_type: "petrol" },
-  { id: "e1000000-0000-0000-0000-000000000049", model_id: "d1000000-0000-0000-0000-000000000039", generation_chassis: "NTorq 125 Race Edition / Disc", year_start: 2018, year_end: null, engine_code: "CVTi-REVV 124.8cc", transmission: "CVT", fuel_type: "petrol" },
+  { id: "e1000000-0000-0000-0000-000000000038", model_id: "d1000000-0000-0000-0000-000000000038", generation_chassis: "RTR 160 2V / 4V", year_start: 2012, year_end: null, engine_code: "RT-Fi 159.7cc", transmission: "5-Speed Manual", fuel_type: "petrol" },
+  { id: "e1000000-0000-0000-0000-000000000039", model_id: "d1000000-0000-0000-0000-000000000039", generation_chassis: "NTorq 125 Race Edition / Disc", year_start: 2018, year_end: null, engine_code: "CVTi-REVV 124.8cc", transmission: "CVT", fuel_type: "petrol" },
   // Komatsu (d1000000-0000-0000-0000-000000000040)
-  { id: "e1000000-0000-0000-0000-000000000050", model_id: "d1000000-0000-0000-0000-000000000040", generation_chassis: "PC200-8 / PC200LC-8", year_start: 2006, year_end: 2020, engine_code: "SAA6D107E-1", transmission: "HydrauMind", fuel_type: "diesel" },
+  { id: "e1000000-0000-0000-0000-000000000040", model_id: "d1000000-0000-0000-0000-000000000040", generation_chassis: "PC200-8 / PC200LC-8", year_start: 2006, year_end: 2020, engine_code: "SAA6D107E-1", transmission: "HydrauMind", fuel_type: "diesel" },
 ];
-
-/**
- * Formats a vehicle variant year range cleanly (e.g. "2009–2015" or "2014–Present").
- */
-export function formatVariantYearRange(
-  yearStart?: number | null,
-  yearEnd?: number | null
-): string {
-  if (!yearStart) return "";
-  if (yearEnd && yearEnd >= yearStart) {
-    return yearEnd === yearStart ? `${yearStart}` : `${yearStart}–${yearEnd}`;
-  }
-  return `${yearStart}–Present`;
-}
-
-/**
- * Formats a concise human-readable label for a vehicle variant option.
- */
-export function formatVariantLabel(variant: VehicleVariantOption): string {
-  const years = formatVariantYearRange(variant.year_start, variant.year_end);
-  const parts = [variant.generation_chassis];
-  if (years) parts[0] = `${variant.generation_chassis} (${years})`;
-  if (variant.engine_code) parts.push(variant.engine_code);
-  if (variant.fuel_type) parts.push(variant.fuel_type);
-  return parts.join(" • ");
-}
 
 function mergeByKey<T>(
   primary: T[],

@@ -6,11 +6,16 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { VehicleSelector } from "@/components/marketplace/vehicle-selector";
+import { getVehicleTaxonomyHierarchy } from "@/lib/products/taxonomy";
 import { CategoryShortcuts } from "@/components/marketplace/category-shortcuts";
 import { DemoCatalog } from "@/components/marketplace/demo-catalog";
 import { SellerCTASection } from "@/components/marketplace/seller-cta-section";
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const taxonomy = await getVehicleTaxonomyHierarchy();
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* 1. Hero Section with Prominent Vehicle Selector */}
@@ -30,7 +35,7 @@ export default function HomePage() {
           </div>
 
           {/* Prominent Vehicle Selector Component */}
-          <VehicleSelector />
+          <VehicleSelector taxonomy={taxonomy} />
 
           {/* Quick Value Badges */}
           <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4 pt-6 border-t border-sparehub-border/60">
