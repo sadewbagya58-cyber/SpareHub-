@@ -115,14 +115,14 @@ export default function SellerEarningsPage() {
         </nav>
 
         {/* Page Header Banner */}
-        <div className="bg-white rounded-2xl border border-sparehub-border p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="bg-white rounded-2xl border border-sparehub-border p-4 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-sparehub-dark flex items-center gap-2.5">
-                <DollarSign className="w-7 h-7 text-emerald-600" />
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-black text-sparehub-dark flex items-center gap-2 sm:gap-2.5">
+                <DollarSign className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-600 shrink-0" />
                 Earnings &amp; Financial Ledger
               </h1>
-              <span className="bg-amber-100 text-amber-900 text-xs font-bold px-2.5 py-0.5 rounded-full">
+              <span className="bg-amber-100 text-amber-900 text-xs font-bold px-2.5 py-0.5 rounded-full shrink-0">
                 {shopName}
               </span>
             </div>
@@ -131,7 +131,7 @@ export default function SellerEarningsPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
             <Link
               href="/seller/orders"
               className="text-xs font-bold text-sparehub-orange hover:underline px-3 py-1.5"
@@ -220,15 +220,15 @@ export default function SellerEarningsPage() {
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {["all", "earned", "accrued", "settled", "cancelled"].map((st) => (
             <button
               key={st}
               type="button"
               onClick={() => setFilter(st)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors capitalize shrink-0 ${
+              className={`px-3 sm:px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors capitalize shrink-0 ${
                 filter === st
-                  ? "bg-sparehub-dark text-white"
+                  ? "bg-sparehub-dark text-white shadow-xs"
                   : "bg-white text-gray-600 border border-sparehub-border hover:bg-gray-50"
               }`}
             >
@@ -245,7 +245,7 @@ export default function SellerEarningsPage() {
           ))}
         </div>
 
-        {/* Detailed Financial Ledger Table */}
+        {/* Detailed Financial Ledger Section */}
         <div className="bg-white rounded-2xl border border-sparehub-border overflow-hidden shadow-xs">
           <div className="p-4 border-b border-sparehub-border bg-gray-50/70 flex items-center justify-between">
             <h2 className="text-sm font-bold text-sparehub-dark flex items-center gap-2">
@@ -269,85 +269,147 @@ export default function SellerEarningsPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-sparehub-dark divide-y divide-gray-100">
-                <thead className="bg-gray-50/50 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                  <tr>
-                    <th className="py-3 px-4">Date</th>
-                    <th className="py-3 px-4">Sub-Order</th>
-                    <th className="py-3 px-4">Product Snapshot</th>
-                    <th className="py-3 px-4 text-right">Gross Subtotal</th>
-                    <th className="py-3 px-4 text-right">Commission Rate</th>
-                    <th className="py-3 px-4 text-right">Platform Fee</th>
-                    <th className="py-3 px-4 text-right">Net Earning</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredLedger.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="py-3.5 px-4 text-gray-500 whitespace-nowrap">
+            <>
+              {/* Mobile View: Stacked Responsive Financial Cards */}
+              <div className="block md:hidden divide-y divide-gray-100">
+                {filteredLedger.map((item) => (
+                  <div key={`m-${item.id}`} className="p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-gray-500 font-medium">
                         {new Date(item.createdAt).toLocaleDateString("en-LK", {
                           month: "short",
                           day: "numeric",
                           year: "numeric",
                         })}
-                      </td>
+                      </span>
+                      <div className="shrink-0">{getStatusBadge(item.status)}</div>
+                    </div>
 
-                      <td className="py-3.5 px-4 font-mono font-bold whitespace-nowrap">
-                        <Link
-                          href={`/seller/orders/${item.sellerOrderId}`}
-                          className="text-sparehub-orange hover:underline"
-                        >
-                          {item.subOrderNumber || `#${item.sellerOrderId.slice(0, 8)}`}
-                        </Link>
-                      </td>
-
-                      <td className="py-3.5 px-4 max-w-xs">
-                        <div className="font-semibold truncate">
-                          {item.productTitle || "Automotive Spare Part"}
-                        </div>
-                        {item.productPartNumber && (
-                          <span className="text-[10px] text-gray-400 font-mono">
-                            PN: {item.productPartNumber}
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right font-medium whitespace-nowrap">
-                        {formatLKR(item.itemSubtotalMinor)}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <span className="font-mono text-[11px] text-gray-600">
-                          {(item.commissionRateBps / 100).toFixed(2)}%
+                    <div>
+                      <Link
+                        href={`/seller/orders/${item.sellerOrderId}`}
+                        className="font-mono text-xs font-bold text-sparehub-orange hover:underline inline-block"
+                      >
+                        {item.subOrderNumber || `#${item.sellerOrderId.slice(0, 8)}`}
+                      </Link>
+                      <h4 className="text-xs font-bold text-sparehub-dark line-clamp-1 mt-0.5">
+                        {item.productTitle || "Automotive Spare Part"}
+                      </h4>
+                      {item.productPartNumber && (
+                        <span className="text-[10px] text-gray-400 font-mono block">
+                          PN: {item.productPartNumber}
                         </span>
-                        <span className="block text-[10px] text-gray-400 truncate max-w-[120px]">
-                          {item.appliedRuleName}
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-xs">
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] text-gray-400 block font-medium">Gross Subtotal</span>
+                        <span className="font-semibold text-gray-800">{formatLKR(item.itemSubtotalMinor)}</span>
+                      </div>
+                      <div className="text-right space-y-0.5">
+                        <span className="text-[10px] text-gray-400 block font-medium">
+                          Fee ({(item.commissionRateBps / 100).toFixed(2)}%)
                         </span>
-                      </td>
+                        <span className="font-semibold text-gray-600">- {formatLKR(item.commissionAmountMinor)}</span>
+                      </div>
+                    </div>
 
-                      <td className="py-3.5 px-4 text-right text-gray-600 font-medium whitespace-nowrap">
-                        - {formatLKR(item.commissionAmountMinor)}
-                      </td>
+                    <div className="flex items-center justify-between pt-2.5 border-t border-dashed border-gray-200 bg-emerald-50/50 -mx-4 -mb-4 px-4 py-2.5">
+                      <span className="text-xs font-bold text-gray-700">Net Seller Earning</span>
+                      <span className="text-sm font-black text-emerald-700">{formatLKR(item.sellerNetEarningMinor)}</span>
+                    </div>
 
-                      <td className="py-3.5 px-4 text-right font-black text-emerald-600 whitespace-nowrap">
-                        {formatLKR(item.sellerNetEarningMinor)}
-                      </td>
+                    {item.payoutReference && (
+                      <div className="text-[10px] text-gray-500 font-mono bg-gray-50 p-1.5 rounded text-center">
+                        Bank Settlement Ref: {item.payoutReference}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
 
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        {getStatusBadge(item.status)}
-                        {item.payoutReference && (
-                          <span className="block text-[10px] text-gray-400 font-mono mt-0.5">
-                            Ref: {item.payoutReference}
-                          </span>
-                        )}
-                      </td>
+              {/* Desktop View: Full Audit Table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs text-sparehub-dark divide-y divide-gray-100">
+                  <thead className="bg-gray-50/50 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                    <tr>
+                      <th className="py-3 px-4">Date</th>
+                      <th className="py-3 px-4">Sub-Order</th>
+                      <th className="py-3 px-4">Product Snapshot</th>
+                      <th className="py-3 px-4 text-right">Gross Subtotal</th>
+                      <th className="py-3 px-4 text-right">Commission Rate</th>
+                      <th className="py-3 px-4 text-right">Platform Fee</th>
+                      <th className="py-3 px-4 text-right">Net Earning</th>
+                      <th className="py-3 px-4 text-center">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredLedger.map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50/60 transition-colors">
+                        <td className="py-3.5 px-4 text-gray-500 whitespace-nowrap">
+                          {new Date(item.createdAt).toLocaleDateString("en-LK", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </td>
+
+                        <td className="py-3.5 px-4 font-mono font-bold whitespace-nowrap">
+                          <Link
+                            href={`/seller/orders/${item.sellerOrderId}`}
+                            className="text-sparehub-orange hover:underline"
+                          >
+                            {item.subOrderNumber || `#${item.sellerOrderId.slice(0, 8)}`}
+                          </Link>
+                        </td>
+
+                        <td className="py-3.5 px-4 max-w-xs">
+                          <div className="font-semibold truncate">
+                            {item.productTitle || "Automotive Spare Part"}
+                          </div>
+                          {item.productPartNumber && (
+                            <span className="text-[10px] text-gray-400 font-mono">
+                              PN: {item.productPartNumber}
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right font-medium whitespace-nowrap">
+                          {formatLKR(item.itemSubtotalMinor)}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <span className="font-mono text-[11px] text-gray-600">
+                            {(item.commissionRateBps / 100).toFixed(2)}%
+                          </span>
+                          <span className="block text-[10px] text-gray-400 truncate max-w-[120px]">
+                            {item.appliedRuleName}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right text-gray-600 font-medium whitespace-nowrap">
+                          - {formatLKR(item.commissionAmountMinor)}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right font-black text-emerald-600 whitespace-nowrap">
+                          {formatLKR(item.sellerNetEarningMinor)}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                          {getStatusBadge(item.status)}
+                          {item.payoutReference && (
+                            <span className="block text-[10px] text-gray-400 font-mono mt-0.5">
+                              Ref: {item.payoutReference}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>

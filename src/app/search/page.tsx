@@ -10,7 +10,6 @@ import {
   X,
   SlidersHorizontal,
 } from "lucide-react";
-import { DemoCatalog } from "@/components/marketplace/demo-catalog";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { SearchVehicleBanner } from "@/components/marketplace/search-vehicle-banner";
 import { Badge } from "@/components/ui/badge";
@@ -462,16 +461,6 @@ async function SearchResults({ searchParams }: SearchPageProps) {
               Back to Home
             </Link>
           </div>
-        </div>
-      )}
-
-      {/* 6. Featured Sample Catalog (Demo Mode) */}
-      {!hasVehicleFilter && liveProducts.length === 0 && (
-        <div className="space-y-4 pt-6 border-t border-dashed border-gray-300">
-          <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider">
-            Sample Demonstration Catalog
-          </div>
-          <DemoCatalog />
         </div>
       )}
     </div>

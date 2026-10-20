@@ -201,14 +201,14 @@ export default function AdminCommissionsPage() {
         </nav>
 
         {/* Page Header */}
-        <div className="bg-white rounded-2xl border border-sparehub-border p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="bg-white rounded-2xl border border-sparehub-border p-4 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-sparehub-dark flex items-center gap-2.5">
-                <Percent className="w-7 h-7 text-sparehub-orange" />
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-black text-sparehub-dark flex items-center gap-2 sm:gap-2.5">
+                <Percent className="w-6 h-6 sm:w-7 sm:h-7 text-sparehub-orange shrink-0" />
                 Commission Configuration Engine
               </h1>
-              <span className="bg-purple-100 text-purple-900 text-xs font-bold px-2.5 py-0.5 rounded-full">
+              <span className="bg-purple-100 text-purple-900 text-xs font-bold px-2.5 py-0.5 rounded-full shrink-0">
                 {rules.length} Configured
               </span>
             </div>
@@ -217,16 +217,16 @@ export default function AdminCommissionsPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 self-start sm:self-auto">
-            <Link href="/admin/financials">
-              <Button variant="outline" size="sm" className="font-semibold text-xs">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 w-full sm:w-auto shrink-0">
+            <Link href="/admin/financials" className="flex-1 sm:flex-none">
+              <Button variant="outline" size="sm" className="w-full sm:w-auto font-semibold text-xs whitespace-nowrap">
                 Financial Ledger →
               </Button>
             </Link>
             <Button
               onClick={() => setShowModal(true)}
               size="sm"
-              className="bg-sparehub-dark hover:bg-neutral-800 text-white font-bold gap-1.5"
+              className="flex-1 sm:flex-none w-full sm:w-auto bg-sparehub-dark hover:bg-neutral-800 text-white font-bold gap-1.5 whitespace-nowrap"
             >
               <Plus className="w-4 h-4 text-sparehub-orange" />
               New Commission Rule
@@ -268,110 +268,194 @@ export default function AdminCommissionsPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-sparehub-dark divide-y divide-gray-100">
-                <thead className="bg-gray-50/50 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                  <tr>
-                    <th className="py-3 px-4">Rule Name</th>
-                    <th className="py-3 px-4">Type</th>
-                    <th className="py-3 px-4">Applied Scope</th>
-                    <th className="py-3 px-4 text-right">Commission Rate</th>
-                    <th className="py-3 px-4">Effective Period</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {rules.map((rule) => (
-                    <tr
-                      key={rule.id}
-                      className={`hover:bg-gray-50/60 transition-colors ${
-                        !rule.isActive ? "opacity-60 bg-gray-50/30" : ""
-                      }`}
-                    >
-                      <td className="py-3.5 px-4 font-bold text-sparehub-dark">
-                        {rule.name}
-                      </td>
-
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        {getRuleTypeBadge(rule.ruleType)}
-                      </td>
-
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        {rule.ruleType === "shop_override" ? (
-                          <span className="font-semibold text-gray-800 flex items-center gap-1.5">
-                            <Store className="w-3.5 h-3.5 text-amber-600" />
-                            {rule.shopName || "Specific Shop"}
-                          </span>
-                        ) : rule.ruleType === "category_override" ? (
-                          <span className="font-semibold text-gray-800 flex items-center gap-1.5">
-                            <Layers className="w-3.5 h-3.5 text-blue-600" />
-                            {rule.categoryName || "Category"}
-                          </span>
-                        ) : (
-                          <span className="text-gray-500">Marketplace-Wide</span>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <span className="text-sm font-black text-sparehub-dark">
+            <>
+              {/* Mobile View: Stacked Commission Rule Cards */}
+              <div className="block md:hidden divide-y divide-gray-100">
+                {rules.map((rule) => (
+                  <div
+                    key={`m-${rule.id}`}
+                    className={`p-4 space-y-3 ${
+                      !rule.isActive ? "opacity-75 bg-gray-50/50" : ""
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="text-sm font-bold text-sparehub-dark">{rule.name}</h4>
+                        <div className="mt-1">{getRuleTypeBadge(rule.ruleType)}</div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-base font-black text-sparehub-dark block">
                           {(rule.rateBasisPoints / 100).toFixed(2)}%
                         </span>
-                        <span className="block text-[10px] text-gray-400 font-mono">
+                        <span className="text-[10px] text-gray-400 font-mono">
                           {rule.rateBasisPoints} bps
                         </span>
-                      </td>
+                      </div>
+                    </div>
 
-                      <td className="py-3.5 px-4 text-gray-500 whitespace-nowrap">
-                        <span>
+                    <div className="text-xs text-gray-600 bg-gray-50 p-2.5 rounded-xl space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-400 font-medium">Applied Scope:</span>
+                        <span className="font-semibold text-gray-800">
+                          {rule.ruleType === "shop_override"
+                            ? rule.shopName || "Specific Shop"
+                            : rule.ruleType === "category_override"
+                            ? rule.categoryName || "Category"
+                            : "Marketplace-Wide"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-400 font-medium">Effective Period:</span>
+                        <span className="text-gray-700">
                           {new Date(rule.effectiveFrom).toLocaleDateString("en-LK", {
                             month: "short",
                             day: "numeric",
                             year: "numeric",
                           })}
+                          {rule.effectiveUntil &&
+                            ` - ${new Date(rule.effectiveUntil).toLocaleDateString("en-LK", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}`}
                         </span>
-                        {rule.effectiveUntil && (
-                          <span className="block text-[10px] text-gray-400">
-                            Until:{" "}
-                            {new Date(rule.effectiveUntil).toLocaleDateString("en-LK", {
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleToggle(rule.id, rule.isActive)}
+                        className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl cursor-pointer transition-colors ${
+                          rule.isActive
+                            ? "bg-green-100 text-green-800 hover:bg-green-200"
+                            : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                        }`}
+                      >
+                        <Power className="w-3.5 h-3.5" />
+                        {rule.isActive ? "Active Rule" : "Disabled"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(rule.id)}
+                        className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                        title="Delete Rule"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop View: Full Table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs text-sparehub-dark divide-y divide-gray-100">
+                  <thead className="bg-gray-50/50 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                    <tr>
+                      <th className="py-3 px-4">Rule Name</th>
+                      <th className="py-3 px-4">Type</th>
+                      <th className="py-3 px-4">Applied Scope</th>
+                      <th className="py-3 px-4 text-right">Commission Rate</th>
+                      <th className="py-3 px-4">Effective Period</th>
+                      <th className="py-3 px-4 text-center">Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {rules.map((rule) => (
+                      <tr
+                        key={rule.id}
+                        className={`hover:bg-gray-50/60 transition-colors ${
+                          !rule.isActive ? "opacity-60 bg-gray-50/30" : ""
+                        }`}
+                      >
+                        <td className="py-3.5 px-4 font-bold text-sparehub-dark">
+                          {rule.name}
+                        </td>
+
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {getRuleTypeBadge(rule.ruleType)}
+                        </td>
+
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {rule.ruleType === "shop_override" ? (
+                            <span className="font-semibold text-gray-800 flex items-center gap-1.5">
+                              <Store className="w-3.5 h-3.5 text-amber-600" />
+                              {rule.shopName || "Specific Shop"}
+                            </span>
+                          ) : rule.ruleType === "category_override" ? (
+                            <span className="font-semibold text-gray-800 flex items-center gap-1.5">
+                              <Layers className="w-3.5 h-3.5 text-blue-600" />
+                              {rule.categoryName || "Category"}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">Marketplace-Wide</span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <span className="text-sm font-black text-sparehub-dark">
+                            {(rule.rateBasisPoints / 100).toFixed(2)}%
+                          </span>
+                          <span className="block text-[10px] text-gray-400 font-mono">
+                            {rule.rateBasisPoints} bps
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4 text-gray-500 whitespace-nowrap">
+                          <span>
+                            {new Date(rule.effectiveFrom).toLocaleDateString("en-LK", {
                               month: "short",
                               day: "numeric",
                               year: "numeric",
                             })}
                           </span>
-                        )}
-                      </td>
+                          {rule.effectiveUntil && (
+                            <span className="block text-[10px] text-gray-400">
+                              Until:{" "}
+                              {new Date(rule.effectiveUntil).toLocaleDateString("en-LK", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })}
+                            </span>
+                          )}
+                        </td>
 
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => handleToggle(rule.id, rule.isActive)}
-                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full cursor-pointer transition-colors ${
-                            rule.isActive
-                              ? "bg-green-100 text-green-800 hover:bg-green-200"
-                              : "bg-gray-200 text-gray-600 hover:bg-gray-300"
-                          }`}
-                        >
-                          <Power className="w-3 h-3" />
-                          {rule.isActive ? "Active" : "Disabled"}
-                        </button>
-                      </td>
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleToggle(rule.id, rule.isActive)}
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full cursor-pointer transition-colors ${
+                              rule.isActive
+                                ? "bg-green-100 text-green-800 hover:bg-green-200"
+                                : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                            }`}
+                          >
+                            <Power className="w-3 h-3" />
+                            {rule.isActive ? "Active" : "Disabled"}
+                          </button>
+                        </td>
 
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(rule.id)}
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
-                          title="Delete Rule"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(rule.id)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
+                            title="Delete Rule"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>

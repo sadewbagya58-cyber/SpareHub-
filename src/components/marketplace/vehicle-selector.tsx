@@ -198,16 +198,16 @@ export function VehicleSelector({
       className={`w-full rounded-2xl bg-white border border-sparehub-border shadow-md overflow-hidden ${className}`}
     >
       {/* Selector Header */}
-      <div className="bg-sparehub-dark text-white px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-sparehub-dark text-white px-4 sm:px-5 py-3.5 sm:py-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-lg bg-sparehub-orange text-white">
-            <Car className="w-5 h-5" />
+          <div className="p-2 rounded-lg bg-sparehub-orange text-white shrink-0">
+            <Car className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div>
-            <h3 className="font-bold text-base leading-tight">
+            <h3 className="font-bold text-sm sm:text-base leading-tight">
               Select Your Vehicle
             </h3>
-            <p className="text-xs text-gray-300">
+            <p className="text-[11px] sm:text-xs text-gray-300">
               Filter parts guaranteed to fit your exact vehicle model &amp; year
             </p>
           </div>
@@ -224,9 +224,9 @@ export function VehicleSelector({
         )}
       </div>
 
-      {/* Vehicle Type Tabs */}
-      <div className="px-5 pt-4 pb-2 border-b border-sparehub-border/60 bg-sparehub-light/40 overflow-x-auto">
-        <div className="flex gap-2 min-w-max pb-1">
+      {/* Vehicle Type Tabs (Responsive wrap eliminating mobile horizontal overflow) */}
+      <div className="px-3.5 sm:px-5 pt-3 sm:pt-4 pb-2.5 border-b border-sparehub-border/60 bg-sparehub-light/40">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
           {types.map((v) => {
             const isSelected = selectedType === v.id;
             return (
@@ -234,7 +234,7 @@ export function VehicleSelector({
                 key={v.id}
                 type="button"
                 onClick={() => handleTypeChange(v.id)}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
+                className={`text-[11px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
                   isSelected
                     ? "bg-sparehub-orange text-white shadow-xs"
                     : "bg-white text-sparehub-dark border border-sparehub-border hover:bg-gray-100"

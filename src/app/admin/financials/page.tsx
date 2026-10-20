@@ -186,14 +186,14 @@ export default function AdminFinancialsPage() {
         </nav>
 
         {/* Page Header */}
-        <div className="bg-white rounded-2xl border border-sparehub-border p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="bg-white rounded-2xl border border-sparehub-border p-4 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-sparehub-dark flex items-center gap-2.5">
-                <DollarSign className="w-7 h-7 text-emerald-600" />
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-black text-sparehub-dark flex items-center gap-2 sm:gap-2.5">
+                <DollarSign className="w-6 h-6 sm:w-7 sm:h-7 text-emerald-600 shrink-0" />
                 Marketplace Financial Ledger &amp; Settlements
               </h1>
-              <span className="bg-emerald-100 text-emerald-900 text-xs font-bold px-2.5 py-0.5 rounded-full">
+              <span className="bg-emerald-100 text-emerald-900 text-xs font-bold px-2.5 py-0.5 rounded-full shrink-0">
                 {ledger.length} Transactions
               </span>
             </div>
@@ -202,9 +202,9 @@ export default function AdminFinancialsPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 self-start sm:self-auto">
+          <div className="flex items-center gap-3 self-start md:self-auto shrink-0">
             <Link href="/admin/commissions">
-              <Button variant="outline" size="sm" className="gap-1.5 font-bold text-xs">
+              <Button variant="outline" size="sm" className="gap-1.5 font-bold text-xs whitespace-nowrap">
                 <Percent className="w-4 h-4 text-sparehub-orange" />
                 Commission Rules
               </Button>
@@ -267,7 +267,7 @@ export default function AdminFinancialsPage() {
 
         {/* Filter Controls & Search */}
         <div className="bg-white rounded-2xl border border-sparehub-border p-4 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             {["all", "earned", "accrued", "settled", "cancelled"].map((st) => (
               <button
                 key={st}
@@ -275,7 +275,7 @@ export default function AdminFinancialsPage() {
                 onClick={() => setStatusFilter(st)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors capitalize shrink-0 ${
                   statusFilter === st
-                    ? "bg-sparehub-dark text-white"
+                    ? "bg-sparehub-dark text-white shadow-xs"
                     : "bg-gray-50 text-gray-600 border border-sparehub-border hover:bg-gray-100"
                 }`}
               >
@@ -304,7 +304,7 @@ export default function AdminFinancialsPage() {
           </div>
         </div>
 
-        {/* Ledger Table */}
+        {/* Ledger Table Section */}
         <div className="bg-white rounded-2xl border border-sparehub-border overflow-hidden shadow-xs">
           {loading ? (
             <div className="p-12 text-center text-xs text-gray-400 animate-pulse">
@@ -319,114 +319,208 @@ export default function AdminFinancialsPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-sparehub-dark divide-y divide-gray-100">
-                <thead className="bg-gray-50/50 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                  <tr>
-                    <th className="py-3 px-4">Date</th>
-                    <th className="py-3 px-4">Sub-Order</th>
-                    <th className="py-3 px-4">Merchant Shop</th>
-                    <th className="py-3 px-4">Product Snapshot</th>
-                    <th className="py-3 px-4 text-right">Gross GMV</th>
-                    <th className="py-3 px-4 text-right">Fee Rate</th>
-                    <th className="py-3 px-4 text-right">Platform Fee</th>
-                    <th className="py-3 px-4 text-right">Seller Net</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredLedger.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="py-3.5 px-4 text-gray-500 whitespace-nowrap">
+            <>
+              {/* Mobile View: Stacked Responsive Financial Cards */}
+              <div className="block md:hidden divide-y divide-gray-100">
+                {filteredLedger.map((item) => (
+                  <div key={`m-${item.id}`} className="p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-gray-500 font-medium">
                         {new Date(item.createdAt).toLocaleDateString("en-LK", {
                           month: "short",
                           day: "numeric",
                           year: "numeric",
                         })}
-                      </td>
+                      </span>
+                      <div className="shrink-0">{getStatusBadge(item.status)}</div>
+                    </div>
 
-                      <td className="py-3.5 px-4 font-mono font-bold whitespace-nowrap">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-2">
                         <Link
                           href={`/orders/${item.sellerOrderId}`}
-                          className="text-sparehub-orange hover:underline"
+                          className="font-mono text-xs font-bold text-sparehub-orange hover:underline"
                         >
                           {item.subOrderNumber || `#${item.sellerOrderId.slice(0, 8)}`}
                         </Link>
-                      </td>
+                        <span className="text-xs font-bold text-gray-700 truncate max-w-[50%]">
+                          {item.shopName}
+                        </span>
+                      </div>
+                      <h4 className="text-xs font-bold text-sparehub-dark line-clamp-1">
+                        {item.productTitle || "Automotive Spare Part"}
+                      </h4>
+                      {item.productPartNumber && (
+                        <span className="text-[10px] text-gray-400 font-mono block">
+                          PN: {item.productPartNumber}
+                        </span>
+                      )}
+                    </div>
 
-                      <td className="py-3.5 px-4 whitespace-nowrap font-semibold">
-                        {item.shopName}
-                      </td>
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-xs">
+                      <div>
+                        <span className="text-[10px] text-gray-400 block font-medium">Gross GMV</span>
+                        <span className="font-semibold text-gray-800">{formatLKR(item.itemSubtotalMinor)}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-gray-400 block font-medium">
+                          Fee ({(item.commissionRateBps / 100).toFixed(2)}%)
+                        </span>
+                        <span className="font-bold text-sparehub-orange">
+                          + {formatLKR(item.commissionAmountMinor)}
+                        </span>
+                      </div>
+                    </div>
 
-                      <td className="py-3.5 px-4 max-w-xs">
-                        <div className="font-semibold truncate">
-                          {item.productTitle || "Automotive Spare Part"}
+                    <div className="flex items-center justify-between pt-2.5 border-t border-dashed border-gray-200 bg-emerald-50/50 -mx-4 -mb-4 px-4 py-2.5">
+                      <div>
+                        <span className="text-[10px] text-gray-500 block">Seller Net Due</span>
+                        <span className="text-sm font-black text-emerald-700">
+                          {formatLKR(item.sellerNetEarningMinor)}
+                        </span>
+                      </div>
+
+                      {item.status === "earned" && (
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            onClick={() => handleOpenSettle(item, false)}
+                            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 shadow-xs"
+                          >
+                            Settle
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenSettle(item, true)}
+                            title="Settle all earned items for this merchant"
+                            className="h-8 text-xs text-gray-700 font-semibold px-2"
+                          >
+                            Bulk
+                          </Button>
                         </div>
-                        {item.productPartNumber && (
-                          <span className="text-[10px] text-gray-400 font-mono">
-                            PN: {item.productPartNumber}
-                          </span>
-                        )}
-                      </td>
+                      )}
 
-                      <td className="py-3.5 px-4 text-right font-medium whitespace-nowrap">
-                        {formatLKR(item.itemSubtotalMinor)}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <span className="font-mono text-[11px] text-gray-600">
-                          {(item.commissionRateBps / 100).toFixed(2)}%
+                      {item.payoutReference && (
+                        <span className="text-[10px] text-gray-500 font-mono">
+                          Ref: {item.payoutReference}
                         </span>
-                        <span className="block text-[10px] text-gray-400 truncate max-w-[100px]">
-                          {item.appliedRuleName}
-                        </span>
-                      </td>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-                      <td className="py-3.5 px-4 text-right text-sparehub-orange font-bold whitespace-nowrap">
-                        {formatLKR(item.commissionAmountMinor)}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right font-black text-emerald-600 whitespace-nowrap">
-                        {formatLKR(item.sellerNetEarningMinor)}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        {getStatusBadge(item.status)}
-                        {item.payoutReference && (
-                          <span className="block text-[10px] text-gray-400 font-mono mt-0.5">
-                            Ref: {item.payoutReference}
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        {item.status === "earned" && (
-                          <div className="flex items-center justify-end gap-1.5">
-                            <Button
-                              size="sm"
-                              onClick={() => handleOpenSettle(item, false)}
-                              className="h-7 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5"
-                            >
-                              Settle
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleOpenSettle(item, true)}
-                              title="Settle all earned items for this merchant"
-                              className="h-7 text-[11px] text-gray-600 font-semibold px-2"
-                            >
-                              Bulk Shop
-                            </Button>
-                          </div>
-                        )}
-                      </td>
+              {/* Desktop View: Full Audit Table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs text-sparehub-dark divide-y divide-gray-100">
+                  <thead className="bg-gray-50/50 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                    <tr>
+                      <th className="py-3 px-4">Date</th>
+                      <th className="py-3 px-4">Sub-Order</th>
+                      <th className="py-3 px-4">Merchant Shop</th>
+                      <th className="py-3 px-4">Product Snapshot</th>
+                      <th className="py-3 px-4 text-right">Gross GMV</th>
+                      <th className="py-3 px-4 text-right">Fee Rate</th>
+                      <th className="py-3 px-4 text-right">Platform Fee</th>
+                      <th className="py-3 px-4 text-right">Seller Net</th>
+                      <th className="py-3 px-4 text-center">Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredLedger.map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50/60 transition-colors">
+                        <td className="py-3.5 px-4 text-gray-500 whitespace-nowrap">
+                          {new Date(item.createdAt).toLocaleDateString("en-LK", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </td>
+
+                        <td className="py-3.5 px-4 font-mono font-bold whitespace-nowrap">
+                          <Link
+                            href={`/orders/${item.sellerOrderId}`}
+                            className="text-sparehub-orange hover:underline"
+                          >
+                            {item.subOrderNumber || `#${item.sellerOrderId.slice(0, 8)}`}
+                          </Link>
+                        </td>
+
+                        <td className="py-3.5 px-4 whitespace-nowrap font-semibold">
+                          {item.shopName}
+                        </td>
+
+                        <td className="py-3.5 px-4 max-w-xs">
+                          <div className="font-semibold truncate">
+                            {item.productTitle || "Automotive Spare Part"}
+                          </div>
+                          {item.productPartNumber && (
+                            <span className="text-[10px] text-gray-400 font-mono">
+                              PN: {item.productPartNumber}
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right font-medium whitespace-nowrap">
+                          {formatLKR(item.itemSubtotalMinor)}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <span className="font-mono text-[11px] text-gray-600">
+                            {(item.commissionRateBps / 100).toFixed(2)}%
+                          </span>
+                          <span className="block text-[10px] text-gray-400 truncate max-w-[100px]">
+                            {item.appliedRuleName}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right text-sparehub-orange font-bold whitespace-nowrap">
+                          {formatLKR(item.commissionAmountMinor)}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right font-black text-emerald-600 whitespace-nowrap">
+                          {formatLKR(item.sellerNetEarningMinor)}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                          {getStatusBadge(item.status)}
+                          {item.payoutReference && (
+                            <span className="block text-[10px] text-gray-400 font-mono mt-0.5">
+                              Ref: {item.payoutReference}
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          {item.status === "earned" && (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button
+                                size="sm"
+                                onClick={() => handleOpenSettle(item, false)}
+                                className="h-7 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5"
+                              >
+                                Settle
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOpenSettle(item, true)}
+                                title="Settle all earned items for this merchant"
+                                className="h-7 text-[11px] text-gray-600 font-semibold px-2"
+                              >
+                                Bulk Shop
+                              </Button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>

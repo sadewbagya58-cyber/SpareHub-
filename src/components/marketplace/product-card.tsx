@@ -100,17 +100,11 @@ export function ProductCard({ product }: ProductCardProps) {
   return (
     <div className="group relative flex flex-col justify-between rounded-xl border border-sparehub-border bg-white p-2.5 sm:p-4 shadow-xs hover:border-sparehub-orange hover:shadow-md transition-all">
       <div>
-        {/* Badge Bar: Demo / Verified + Condition */}
+        {/* Badge Bar: Verified Listing + Condition */}
         <div className="flex items-center justify-between gap-1 mb-2">
-          {product.isDemo ? (
-            <Badge variant="demo" size="sm" className="text-[9px] sm:text-[10px] px-1.5 py-0.5">
-              DEMO
-            </Badge>
-          ) : (
-            <Badge variant="success" size="sm" className="text-[9px] sm:text-[10px] px-1.5 py-0.5">
-              VERIFIED
-            </Badge>
-          )}
+          <Badge variant="success" size="sm" className="text-[9px] sm:text-[10px] px-1.5 py-0.5">
+            VERIFIED
+          </Badge>
 
           <Badge
             variant={

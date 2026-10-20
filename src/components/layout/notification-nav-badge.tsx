@@ -103,18 +103,18 @@ export function NotificationNavBadge() {
         onClick={handleToggle}
         aria-label={`Notifications (${unreadCount} unread)`}
         aria-expanded={dropdownOpen}
-        className="relative p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors cursor-pointer"
+        className="relative p-1.5 sm:p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors cursor-pointer"
       >
-        <Bell className="w-5 h-5 text-gray-700" />
+        <Bell className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 bg-sparehub-orange text-white text-[10px] font-bold rounded-full h-4 min-w-[16px] px-1 flex items-center justify-center animate-in zoom-in-75">
+          <span className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 bg-sparehub-orange text-white text-[9px] sm:text-[10px] font-bold rounded-full h-3.5 min-w-[14px] sm:h-4 sm:min-w-[16px] px-0.5 sm:px-1 flex items-center justify-center animate-in zoom-in-75">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
 
       {dropdownOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl border border-sparehub-border bg-white shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-x-2 top-14 sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 w-auto sm:w-96 rounded-xl border border-sparehub-border bg-white shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
           {/* Header */}
           <div className="p-3 bg-gray-50 border-b border-sparehub-border flex items-center justify-between">
             <div className="flex items-center gap-2">

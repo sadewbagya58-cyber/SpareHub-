@@ -54,18 +54,18 @@ export function Navbar() {
       </div>
 
       {/* Main Navigation Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5">
-        <div className="flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3.5">
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
           {/* Logo & Tagline */}
-          <Link href="/" className="flex items-center gap-2.5 group shrink-0">
-            <div className="w-10 h-10 rounded-xl bg-sparehub-orange flex items-center justify-center text-white shadow-sm transition-transform group-hover:scale-105">
-              <Wrench className="w-5 h-5 -rotate-45" />
+          <Link href="/" className="flex items-center gap-2 sm:gap-2.5 group shrink-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-sparehub-orange flex items-center justify-center text-white shadow-sm transition-transform group-hover:scale-105 shrink-0">
+              <Wrench className="w-4 h-4 sm:w-5 sm:h-5 -rotate-45" />
             </div>
             <div className="flex flex-col">
-              <span className="text-xl font-black tracking-tight text-sparehub-dark flex items-center gap-1">
+              <span className="text-lg sm:text-xl font-black tracking-tight text-sparehub-dark flex items-center gap-1 leading-tight">
                 SPARE<span className="text-sparehub-orange">HUB</span>
               </span>
-              <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider -mt-1 hidden sm:block">
+              <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider -mt-0.5 hidden sm:block">
                 Every Part. One Marketplace.
               </span>
             </div>
@@ -91,9 +91,9 @@ export function Navbar() {
           </div>
 
           {/* Right Action Controls */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1 sm:gap-2 md:gap-3 shrink-0">
             <Link href="/sell" className="hidden sm:inline-flex">
-              <Button variant="outline" size="sm" className="gap-1.5 font-semibold">
+              <Button variant="outline" size="sm" className="gap-1.5 font-semibold text-xs">
                 <Store className="w-4 h-4 text-sparehub-orange" />
                 Open Your Shop
               </Button>
@@ -102,34 +102,40 @@ export function Navbar() {
             <Link
               href="/search"
               aria-label="Search Catalog"
-              className="p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors lg:hidden"
+              className="p-1.5 sm:p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors lg:hidden"
             >
-              <Search className="w-5 h-5" />
+              <Search className="w-4 h-4 sm:w-5 sm:h-5" />
             </Link>
 
             <Link
               href="/wishlist"
               aria-label="Saved Wishlist"
-              className="p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors"
+              className="p-1.5 sm:p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors"
             >
-              <Heart className="w-5 h-5 text-gray-700" />
+              <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
             </Link>
 
             <NotificationNavBadge />
 
             <CartNavBadge />
 
-            <AuthNav />
+            <div className="hidden md:flex items-center">
+              <AuthNav />
+            </div>
 
             {/* Mobile Hamburger Toggle */}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors md:hidden"
+              className="p-1.5 sm:p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors md:hidden"
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
               aria-expanded={mobileMenuOpen}
             >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {mobileMenuOpen ? (
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
+              ) : (
+                <Menu className="w-5 h-5 sm:w-6 sm:h-6" />
+              )}
             </button>
           </div>
         </div>
