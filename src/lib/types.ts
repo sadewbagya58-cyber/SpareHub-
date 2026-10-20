@@ -218,4 +218,61 @@ export interface WishlistItem {
   };
 }
 
+export interface CommissionRuleItem {
+  id: string;
+  name: string;
+  ruleType: "platform_default" | "category_override" | "shop_override";
+  categoryId?: string | null;
+  categoryName?: string | null;
+  shopId?: string | null;
+  shopName?: string | null;
+  rateBasisPoints: number; // 100 bps = 1.00%
+  effectiveFrom: string;
+  effectiveUntil?: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface CommissionLedgerItem {
+  id: string;
+  sellerOrderId: string;
+  subOrderNumber?: string;
+  orderItemId: string;
+  productTitle?: string;
+  productPartNumber?: string;
+  shopId: string;
+  shopName?: string;
+  appliedRuleId?: string | null;
+  appliedRuleName?: string | null;
+  itemSubtotalMinor: number;
+  commissionRateBps: number;
+  commissionAmountMinor: number;
+  sellerNetEarningMinor: number;
+  status: "accrued" | "earned" | "cancelled" | "refunded" | "settled";
+  payoutReference?: string | null;
+  settledAt?: string | null;
+  createdAt: string;
+}
+
+export interface SellerEarningsSummary {
+  totalGrossSalesMinor: number;
+  totalCommissionMinor: number;
+  netEarningsMinor: number;
+  availableBalanceMinor: number; // status = 'earned'
+  pendingClearanceMinor: number; // status = 'accrued'
+  settledPayoutsMinor: number;   // status = 'settled'
+  cancelledMinor: number;        // status = 'cancelled' or 'refunded'
+  totalOrdersCount: number;
+}
+
+export interface AdminFinancialsSummary {
+  totalGrossGmvMinor: number;
+  totalPlatformRevenueMinor: number;
+  totalEarnedRevenueMinor: number;
+  pendingSellerPayoutsMinor: number;
+  totalSettledPayoutsMinor: number;
+  totalLedgerCount: number;
+}
+
+
 

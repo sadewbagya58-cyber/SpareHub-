@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ShieldCheck, Store, Users, FileText, Clock, ShoppingCart } from "lucide-react";
+import { ShieldCheck, Store, Users, FileText, Clock, ShoppingCart, Percent, DollarSign } from "lucide-react";
 import { getCurrentUserProfile } from "@/lib/auth/actions";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -81,9 +81,23 @@ export default async function AdminDashboardPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Link href="/admin/commissions">
+            <Button variant="outline" size="sm" className="bg-transparent border-gray-600 text-white hover:bg-gray-800 gap-1.5 text-xs font-semibold">
+              <Percent className="w-3.5 h-3.5 text-sparehub-orange" />
+              Commission Rules
+            </Button>
+          </Link>
+
+          <Link href="/admin/financials">
+            <Button variant="outline" size="sm" className="bg-transparent border-gray-600 text-white hover:bg-gray-800 gap-1.5 text-xs font-semibold">
+              <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+              Financial Ledger
+            </Button>
+          </Link>
+
           <Link href="/account">
-            <Button variant="outline" size="sm" className="bg-transparent border-gray-600 text-white hover:bg-gray-800">
+            <Button variant="outline" size="sm" className="bg-transparent border-gray-600 text-white hover:bg-gray-800 text-xs">
               My Profile
             </Button>
           </Link>

@@ -796,6 +796,20 @@ export async function cancelCustomerOrderAction(orderId: string, reason: string)
     }
   }
 
+  // Reconcile commission ledger for cancelled sub-orders
+  try {
+    const adminClient = createAdminClient();
+    for (const so of subOrders || []) {
+      await adminClient
+        .from("commission_ledger")
+        .update({ status: "cancelled" })
+        .eq("seller_order_id", so.id)
+        .in("status", ["accrued", "earned"]);
+    }
+  } catch (clErr) {
+    console.error("Non-blocking commission ledger reconciliation error in customer cancel:", clErr);
+  }
+
   // Lifecycle notifications
   try {
     // Notify customer
@@ -1276,6 +1290,26 @@ export async function updateSellerOrderStatusAction(
         updated_at: new Date().toISOString(),
       })
       .eq("id", so.customer_order_id);
+  }
+
+  // Reconcile commission ledger status
+  try {
+    const adminClient = createAdminClient();
+    if (targetStatus === "delivered") {
+      await adminClient
+        .from("commission_ledger")
+        .update({ status: "earned" })
+        .eq("seller_order_id", subOrderId)
+        .eq("status", "accrued");
+    } else if (targetStatus === "cancelled") {
+      await adminClient
+        .from("commission_ledger")
+        .update({ status: "cancelled" })
+        .eq("seller_order_id", subOrderId)
+        .in("status", ["accrued", "earned"]);
+    }
+  } catch (clErr) {
+    console.error("Non-blocking commission ledger reconciliation error:", clErr);
   }
 
   // Lifecycle notification to customer

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { User, LogOut, Store, ShieldCheck, ShoppingBag, ChevronDown, Settings, Package, Heart, Bell } from "lucide-react";
+import { User, LogOut, Store, ShieldCheck, ShoppingBag, ChevronDown, Settings, Package, Heart, Bell, DollarSign, Percent } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
@@ -201,6 +201,14 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
               Seller Dashboard
             </Link>
             <Link
+              href="/seller/earnings"
+              onClick={onNavigate}
+              className="px-3 py-2 rounded-md text-xs font-medium text-emerald-900 hover:bg-emerald-50 flex items-center gap-2"
+            >
+              <DollarSign className="w-4 h-4 text-emerald-600" />
+              Earnings &amp; Payouts
+            </Link>
+            <Link
               href="/seller/shop"
               onClick={onNavigate}
               className="px-3 py-2 rounded-md text-xs font-medium text-amber-900 hover:bg-amber-50 flex items-center gap-2"
@@ -223,14 +231,32 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
         )}
 
         {isAdmin && (
-          <Link
-            href="/admin/dashboard"
-            onClick={onNavigate}
-            className="px-3 py-2 rounded-md text-xs font-medium text-red-900 hover:bg-red-50 flex items-center gap-2"
-          >
-            <ShieldCheck className="w-4 h-4 text-red-600" />
-            Admin Control Center
-          </Link>
+          <>
+            <Link
+              href="/admin/dashboard"
+              onClick={onNavigate}
+              className="px-3 py-2 rounded-md text-xs font-medium text-red-900 hover:bg-red-50 flex items-center gap-2"
+            >
+              <ShieldCheck className="w-4 h-4 text-red-600" />
+              Admin Control Center
+            </Link>
+            <Link
+              href="/admin/commissions"
+              onClick={onNavigate}
+              className="px-3 py-2 rounded-md text-xs font-medium text-purple-900 hover:bg-purple-50 flex items-center gap-2"
+            >
+              <Percent className="w-4 h-4 text-purple-600" />
+              Commission Rules
+            </Link>
+            <Link
+              href="/admin/financials"
+              onClick={onNavigate}
+              className="px-3 py-2 rounded-md text-xs font-medium text-emerald-900 hover:bg-emerald-50 flex items-center gap-2"
+            >
+              <DollarSign className="w-4 h-4 text-emerald-600" />
+              Financial Ledger
+            </Link>
+          </>
         )}
 
         <form action={logoutAction}>
@@ -340,6 +366,14 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
                 Seller Dashboard
               </Link>
               <Link
+                href="/seller/earnings"
+                onClick={() => setDropdownOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-emerald-900 bg-emerald-50/50 hover:bg-emerald-50 transition-colors"
+              >
+                <DollarSign className="w-4 h-4 text-emerald-600" />
+                Earnings &amp; Payouts
+              </Link>
+              <Link
                 href="/seller/shop"
                 onClick={() => setDropdownOpen(false)}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-amber-900 hover:bg-amber-50 transition-colors"
@@ -362,14 +396,32 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
           )}
 
           {isAdmin && (
-            <Link
-              href="/admin/dashboard"
-              onClick={() => setDropdownOpen(false)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-red-900 bg-red-50/50 hover:bg-red-50 transition-colors"
-            >
-              <ShieldCheck className="w-4 h-4 text-red-600" />
-              Admin Center
-            </Link>
+            <>
+              <Link
+                href="/admin/dashboard"
+                onClick={() => setDropdownOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-red-900 bg-red-50/50 hover:bg-red-50 transition-colors"
+              >
+                <ShieldCheck className="w-4 h-4 text-red-600" />
+                Admin Center
+              </Link>
+              <Link
+                href="/admin/commissions"
+                onClick={() => setDropdownOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-purple-900 bg-purple-50/50 hover:bg-purple-50 transition-colors"
+              >
+                <Percent className="w-4 h-4 text-purple-600" />
+                Commission Rules
+              </Link>
+              <Link
+                href="/admin/financials"
+                onClick={() => setDropdownOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-emerald-900 bg-emerald-50/50 hover:bg-emerald-50 transition-colors"
+              >
+                <DollarSign className="w-4 h-4 text-emerald-600" />
+                Financial Ledger
+              </Link>
+            </>
           )}
 
           <div className="pt-1 border-t border-sparehub-border/60">

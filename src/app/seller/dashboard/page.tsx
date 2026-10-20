@@ -164,6 +164,12 @@ export default async function SellerDashboardPage() {
                     Shop Settings
                   </Button>
                 </Link>
+                <Link href="/seller/earnings" className="flex-1 sm:flex-initial">
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto gap-1.5 justify-center text-emerald-700 border-emerald-300 hover:bg-emerald-50">
+                    <DollarSign className="w-4 h-4 shrink-0 text-emerald-600" />
+                    Earnings &amp; Payouts
+                  </Button>
+                </Link>
               </>
             ) : (
               <Link href="/seller/shop/new" className="w-full sm:w-auto">
@@ -298,15 +304,15 @@ export default async function SellerDashboardPage() {
               </Card>
             </Link>
 
-            <Link href="/seller/orders" className="group">
+            <Link href="/seller/earnings" className="group">
               <Card className="hover:border-sparehub-orange transition-all">
                 <CardContent className="p-5 flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-gray-500 font-medium">Gross Sales</p>
-                    <h2 className="text-xl sm:text-2xl font-black text-sparehub-dark mt-1 group-hover:text-sparehub-orange transition-colors">
+                    <p className="text-xs text-gray-500 font-medium">Earnings &amp; Payouts</p>
+                    <h2 className="text-xl sm:text-2xl font-black text-emerald-600 mt-1 group-hover:text-sparehub-orange transition-colors">
                       {formatLKR(netEarningsMinor)}
                     </h2>
-                    <span className="text-[10px] text-gray-400">Fulfilled orders →</span>
+                    <span className="text-[10px] text-gray-400">Ledger &amp; statement →</span>
                   </div>
                   <div className="p-3 rounded-xl bg-green-50 text-sparehub-success">
                     <DollarSign className="w-6 h-6" />
