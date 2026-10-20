@@ -10,6 +10,7 @@ import { formatLKR } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { addToCartAction } from "@/lib/cart/actions";
+import { WishlistButton } from "./wishlist-button";
 
 export interface ProductCardProps {
   product: DemoProduct;
@@ -131,60 +132,68 @@ export function ProductCard({ product }: ProductCardProps) {
         </div>
 
         {/* Part Image Visual */}
-        {productHref ? (
-          <Link
-            href={productHref}
-            className="block relative aspect-4/3 w-full rounded-lg bg-sparehub-light overflow-hidden border border-sparehub-border/40 mb-2 sm:mb-3 group-hover:opacity-95 transition-opacity"
-          >
-            {product.imageUrl && product.imageUrl.startsWith("http") ? (
-              <Image
-                src={product.imageUrl}
-                alt={product.title}
-                fill
-                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                className="object-cover group-hover:scale-105 transition-transform duration-300"
-                unoptimized
-              />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center">
-                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-white shadow-xs flex items-center justify-center text-sparehub-orange font-black text-sm sm:text-lg mb-1">
-                  ⚙️
+        <div className="relative aspect-4/3 w-full rounded-lg bg-sparehub-light overflow-hidden border border-sparehub-border/40 mb-2 sm:mb-3">
+          {productHref ? (
+            <Link
+              href={productHref}
+              className="block w-full h-full group-hover:opacity-95 transition-opacity"
+            >
+              {product.imageUrl && product.imageUrl.startsWith("http") ? (
+                <Image
+                  src={product.imageUrl}
+                  alt={product.title}
+                  fill
+                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                  className="object-cover group-hover:scale-105 transition-transform duration-300"
+                  unoptimized
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center">
+                  <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-white shadow-xs flex items-center justify-center text-sparehub-orange font-black text-sm sm:text-lg mb-1">
+                    ⚙️
+                  </div>
+                  <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate max-w-full">
+                    {product.brand}
+                  </span>
+                  <span className="text-[9px] sm:text-[10px] text-gray-400 font-mono truncate max-w-full">
+                    PN: {product.partNumber}
+                  </span>
                 </div>
-                <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate max-w-full">
-                  {product.brand}
-                </span>
-                <span className="text-[9px] sm:text-[10px] text-gray-400 font-mono truncate max-w-full">
-                  PN: {product.partNumber}
-                </span>
-              </div>
-            )}
-          </Link>
-        ) : (
-          <div className="relative aspect-4/3 w-full rounded-lg bg-sparehub-light flex flex-col items-center justify-center p-2 border border-sparehub-border/40 overflow-hidden mb-2 sm:mb-3">
-            {product.imageUrl && product.imageUrl.startsWith("http") ? (
-              <Image
-                src={product.imageUrl}
-                alt={product.title}
-                fill
-                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                className="object-cover group-hover:scale-105 transition-transform duration-300"
-                unoptimized
-              />
-            ) : (
-              <>
-                <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-white shadow-xs flex items-center justify-center text-sparehub-orange font-black text-sm sm:text-lg mb-1">
-                  ⚙️
-                </div>
-                <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate max-w-full">
-                  {product.brand}
-                </span>
-                <span className="text-[9px] sm:text-[10px] text-gray-400 font-mono truncate max-w-full">
-                  PN: {product.partNumber}
-                </span>
-              </>
-            )}
-          </div>
-        )}
+              )}
+            </Link>
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center">
+              {product.imageUrl && product.imageUrl.startsWith("http") ? (
+                <Image
+                  src={product.imageUrl}
+                  alt={product.title}
+                  fill
+                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                  className="object-cover group-hover:scale-105 transition-transform duration-300"
+                  unoptimized
+                />
+              ) : (
+                <>
+                  <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-white shadow-xs flex items-center justify-center text-sparehub-orange font-black text-sm sm:text-lg mb-1">
+                    ⚙️
+                  </div>
+                  <span className="text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider truncate max-w-full">
+                    {product.brand}
+                  </span>
+                  <span className="text-[9px] sm:text-[10px] text-gray-400 font-mono truncate max-w-full">
+                    PN: {product.partNumber}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+
+          {!product.isDemo && (
+            <div className="absolute top-2 right-2 z-10">
+              <WishlistButton productId={product.id} />
+            </div>
+          )}
+        </div>
 
         {/* Product Title & Brand */}
         <div className="text-[10px] sm:text-[11px] font-semibold text-gray-500 uppercase tracking-wider truncate">

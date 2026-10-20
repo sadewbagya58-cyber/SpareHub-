@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ShoppingCart, Zap, Plus, Minus, Check, AlertCircle, Phone, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { addToCartAction } from "@/lib/cart/actions";
+import { WishlistButton } from "./wishlist-button";
 
 interface ProductBuyBoxProps {
   productId: string;
@@ -144,6 +145,8 @@ export function ProductBuyBox({
           <Zap className="w-4 h-4 text-sparehub-orange" />
           {buyNowLoading ? "Redirecting to Checkout..." : "Buy Now"}
         </Button>
+
+        <WishlistButton productId={productId} variant="button" className="w-full" />
       </div>
 
       {/* Direct Vendor Inquiry Contacts */}

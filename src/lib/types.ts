@@ -150,3 +150,72 @@ export interface CustomerOrderSummary {
   sellerOrders?: SellerSubOrder[];
 }
 
+export interface NotificationItem {
+  id: string;
+  userId: string;
+  type:
+    | "order_placed"
+    | "order_confirmed"
+    | "order_processing"
+    | "order_dispatched"
+    | "order_delivered"
+    | "order_cancelled"
+    | "order_rejected"
+    | "system";
+  title: string;
+  message: string;
+  link?: string | null;
+  read: boolean;
+  readAt?: string | null;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ProductReviewItem {
+  id: string;
+  productId: string;
+  customerId: string;
+  customerName: string;
+  rating: number; // 1 - 5
+  title?: string | null;
+  comment: string;
+  isVerifiedPurchase: boolean;
+  status: "published" | "hidden" | "flagged";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductRatingSummary {
+  averageRating: number;
+  totalReviews: number;
+  distribution: {
+    5: number;
+    4: number;
+    3: number;
+    2: number;
+    1: number;
+  };
+}
+
+export interface WishlistItem {
+  id: string;
+  userId: string;
+  productId: string;
+  createdAt: string;
+  product?: {
+    id: string;
+    title: string;
+    slug: string;
+    brandName?: string | null;
+    partNumber?: string | null;
+    priceMinorUnits: number;
+    stockQuantity: number;
+    isPublished: boolean;
+    status: string;
+    imageUrl?: string | null;
+    shopName?: string;
+    shopSlug?: string;
+  };
+}
+
+

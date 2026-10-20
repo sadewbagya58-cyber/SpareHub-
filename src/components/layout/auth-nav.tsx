@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { User, LogOut, Store, ShieldCheck, ShoppingBag, ChevronDown, Settings } from "lucide-react";
+import { User, LogOut, Store, ShieldCheck, ShoppingBag, ChevronDown, Settings, Package, Heart, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
@@ -163,6 +163,33 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
           My Profile & Settings
         </Link>
 
+        <Link
+          href="/orders"
+          onClick={onNavigate}
+          className="px-3 py-2 rounded-md text-xs font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center gap-2"
+        >
+          <Package className="w-4 h-4 text-gray-400" />
+          My Orders & Tracking
+        </Link>
+
+        <Link
+          href="/wishlist"
+          onClick={onNavigate}
+          className="px-3 py-2 rounded-md text-xs font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center gap-2"
+        >
+          <Heart className="w-4 h-4 text-gray-400" />
+          Saved Wishlist
+        </Link>
+
+        <Link
+          href="/account/notifications"
+          onClick={onNavigate}
+          className="px-3 py-2 rounded-md text-xs font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center gap-2"
+        >
+          <Bell className="w-4 h-4 text-gray-400" />
+          Notifications
+        </Link>
+
         {isSeller && (
           <>
             <Link
@@ -264,6 +291,33 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
           >
             <User className="w-4 h-4 text-gray-400" />
             My Profile & Settings
+          </Link>
+
+          <Link
+            href="/orders"
+            onClick={() => setDropdownOpen(false)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-sparehub-dark hover:bg-sparehub-light transition-colors"
+          >
+            <Package className="w-4 h-4 text-gray-400" />
+            My Orders
+          </Link>
+
+          <Link
+            href="/wishlist"
+            onClick={() => setDropdownOpen(false)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-sparehub-dark hover:bg-sparehub-light transition-colors"
+          >
+            <Heart className="w-4 h-4 text-gray-400" />
+            Saved Wishlist
+          </Link>
+
+          <Link
+            href="/account/notifications"
+            onClick={() => setDropdownOpen(false)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-sparehub-dark hover:bg-sparehub-light transition-colors"
+          >
+            <Bell className="w-4 h-4 text-gray-400" />
+            Notifications
           </Link>
 
           <Link

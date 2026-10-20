@@ -20,6 +20,7 @@ import { formatLKR } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ProductGallery } from "@/components/marketplace/product-gallery";
 import { ProductBuyBox } from "@/components/marketplace/product-buy-box";
+import { ProductReviews } from "@/components/marketplace/product-reviews";
 
 interface ProductPageProps {
   params: Promise<{ slug: string }>;
@@ -223,6 +224,9 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
               {product.description}
             </div>
           </div>
+
+          {/* Product Reviews & Ratings */}
+          <ProductReviews productId={product.id} />
         </div>
 
         {/* Right Column: Pricing, Overview & Vendor Card */}

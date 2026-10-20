@@ -3,6 +3,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { createNotification } from "@/lib/notifications/actions";
 import type { CustomerOrderSummary, SellerSubOrder } from "@/lib/types";
 
 // Sri Lankan phone validation (same standard as seller onboarding & auth)
@@ -109,6 +110,22 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
           idempotency_key: idempotencyKey,
         });
       }
+
+      // Non-blocking notification trigger
+      try {
+        await createNotification({
+          userId: user.id,
+          type: "order_placed",
+          title: `Order Placed: #${rpcRes.order_number}`,
+          message: `Your order #${rpcRes.order_number} has been placed successfully.`,
+          link: `/orders/${rpcRes.customer_order_id}`,
+          idempotencyKey: `notif-cust-order-${rpcRes.customer_order_id}`,
+          metadata: { orderId: rpcRes.customer_order_id, orderNumber: rpcRes.order_number },
+        });
+      } catch (e) {
+        console.error("Non-blocking notification error:", e);
+      }
+
       revalidatePath("/orders");
       return {
         success: true,
@@ -257,6 +274,40 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
         });
       }
 
+      // 7. Order lifecycle notifications
+      try {
+        await createNotification({
+          userId: user.id,
+          type: "order_placed",
+          title: `Order Placed: #${custOrder.order_number}`,
+          message: `Your direct purchase #${custOrder.order_number} has been confirmed.`,
+          link: `/orders/${custOrder.id}`,
+          idempotencyKey: `notif-cust-order-${custOrder.id}`,
+          metadata: { orderId: custOrder.id, orderNumber: custOrder.order_number },
+        });
+
+        const { data: sProfile } = await adminClient
+          .from("shops")
+          .select("seller_profiles(user_id)")
+          .eq("id", p.shop_id)
+          .maybeSingle();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sellerUserId = (sProfile?.seller_profiles as any)?.user_id;
+        if (sellerUserId) {
+          await createNotification({
+            userId: sellerUserId,
+            type: "order_placed",
+            title: `New Order: #${subOrderNumber}`,
+            message: `You have received a new order #${subOrderNumber} for "${p.title}".`,
+            link: `/seller/orders/${sellerOrder.id}`,
+            idempotencyKey: `notif-seller-suborder-${sellerOrder.id}`,
+            metadata: { subOrderId: sellerOrder.id, subOrderNumber },
+          });
+        }
+      } catch (e) {
+        console.error("Non-blocking notification error in Buy Now:", e);
+      }
+
       revalidatePath("/orders");
       return {
         success: true,
@@ -338,6 +389,47 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
       currency: "LKR",
       status: "initiated",
     });
+  }
+
+  // 5. Order lifecycle notifications
+  try {
+    // Notify customer
+    await createNotification({
+      userId: user.id,
+      type: "order_placed",
+      title: `Order Placed: #${res.order_number}`,
+      message: `Your order #${res.order_number} has been confirmed. Thank you for shopping with SpareHub!`,
+      link: `/orders/${res.customer_order_id}`,
+      idempotencyKey: `notif-cust-order-${res.customer_order_id}`,
+      metadata: { orderId: res.customer_order_id, orderNumber: res.order_number },
+    });
+
+    // Notify vendors
+    const admin = createAdminClient();
+    const { data: subOrders } = await admin
+      .from("seller_orders")
+      .select("id, sub_order_number, shop_id, shops(seller_profiles(user_id))")
+      .eq("customer_order_id", res.customer_order_id);
+
+    if (subOrders) {
+      for (const so of subOrders) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sellerUserId = (so.shops as any)?.seller_profiles?.user_id;
+        if (sellerUserId) {
+          await createNotification({
+            userId: sellerUserId,
+            type: "order_placed",
+            title: `New Sub-Order: #${so.sub_order_number}`,
+            message: `You have received a new sub-order #${so.sub_order_number}.`,
+            link: `/seller/orders/${so.id}`,
+            idempotencyKey: `notif-seller-suborder-${so.id}`,
+            metadata: { subOrderId: so.id, subOrderNumber: so.sub_order_number },
+          });
+        }
+      }
+    }
+  } catch (notifErr) {
+    console.error("Non-blocking notification error in cart checkout:", notifErr);
   }
 
   revalidatePath("/cart");
@@ -631,7 +723,7 @@ export async function cancelCustomerOrderAction(orderId: string, reason: string)
   // Fetch order to verify customer ownership and cancellable status
   const { data: co, error: coErr } = await supabase
     .from("customer_orders")
-    .select("id, status, customer_id")
+    .select("id, order_number, status, customer_id")
     .eq("id", orderId)
     .single();
 
@@ -702,6 +794,47 @@ export async function cancelCustomerOrderAction(orderId: string, reason: string)
         notes: `Customer cancelled: ${reason || "No reason specified"}`,
       });
     }
+  }
+
+  // Lifecycle notifications
+  try {
+    // Notify customer
+    await createNotification({
+      userId: user.id,
+      type: "order_cancelled",
+      title: `Order Cancelled: #${co.order_number}`,
+      message: `Your cancellation request for order #${co.order_number} was completed successfully.`,
+      link: `/orders/${orderId}`,
+      idempotencyKey: `notif-cust-cancel-${orderId}`,
+      metadata: { orderId, orderNumber: co.order_number, reason },
+    });
+
+    // Notify vendors
+    const adminClient = createAdminClient();
+    const { data: sOrders } = await adminClient
+      .from("seller_orders")
+      .select("id, sub_order_number, shops(seller_profiles(user_id))")
+      .eq("customer_order_id", orderId);
+
+    if (sOrders) {
+      for (const s of sOrders) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sellerUserId = (s.shops as any)?.seller_profiles?.user_id;
+        if (sellerUserId) {
+          await createNotification({
+            userId: sellerUserId,
+            type: "order_cancelled",
+            title: `Order Cancelled by Customer: #${s.sub_order_number}`,
+            message: `Customer cancelled order #${s.sub_order_number}.${reason ? ` Reason: ${reason}` : ""}`,
+            link: `/seller/orders/${s.id}`,
+            idempotencyKey: `notif-seller-cancel-${s.id}`,
+            metadata: { subOrderId: s.id, reason },
+          });
+        }
+      }
+    }
+  } catch (notifErr) {
+    console.error("Non-blocking notification error in customer cancel:", notifErr);
   }
 
   revalidatePath(`/orders/${orderId}`);
@@ -1027,7 +1160,7 @@ export async function updateSellerOrderStatusAction(
 
   const { data: so, error } = await supabase
     .from("seller_orders")
-    .select("id, status, shop_id, customer_order_id, order_items(product_id, quantity)")
+    .select("id, sub_order_number, status, shop_id, customer_order_id, order_items(product_id, quantity)")
     .eq("id", subOrderId)
     .single();
 
@@ -1143,6 +1276,68 @@ export async function updateSellerOrderStatusAction(
         updated_at: new Date().toISOString(),
       })
       .eq("id", so.customer_order_id);
+  }
+
+  // Lifecycle notification to customer
+  try {
+    const admin = createAdminClient();
+    const { data: parentOrder } = await admin
+      .from("customer_orders")
+      .select("customer_id, order_number")
+      .eq("id", so.customer_order_id)
+      .single();
+
+    if (parentOrder?.customer_id) {
+      let notifType:
+        | "order_confirmed"
+        | "order_processing"
+        | "order_dispatched"
+        | "order_delivered"
+        | "order_cancelled" = "order_processing";
+      let notifTitle = `Order Update: #${so.sub_order_number || so.id.slice(0, 8)}`;
+      let notifMsg = `Your sub-order status has been updated to ${targetStatus}.`;
+
+      if (targetStatus === "confirmed") {
+        notifType = "order_confirmed";
+        notifTitle = `Order Confirmed: #${so.sub_order_number || so.id.slice(0, 8)}`;
+        notifMsg = `Vendor has confirmed your order #${so.sub_order_number || so.id.slice(0, 8)}.`;
+      } else if (targetStatus === "processing") {
+        notifType = "order_processing";
+        notifTitle = `Order Processing: #${so.sub_order_number || so.id.slice(0, 8)}`;
+        notifMsg = `Your order #${so.sub_order_number || so.id.slice(0, 8)} is now being prepared for shipping.`;
+      } else if (targetStatus === "dispatched") {
+        notifType = "order_dispatched";
+        notifTitle = `Order Dispatched: #${so.sub_order_number || so.id.slice(0, 8)}`;
+        const courier = options?.courierName ? ` via ${options.courierName}` : "";
+        const tracking = options?.trackingNumber ? ` (Tracking: ${options.trackingNumber})` : "";
+        notifMsg = `Your package has been dispatched${courier}${tracking}.`;
+      } else if (targetStatus === "delivered") {
+        notifType = "order_delivered";
+        notifTitle = `Order Delivered: #${so.sub_order_number || so.id.slice(0, 8)}`;
+        notifMsg = `Your order #${so.sub_order_number || so.id.slice(0, 8)} has arrived! You can now rate and review your purchased parts.`;
+      } else if (targetStatus === "cancelled") {
+        notifType = "order_cancelled";
+        notifTitle = `Order Cancelled: #${so.sub_order_number || so.id.slice(0, 8)}`;
+        notifMsg = `Your sub-order was cancelled by the vendor.${options?.cancellationReason ? ` Reason: ${options.cancellationReason}` : ""}`;
+      }
+
+      await createNotification({
+        userId: parentOrder.customer_id,
+        type: notifType,
+        title: notifTitle,
+        message: notifMsg,
+        link: `/orders/${so.customer_order_id}`,
+        idempotencyKey: `notif-suborder-status-${so.id}-${targetStatus}`,
+        metadata: {
+          subOrderId: so.id,
+          subOrderNumber: so.sub_order_number,
+          customerOrderId: so.customer_order_id,
+          targetStatus,
+        },
+      });
+    }
+  } catch (notifErr) {
+    console.error("Non-blocking notification error in updateSellerOrderStatusAction:", notifErr);
   }
 
   revalidatePath(`/seller/orders/${subOrderId}`);

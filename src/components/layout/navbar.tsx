@@ -10,10 +10,13 @@ import {
   X, 
   MapPin, 
   ShieldCheck, 
-  Phone 
+  Phone,
+  Heart,
+  Bell
 } from "lucide-react";
 import { AuthNav } from "./auth-nav";
 import { CartNavBadge } from "./cart-nav-badge";
+import { NotificationNavBadge } from "./notification-nav-badge";
 import { Button } from "@/components/ui/button";
 
 export function Navbar() {
@@ -104,6 +107,16 @@ export function Navbar() {
               <Search className="w-5 h-5" />
             </Link>
 
+            <Link
+              href="/wishlist"
+              aria-label="Saved Wishlist"
+              className="p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors"
+            >
+              <Heart className="w-5 h-5 text-gray-700" />
+            </Link>
+
+            <NotificationNavBadge />
+
             <CartNavBadge />
 
             <AuthNav />
@@ -157,6 +170,24 @@ export function Navbar() {
             >
               <span>Sell on SpareHub (Open Shop)</span>
               <Store className="w-4 h-4" />
+            </Link>
+
+            <Link
+              href="/wishlist"
+              onClick={() => setMobileMenuOpen(false)}
+              className="px-3 py-2 rounded-md text-sm font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center justify-between"
+            >
+              <span>Saved Wishlist</span>
+              <Heart className="w-4 h-4 text-gray-500" />
+            </Link>
+
+            <Link
+              href="/account/notifications"
+              onClick={() => setMobileMenuOpen(false)}
+              className="px-3 py-2 rounded-md text-sm font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center justify-between"
+            >
+              <span>Notifications</span>
+              <Bell className="w-4 h-4 text-gray-500" />
             </Link>
             
             <AuthNav isMobile onNavigate={() => setMobileMenuOpen(false)} />
