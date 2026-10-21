@@ -13,6 +13,7 @@ import {
   ArrowRight,
   ShieldCheck,
   Check,
+  AlertCircle,
 } from "lucide-react";
 import { getWishlistAction, removeWishlistItemAction } from "@/lib/wishlist/actions";
 import { addToCartAction } from "@/lib/cart/actions";
@@ -25,6 +26,7 @@ export default function WishlistPage() {
   const [loading, setLoading] = useState(true);
   const [cartAddingId, setCartAddingId] = useState<string | null>(null);
   const [addedMap, setAddedMap] = useState<Record<string, boolean>>({});
+  const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -54,6 +56,7 @@ export default function WishlistPage() {
 
   const handleAddToCart = async (productId: string) => {
     setCartAddingId(productId);
+    setErrorNotice(null);
     try {
       const res = await addToCartAction(productId, 1);
       if (res.success) {
@@ -65,10 +68,12 @@ export default function WishlistPage() {
           setAddedMap((prev) => ({ ...prev, [productId]: false }));
         }, 2000);
       } else {
-        alert(res.message || "Could not add part to cart.");
+        setErrorNotice(res.message || "Could not add part to cart.");
+        setTimeout(() => setErrorNotice(null), 4000);
       }
     } catch {
-      alert("An unexpected error occurred.");
+      setErrorNotice("An unexpected error occurred. Please try again.");
+      setTimeout(() => setErrorNotice(null), 4000);
     } finally {
       setCartAddingId(null);
     }
@@ -101,13 +106,21 @@ export default function WishlistPage() {
             </p>
           </div>
 
-          <Link href="/search">
-            <Button variant="outline" size="sm" className="gap-2 font-medium">
-              Browse More Parts
-              <ArrowRight className="w-4 h-4" />
-            </Button>
+          <Link
+            href="/search"
+            className="inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-3 py-1.5 gap-1.5 h-8 font-semibold transition-all active:scale-[0.97]"
+          >
+            Browse More Parts
+            <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
+
+        {errorNotice && (
+          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-sparehub-error shrink-0" />
+            <span>{errorNotice}</span>
+          </div>
+        )}
 
         {/* Wishlist Items Grid */}
         {loading ? (
@@ -223,6 +236,8 @@ export default function WishlistPage() {
 
                       <Button
                         size="sm"
+                        isLoading={cartAddingId === p.id}
+                        loadingText="Adding..."
                         disabled={!inStock || cartAddingId === p.id}
                         onClick={() => handleAddToCart(p.id)}
                         className={`font-bold text-xs gap-1.5 ${
@@ -236,8 +251,6 @@ export default function WishlistPage() {
                             <Check className="w-3.5 h-3.5" />
                             Added!
                           </>
-                        ) : cartAddingId === p.id ? (
-                          "Adding..."
                         ) : (
                           <>
                             <ShoppingCart className="w-3.5 h-3.5" />

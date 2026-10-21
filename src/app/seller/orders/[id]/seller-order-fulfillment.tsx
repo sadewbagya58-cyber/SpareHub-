@@ -29,6 +29,7 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
+  const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -47,6 +48,7 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
     options?: { courierName?: string; trackingNumber?: string; trackingUrl?: string; cancellationReason?: string }
   ) => {
     setLoading(true);
+    setActionStatus(targetStatus);
     setErrorMessage(null);
     setSuccessMessage(null);
 
@@ -64,6 +66,7 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
       setErrorMessage("Network error updating fulfillment status. Please try again.");
     } finally {
       setLoading(false);
+      setActionStatus(null);
     }
   };
 
@@ -176,12 +179,14 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
                 type="button"
                 variant="primary"
                 size="md"
+                isLoading={actionStatus === "confirmed"}
+                loadingText="Confirming..."
                 disabled={loading}
                 onClick={() => handleStatusTransition("confirmed")}
                 className="gap-2 font-bold"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                {loading ? "Confirming..." : "Accept & Confirm Order"}
+                Accept &amp; Confirm Order
               </Button>
               <Button
                 type="button"
@@ -202,12 +207,14 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
                 type="button"
                 variant="primary"
                 size="md"
+                isLoading={actionStatus === "processing"}
+                loadingText="Updating..."
                 disabled={loading}
                 onClick={() => handleStatusTransition("processing")}
                 className="gap-2 font-bold bg-blue-600 hover:bg-blue-700"
               >
                 <Package className="w-4 h-4" />
-                {loading ? "Updating..." : "Start Packing (Processing)"}
+                Start Packing (Processing)
               </Button>
               <Button
                 type="button"
@@ -253,12 +260,14 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
               type="button"
               variant="primary"
               size="md"
+              isLoading={actionStatus === "delivered"}
+              loadingText="Marking..."
               disabled={loading}
               onClick={() => handleStatusTransition("delivered")}
               className="gap-2 font-bold bg-green-600 hover:bg-green-700"
             >
               <CheckCircle2 className="w-4 h-4" />
-              {loading ? "Marking..." : "Mark Delivered"}
+              Mark Delivered
             </Button>
           )}
 
@@ -457,6 +466,8 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
                 type="button"
                 variant="primary"
                 size="sm"
+                isLoading={actionStatus === "dispatched"}
+                loadingText="Recording Dispatch..."
                 disabled={loading || !trackingNumber.trim()}
                 onClick={() =>
                   handleStatusTransition("dispatched", {
@@ -466,7 +477,7 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
                   })
                 }
               >
-                {loading ? "Recording Dispatch..." : "Confirm Dispatch"}
+                Confirm Dispatch
               </Button>
             </div>
           </div>
@@ -515,6 +526,8 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
                 type="button"
                 variant="primary"
                 size="sm"
+                isLoading={actionStatus === "cancelled"}
+                loadingText="Cancelling..."
                 disabled={loading || !cancellationReason.trim()}
                 onClick={() =>
                   handleStatusTransition("cancelled", {
@@ -523,7 +536,7 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
                 }
                 className="bg-red-600 hover:bg-red-700 text-white"
               >
-                {loading ? "Cancelling..." : "Confirm Cancellation"}
+                Confirm Cancellation
               </Button>
             </div>
           </div>

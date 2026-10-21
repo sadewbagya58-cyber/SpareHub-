@@ -203,11 +203,12 @@ export default function AdminFinancialsPage() {
           </div>
 
           <div className="flex items-center gap-3 self-start md:self-auto shrink-0">
-            <Link href="/admin/commissions">
-              <Button variant="outline" size="sm" className="gap-1.5 font-bold text-xs whitespace-nowrap">
-                <Percent className="w-4 h-4 text-sparehub-orange" />
-                Commission Rules
-              </Button>
+            <Link
+              href="/admin/commissions"
+              className="inline-flex items-center justify-center font-bold text-xs rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light px-3 py-1.5 gap-1.5 h-8 whitespace-nowrap transition-all active:scale-[0.97]"
+            >
+              <Percent className="w-4 h-4 text-sparehub-orange" />
+              Commission Rules
             </Link>
           </div>
         </div>
@@ -606,10 +607,12 @@ export default function AdminFinancialsPage() {
                 <Button
                   type="submit"
                   size="sm"
+                  isLoading={submitting}
+                  loadingText="Recording Settlement..."
                   disabled={submitting}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
                 >
-                  {submitting ? "Processing..." : "Confirm Settlement"}
+                  Confirm Settlement
                 </Button>
               </div>
             </form>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ShoppingCart, Zap, Plus, Minus, Check, AlertCircle, Phone, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ export function ProductBuyBox({
   const [quantity, setQuantity] = useState(1);
   const [loading, setLoading] = useState(false);
   const [buyNowLoading, setBuyNowLoading] = useState(false);
+  const [isPendingBuy, startBuyTransition] = useTransition();
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -70,7 +71,9 @@ export function ProductBuyBox({
     setErrorMessage(null);
     setSuccessMessage(null);
     setBuyNowLoading(true);
-    router.push(`/checkout?buyNow=${encodeURIComponent(productId)}&qty=${quantity}`);
+    startBuyTransition(() => {
+      router.push(`/checkout?buyNow=${encodeURIComponent(productId)}&qty=${quantity}`);
+    });
   };
 
   return (
@@ -126,24 +129,28 @@ export function ProductBuyBox({
           type="button"
           variant="primary"
           size="lg"
-          disabled={isOutOfStock || loading || buyNowLoading}
+          isLoading={loading}
+          loadingText="Adding to Cart..."
+          disabled={isOutOfStock || loading || buyNowLoading || isPendingBuy}
           onClick={handleAddToCart}
           className="w-full font-bold text-sm rounded-xl py-3 shadow-sm gap-2 justify-center"
         >
           <ShoppingCart className="w-4 h-4" />
-          {loading ? "Adding to Cart..." : isOutOfStock ? "Out of Stock" : "Add to Cart"}
+          {isOutOfStock ? "Out of Stock" : "Add to Cart"}
         </Button>
 
         <Button
           type="button"
           variant="secondary"
           size="lg"
-          disabled={isOutOfStock || loading || buyNowLoading}
+          isLoading={buyNowLoading || isPendingBuy}
+          loadingText="Opening Checkout..."
+          disabled={isOutOfStock || loading || buyNowLoading || isPendingBuy}
           onClick={handleBuyNow}
           className="w-full font-bold text-sm rounded-xl py-3 gap-2 justify-center border-sparehub-dark bg-sparehub-dark text-white hover:bg-neutral-800"
         >
           <Zap className="w-4 h-4 text-sparehub-orange" />
-          {buyNowLoading ? "Redirecting to Checkout..." : "Buy Now"}
+          Buy Now
         </Button>
 
         <WishlistButton productId={productId} variant="button" className="w-full" />

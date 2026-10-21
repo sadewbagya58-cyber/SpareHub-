@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Car,
@@ -104,6 +104,7 @@ export function VehicleSelector({
   const [selectedModel, setSelectedModel] = useState<string>(resolvedInitialModel);
   const [selectedVariant, setSelectedVariant] = useState<string>(resolvedInitialVariant);
   const [isSearching, setIsSearching] = useState(false);
+  const [isNavigating, startSearchTransition] = useTransition();
 
 
   // Available makes for current type
@@ -175,7 +176,9 @@ export function VehicleSelector({
     if (selectedModel) params.set("model", selectedModel);
     if (selectedVariant) params.set("variant", selectedVariant);
 
-    router.push(`/search?${params.toString()}`);
+    startSearchTransition(() => {
+      router.push(`/search?${params.toString()}`);
+    });
 
     if (onSelectionChange) {
       onSelectionChange({
@@ -363,9 +366,9 @@ export function VehicleSelector({
             type="button"
             variant="primary"
             size="md"
-            isLoading={isSearching}
+            isLoading={isSearching || isNavigating}
             loadingText="Filtering Parts..."
-            disabled={!isVehicleFullySelected}
+            disabled={!isVehicleFullySelected || isSearching || isNavigating}
             onClick={handleFindParts}
             className="w-full sm:w-auto font-bold shadow-sm gap-1.5"
           >

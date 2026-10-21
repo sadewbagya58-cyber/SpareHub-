@@ -18,7 +18,6 @@ import { getCurrentUserProfile } from "@/lib/auth/actions";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { formatLKR } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -146,44 +145,50 @@ export default async function SellerDashboardPage() {
           <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
             {shop ? (
               <>
-                <Link href="/seller/products/new" className="w-full sm:w-auto">
-                  <Button variant="primary" size="sm" className="w-full sm:w-auto gap-1.5 justify-center">
-                    <PlusCircle className="w-4 h-4 shrink-0" />
-                    Add Product
-                  </Button>
+                <Link
+                  href="/seller/products/new"
+                  className="w-full sm:w-auto inline-flex items-center justify-center font-medium rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover shadow-sm text-xs px-3 py-1.5 gap-1.5 h-8 transition-all active:scale-[0.97]"
+                >
+                  <PlusCircle className="w-4 h-4 shrink-0" />
+                  Add Product
                 </Link>
-                <Link href="/seller/products" className="flex-1 sm:flex-initial">
-                  <Button variant="outline" size="sm" className="w-full sm:w-auto gap-1.5 justify-center">
-                    <Package className="w-4 h-4 shrink-0" />
-                    My Products ({productCount})
-                  </Button>
+                <Link
+                  href="/seller/products"
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-3 py-1.5 gap-1.5 h-8 transition-all active:scale-[0.97]"
+                >
+                  <Package className="w-4 h-4 shrink-0" />
+                  My Products ({productCount})
                 </Link>
-                <Link href="/seller/shop" className="flex-1 sm:flex-initial">
-                  <Button variant="outline" size="sm" className="w-full sm:w-auto gap-1.5 justify-center">
-                    <Settings className="w-4 h-4 shrink-0" />
-                    Shop Settings
-                  </Button>
+                <Link
+                  href="/seller/shop"
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-3 py-1.5 gap-1.5 h-8 transition-all active:scale-[0.97]"
+                >
+                  <Settings className="w-4 h-4 shrink-0" />
+                  Shop Settings
                 </Link>
-                <Link href="/seller/earnings" className="flex-1 sm:flex-initial">
-                  <Button variant="outline" size="sm" className="w-full sm:w-auto gap-1.5 justify-center text-emerald-700 border-emerald-300 hover:bg-emerald-50">
-                    <DollarSign className="w-4 h-4 shrink-0 text-emerald-600" />
-                    Earnings &amp; Payouts
-                  </Button>
+                <Link
+                  href="/seller/earnings"
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center font-medium rounded-lg border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50 text-xs px-3 py-1.5 gap-1.5 h-8 transition-all active:scale-[0.97]"
+                >
+                  <DollarSign className="w-4 h-4 shrink-0 text-emerald-600" />
+                  Earnings &amp; Payouts
                 </Link>
               </>
             ) : (
-              <Link href="/seller/shop/new" className="w-full sm:w-auto">
-                <Button variant="primary" size="sm" className="w-full sm:w-auto gap-1.5 justify-center">
-                  <PlusCircle className="w-4 h-4 shrink-0" />
-                  Create Your Shop
-                </Button>
+              <Link
+                href="/seller/shop/new"
+                className="w-full sm:w-auto inline-flex items-center justify-center font-medium rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover shadow-sm text-xs px-3 py-1.5 gap-1.5 h-8 transition-all active:scale-[0.97]"
+              >
+                <PlusCircle className="w-4 h-4 shrink-0" />
+                Create Your Shop
               </Link>
             )}
 
-            <Link href="/account" className="w-full sm:w-auto">
-              <Button variant="ghost" size="sm" className="w-full sm:w-auto justify-center">
-                Account
-              </Button>
+            <Link
+              href="/account"
+              className="w-full sm:w-auto inline-flex items-center justify-center font-medium rounded-lg text-sparehub-dark hover:bg-sparehub-light text-xs px-3 py-1.5 h-8 transition-all active:scale-[0.97]"
+            >
+              Account
             </Link>
           </div>
         </div>
@@ -206,11 +211,12 @@ export default async function SellerDashboardPage() {
               </p>
             </div>
             <div className="pt-2">
-              <Link href="/seller/shop/new">
-                <Button variant="primary" size="md" className="gap-2">
-                  <PlusCircle className="w-4 h-4" />
-                  Register Your Storefront
-                </Button>
+              <Link
+                href="/seller/shop/new"
+                className="inline-flex items-center justify-center font-medium rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover shadow-sm text-sm px-4 py-2 gap-2 h-10 font-bold transition-all active:scale-[0.97]"
+              >
+                <PlusCircle className="w-4 h-4" />
+                Register Your Storefront
               </Link>
             </div>
           </CardContent>
@@ -245,11 +251,12 @@ export default async function SellerDashboardPage() {
                   </p>
                 </div>
               </div>
-              <Link href="/seller/shop">
-                <Button variant="primary" size="sm" className="gap-1.5 shrink-0 bg-green-600 hover:bg-green-700">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  Activate Storefront Live
-                </Button>
+              <Link
+                href="/seller/shop"
+                className="inline-flex items-center justify-center font-medium rounded-lg bg-green-600 hover:bg-green-700 text-white shadow-sm text-xs px-3 py-1.5 gap-1.5 h-8 font-bold shrink-0 transition-all active:scale-[0.97]"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Activate Storefront Live
               </Link>
             </div>
           )}

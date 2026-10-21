@@ -6,7 +6,6 @@ import { getCurrentUserProfile } from "@/lib/auth/actions";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 
 import { PendingShopsList, type PendingShop } from "./pending-shops-list";
 
@@ -82,24 +81,27 @@ export default async function AdminDashboardPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <Link href="/admin/commissions">
-            <Button variant="outline" size="sm" className="bg-transparent border-gray-600 text-white hover:bg-gray-800 gap-1.5 text-xs font-semibold">
-              <Percent className="w-3.5 h-3.5 text-sparehub-orange" />
-              Commission Rules
-            </Button>
+          <Link
+            href="/admin/commissions"
+            className="inline-flex items-center justify-center rounded-lg border border-gray-600 bg-transparent text-white hover:bg-gray-800 gap-1.5 text-xs font-semibold px-3 py-1.5 h-8 transition-all active:scale-[0.97]"
+          >
+            <Percent className="w-3.5 h-3.5 text-sparehub-orange" />
+            Commission Rules
           </Link>
 
-          <Link href="/admin/financials">
-            <Button variant="outline" size="sm" className="bg-transparent border-gray-600 text-white hover:bg-gray-800 gap-1.5 text-xs font-semibold">
-              <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-              Financial Ledger
-            </Button>
+          <Link
+            href="/admin/financials"
+            className="inline-flex items-center justify-center rounded-lg border border-gray-600 bg-transparent text-white hover:bg-gray-800 gap-1.5 text-xs font-semibold px-3 py-1.5 h-8 transition-all active:scale-[0.97]"
+          >
+            <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
+            Financial Ledger
           </Link>
 
-          <Link href="/account">
-            <Button variant="outline" size="sm" className="bg-transparent border-gray-600 text-white hover:bg-gray-800 text-xs">
-              My Profile
-            </Button>
+          <Link
+            href="/account"
+            className="inline-flex items-center justify-center rounded-lg border border-gray-600 bg-transparent text-white hover:bg-gray-800 text-xs font-semibold px-3 py-1.5 h-8 transition-all active:scale-[0.97]"
+          >
+            My Profile
           </Link>
         </div>
       </div>

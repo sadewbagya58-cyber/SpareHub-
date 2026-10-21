@@ -28,6 +28,7 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [markingAll, setMarkingAll] = useState(false);
   const [filter, setFilter] = useState<"all" | "unread" | "orders">("all");
 
   useEffect(() => {
@@ -61,10 +62,16 @@ export default function NotificationsPage() {
   };
 
   const handleMarkAllRead = async () => {
+    if (markingAll) return;
+    setMarkingAll(true);
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
-    await markAllNotificationsAsReadAction();
-    window.dispatchEvent(new CustomEvent("sparehub:notifications-updated"));
+    try {
+      await markAllNotificationsAsReadAction();
+      window.dispatchEvent(new CustomEvent("sparehub:notifications-updated"));
+    } finally {
+      setMarkingAll(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -140,6 +147,9 @@ export default function NotificationsPage() {
             <Button
               variant="outline"
               size="sm"
+              isLoading={markingAll}
+              loadingText="Marking all read..."
+              disabled={markingAll}
               onClick={handleMarkAllRead}
               className="gap-2 shrink-0 self-start sm:self-auto font-medium"
             >

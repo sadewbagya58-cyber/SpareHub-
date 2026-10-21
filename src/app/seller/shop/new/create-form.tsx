@@ -345,11 +345,13 @@ export function CreateShopForm({ initialEmail = "", initialSellerType = "retail_
           type="submit"
           variant="primary"
           size="lg"
+          isLoading={isPending}
+          loadingText="Initializing Shop..."
           disabled={isPending}
           className="w-full sm:w-auto min-w-[200px] gap-2"
         >
           <PlusCircle className="w-4 h-4" />
-          {isPending ? "Initializing Shop..." : "Create Shop & Start Listing"}
+          Create Shop &amp; Start Listing
         </Button>
       </div>
     </form>

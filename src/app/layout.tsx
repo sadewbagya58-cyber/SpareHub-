@@ -3,6 +3,7 @@ import "./globals.css";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { TouchProvider } from "@/components/layout/touch-provider";
 
 export const metadata: Metadata = {
   title: "SpareHub — Every Part. One Marketplace.",
@@ -35,6 +36,7 @@ export default function RootLayout({
       className="h-full antialiased"
     >
       <body className="min-h-full flex flex-col bg-white text-sparehub-dark">
+        <TouchProvider />
         <Navbar />
         <main className="flex-1 pb-16 md:pb-0">{children}</main>
         <Footer />

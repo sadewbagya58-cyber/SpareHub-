@@ -366,11 +366,13 @@ export function OrderDetailView({ order }: OrderDetailViewProps) {
                 type="button"
                 variant="primary"
                 size="sm"
+                isLoading={cancelling}
+                loadingText="Cancelling..."
                 disabled={cancelling}
                 onClick={handleCancelOrder}
                 className="bg-red-600 hover:bg-red-700 text-white"
               >
-                {cancelling ? "Cancelling..." : "Confirm Cancellation"}
+                Confirm Cancellation
               </Button>
             </div>
           </div>

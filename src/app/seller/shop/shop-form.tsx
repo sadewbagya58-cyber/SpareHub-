@@ -456,10 +456,12 @@ export function ShopForm({ shop, sellerType }: ShopFormProps) {
             type="submit"
             variant="primary"
             size="md"
+            isLoading={isUpdating}
+            loadingText="Saving Changes..."
             disabled={isUpdating}
             className="w-full sm:w-auto min-w-[160px]"
           >
-            {isUpdating ? "Saving Changes..." : "Save Shop Details"}
+            Save Shop Details
           </Button>
         </div>
       </form>

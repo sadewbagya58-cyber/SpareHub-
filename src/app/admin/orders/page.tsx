@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { getCurrentUserProfile } from "@/lib/auth/actions";
 import { getAdminOrdersAction } from "@/lib/orders/actions";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatLKR } from "@/lib/utils";
@@ -102,10 +101,11 @@ export default async function AdminOrdersPage({ searchParams }: AdminOrdersPageP
           </div>
 
           <div className="flex items-center gap-3">
-            <Link href="/admin/dashboard">
-              <Button variant="outline" size="sm" className="text-xs font-semibold">
-                Shop Moderation
-              </Button>
+            <Link
+              href="/admin/dashboard"
+              className="inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-3 py-1.5 gap-1.5 h-8 font-semibold transition-all active:scale-[0.97]"
+            >
+              Shop Moderation
             </Link>
           </div>
         </div>
@@ -241,11 +241,12 @@ export default async function AdminOrdersPage({ searchParams }: AdminOrdersPageP
                     </span>
                   </div>
 
-                  <Link href={`/orders/${order.id}`}>
-                    <Button variant="outline" size="sm" className="gap-1 font-bold text-xs">
-                      Inspect
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Button>
+                  <Link
+                    href={`/orders/${order.id}`}
+                    className="inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-3 py-1.5 gap-1 h-8 font-bold transition-all active:scale-[0.97]"
+                  >
+                    Inspect
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
                 </div>
               </div>

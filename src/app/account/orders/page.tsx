@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { getCurrentUserProfile } from "@/lib/auth/actions";
 import { getCustomerOrdersAction } from "@/lib/orders/actions";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatLKR } from "@/lib/utils";
 
@@ -66,10 +65,11 @@ export default async function CustomerOrdersPage() {
             </p>
           </div>
 
-          <Link href="/search">
-            <Button variant="outline" size="sm" className="text-xs font-semibold">
-              Browse More Parts
-            </Button>
+          <Link
+            href="/search"
+            className="inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-3 py-1.5 gap-1.5 h-8 font-semibold transition-all active:scale-[0.97]"
+          >
+            Browse More Parts
           </Link>
         </div>
       </div>
@@ -85,11 +85,12 @@ export default async function CustomerOrdersPage() {
             You haven&apos;t placed any automotive spare parts orders yet. Use our vehicle selector to find parts guaranteed to fit your model.
           </p>
           <div className="pt-2">
-            <Link href="/search">
-              <Button variant="primary" size="md" className="gap-2 font-bold">
-                Find Vehicle Parts
-                <ArrowRight className="w-4 h-4" />
-              </Button>
+            <Link
+              href="/search"
+              className="inline-flex items-center justify-center font-medium rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover text-sm px-4 py-2 gap-2 h-10 font-bold shadow-sm transition-all active:scale-[0.97]"
+            >
+              Find Vehicle Parts
+              <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
@@ -128,11 +129,12 @@ export default async function CustomerOrdersPage() {
                     </span>
                   </div>
 
-                  <Link href={`/orders/${order.id}`}>
-                    <Button variant="primary" size="sm" className="gap-1 font-bold">
-                      View Details
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Button>
+                  <Link
+                    href={`/orders/${order.id}`}
+                    className="inline-flex items-center justify-center font-medium rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover text-xs px-3 py-1.5 gap-1 h-8 font-bold shadow-sm transition-all active:scale-[0.97]"
+                  >
+                    View Details
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
                 </div>
               </div>

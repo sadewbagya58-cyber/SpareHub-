@@ -108,10 +108,11 @@ export default function RegisterPage() {
                 <p className="font-semibold text-gray-600">Redirecting to your account dashboard...</p>
               ) : (
                 <div className="pt-2">
-                  <Link href="/login">
-                    <Button variant="primary" size="sm" className="w-full">
-                      Proceed to Sign In
-                    </Button>
+                  <Link
+                    href="/login"
+                    className="w-full inline-flex items-center justify-center font-bold text-xs rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover shadow-sm px-3 py-1.5 h-8 transition-all active:scale-[0.97]"
+                  >
+                    Proceed to Sign In
                   </Link>
                 </div>
               )}

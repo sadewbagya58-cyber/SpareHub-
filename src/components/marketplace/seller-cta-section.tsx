@@ -1,7 +1,6 @@
 import React from "react";
 import Link from "next/link";
 import { Store, ShieldCheck, ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 export function SellerCTASection() {
   const sellerTypes = [
@@ -67,15 +66,12 @@ export function SellerCTASection() {
             <span>All vendor shops require identity & business verification before selling</span>
           </div>
 
-          <Link href="/sell" className="w-full sm:w-auto">
-            <Button
-              variant="primary"
-              size="lg"
-              className="w-full sm:w-auto font-bold gap-2 text-sm shadow-md"
-            >
-              Open Your Vendor Shop
-              <ArrowRight className="w-4 h-4" />
-            </Button>
+          <Link
+            href="/sell"
+            className="w-full sm:w-auto inline-flex items-center justify-center font-bold text-sm rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover shadow-md px-6 py-3 gap-2.5 h-12 transition-all active:scale-[0.97]"
+          >
+            Open Your Vendor Shop
+            <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       </div>

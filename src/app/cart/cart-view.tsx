@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatLKR } from "@/lib/utils";
 import type { CartResponse } from "@/lib/cart/actions";
+import type { CartItem } from "@/lib/types";
 import {
   updateCartQuantityAction,
   removeCartItemAction,
@@ -29,63 +30,93 @@ interface CartViewProps {
   initialCart: CartResponse;
 }
 
+function recalculateCart(prev: CartResponse, updatedItems: CartItem[]): CartResponse {
+  let newGrandTotal = 0;
+  let newTotalCount = 0;
+
+  const groupMap = new Map();
+  for (const item of updatedItems) {
+    const sub = item.priceMinorUnits * item.quantity;
+    newGrandTotal += sub;
+    newTotalCount += item.quantity;
+
+    if (!groupMap.has(item.shopId)) {
+      groupMap.set(item.shopId, {
+        shopId: item.shopId,
+        shopName: item.shopName,
+        shopSlug: item.shopSlug,
+        shopDistrict: item.shopDistrict,
+        items: [],
+        subtotalMinorUnits: 0,
+      });
+    }
+    const grp = groupMap.get(item.shopId);
+    grp.items.push(item);
+    grp.subtotalMinorUnits += sub;
+  }
+
+  return {
+    ...prev,
+    items: updatedItems,
+    groups: Array.from(groupMap.values()),
+    totalGrandMinor: newGrandTotal,
+    totalItemCount: newTotalCount,
+  };
+}
+
 export function CartView({ initialCart }: CartViewProps) {
   const router = useRouter();
   const [cart, setCart] = useState<CartResponse>(initialCart);
   const [loadingItems, setLoadingItems] = useState<Record<string, boolean>>({});
   const [clearing, setClearing] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isNavigatingCheckout, startCheckoutTransition] = useTransition();
+
+  // Auto-reset clear confirmation after 4 seconds
+  useEffect(() => {
+    if (!confirmClear) return;
+    const timer = setTimeout(() => setConfirmClear(false), 4000);
+    return () => clearTimeout(timer);
+  }, [confirmClear]);
 
   const handleUpdateQuantity = async (cartItemId: string, newQty: number) => {
     if (newQty <= 0) return;
+    const previousCart = cart;
     setLoadingItems((prev) => ({ ...prev, [cartItemId]: true }));
     setErrorMessage(null);
+
+    // Instant optimistic update
+    const updatedItems = cart.items.map((item) =>
+      item.id === cartItemId ? { ...item, quantity: newQty } : item
+    );
+    const optimisticCart = recalculateCart(cart, updatedItems);
+    setCart(optimisticCart);
+    window.dispatchEvent(
+      new CustomEvent("sparehub:cart-updated", {
+        detail: { count: optimisticCart.totalItemCount },
+      })
+    );
 
     try {
       const res = await updateCartQuantityAction(cartItemId, newQty);
       if (!res.success) {
+        // Rollback
+        setCart(previousCart);
+        window.dispatchEvent(
+          new CustomEvent("sparehub:cart-updated", {
+            detail: { count: previousCart.totalItemCount },
+          })
+        );
         setErrorMessage(res.message || "Failed to update quantity.");
-      } else {
-        // Optimistic update
-        setCart((prev) => {
-          const updatedItems = prev.items.map((item) =>
-            item.id === cartItemId ? { ...item, quantity: newQty } : item
-          );
-          let newGrandTotal = 0;
-          let newTotalCount = 0;
-
-          const groupMap = new Map();
-          for (const item of updatedItems) {
-            const sub = item.priceMinorUnits * item.quantity;
-            newGrandTotal += sub;
-            newTotalCount += item.quantity;
-
-            if (!groupMap.has(item.shopId)) {
-              groupMap.set(item.shopId, {
-                shopId: item.shopId,
-                shopName: item.shopName,
-                shopSlug: item.shopSlug,
-                shopDistrict: item.shopDistrict,
-                items: [],
-                subtotalMinorUnits: 0,
-              });
-            }
-            const grp = groupMap.get(item.shopId);
-            grp.items.push(item);
-            grp.subtotalMinorUnits += sub;
-          }
-
-          return {
-            ...prev,
-            items: updatedItems,
-            groups: Array.from(groupMap.values()),
-            totalGrandMinor: newGrandTotal,
-            totalItemCount: newTotalCount,
-          };
-        });
-        router.refresh();
       }
     } catch {
+      setCart(previousCart);
+      window.dispatchEvent(
+        new CustomEvent("sparehub:cart-updated", {
+          detail: { count: previousCart.totalItemCount },
+        })
+      );
       setErrorMessage("Network error updating cart. Please try again.");
     } finally {
       setLoadingItems((prev) => ({ ...prev, [cartItemId]: false }));
@@ -93,51 +124,39 @@ export function CartView({ initialCart }: CartViewProps) {
   };
 
   const handleRemoveItem = async (cartItemId: string) => {
+    const previousCart = cart;
     setLoadingItems((prev) => ({ ...prev, [cartItemId]: true }));
     setErrorMessage(null);
+
+    // Instant optimistic removal
+    const updatedItems = cart.items.filter((item) => item.id !== cartItemId);
+    const optimisticCart = recalculateCart(cart, updatedItems);
+    setCart(optimisticCart);
+    window.dispatchEvent(
+      new CustomEvent("sparehub:cart-updated", {
+        detail: { count: optimisticCart.totalItemCount },
+      })
+    );
 
     try {
       const res = await removeCartItemAction(cartItemId);
       if (!res.success) {
+        // Rollback
+        setCart(previousCart);
+        window.dispatchEvent(
+          new CustomEvent("sparehub:cart-updated", {
+            detail: { count: previousCart.totalItemCount },
+          })
+        );
         setErrorMessage(res.message || "Failed to remove item.");
-      } else {
-        setCart((prev) => {
-          const updatedItems = prev.items.filter((item) => item.id !== cartItemId);
-          let newGrandTotal = 0;
-          let newTotalCount = 0;
-
-          const groupMap = new Map();
-          for (const item of updatedItems) {
-            const sub = item.priceMinorUnits * item.quantity;
-            newGrandTotal += sub;
-            newTotalCount += item.quantity;
-
-            if (!groupMap.has(item.shopId)) {
-              groupMap.set(item.shopId, {
-                shopId: item.shopId,
-                shopName: item.shopName,
-                shopSlug: item.shopSlug,
-                shopDistrict: item.shopDistrict,
-                items: [],
-                subtotalMinorUnits: 0,
-              });
-            }
-            const grp = groupMap.get(item.shopId);
-            grp.items.push(item);
-            grp.subtotalMinorUnits += sub;
-          }
-
-          return {
-            ...prev,
-            items: updatedItems,
-            groups: Array.from(groupMap.values()),
-            totalGrandMinor: newGrandTotal,
-            totalItemCount: newTotalCount,
-          };
-        });
-        router.refresh();
       }
     } catch {
+      setCart(previousCart);
+      window.dispatchEvent(
+        new CustomEvent("sparehub:cart-updated", {
+          detail: { count: previousCart.totalItemCount },
+        })
+      );
       setErrorMessage("Network error removing item. Please try again.");
     } finally {
       setLoadingItems((prev) => ({ ...prev, [cartItemId]: false }));
@@ -145,7 +164,11 @@ export function CartView({ initialCart }: CartViewProps) {
   };
 
   const handleClearCart = async () => {
-    if (!confirm("Are you sure you want to clear your entire cart?")) return;
+    if (!confirmClear) {
+      setConfirmClear(true);
+      return;
+    }
+    setConfirmClear(false);
     setClearing(true);
     setErrorMessage(null);
 
@@ -161,6 +184,11 @@ export function CartView({ initialCart }: CartViewProps) {
           totalGrandMinor: 0,
           totalItemCount: 0,
         }));
+        window.dispatchEvent(
+          new CustomEvent("sparehub:cart-updated", {
+            detail: { count: 0 },
+          })
+        );
         router.refresh();
       }
     } catch {
@@ -168,6 +196,12 @@ export function CartView({ initialCart }: CartViewProps) {
     } finally {
       setClearing(false);
     }
+  };
+
+  const handleProceedToCheckout = () => {
+    startCheckoutTransition(() => {
+      router.push("/checkout");
+    });
   };
 
   // Case 1: Empty Cart
@@ -218,18 +252,25 @@ export function CartView({ initialCart }: CartViewProps) {
             type="button"
             variant="ghost"
             size="sm"
+            isLoading={clearing}
+            loadingText="Clearing..."
             disabled={clearing}
             onClick={handleClearCart}
-            className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 gap-1.5"
+            className={`text-xs gap-1.5 transition-all ${
+              confirmClear
+                ? "bg-red-50 text-red-700 hover:bg-red-100 border border-red-300 font-bold px-3 py-1.5"
+                : "text-red-600 hover:text-red-700 hover:bg-red-50"
+            }`}
           >
             <Trash2 className="w-3.5 h-3.5" />
-            {clearing ? "Clearing..." : "Clear Cart"}
+            {confirmClear ? "Click to Confirm Empty Cart" : "Clear Cart"}
           </Button>
 
-          <Link href="/search">
-            <Button variant="outline" size="sm" className="text-xs font-semibold">
-              Continue Shopping
-            </Button>
+          <Link
+            href="/search"
+            className="inline-flex items-center justify-center font-semibold rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-3 py-1.5 gap-1.5 h-8 transition-all active:scale-[0.97]"
+          >
+            Continue Shopping
           </Link>
         </div>
       </div>
@@ -420,17 +461,19 @@ export function CartView({ initialCart }: CartViewProps) {
               </div>
             </div>
 
-            <Link href="/checkout" className="block">
-              <Button
-                type="button"
-                variant="primary"
-                size="lg"
-                className="w-full font-bold text-sm rounded-xl py-3.5 shadow-sm justify-center gap-2"
-              >
-                Proceed to Checkout
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </Link>
+            <Button
+              type="button"
+              variant="primary"
+              size="lg"
+              isLoading={isNavigatingCheckout}
+              loadingText="Proceeding to Checkout..."
+              disabled={isNavigatingCheckout || cart.items.length === 0}
+              onClick={handleProceedToCheckout}
+              className="w-full font-bold text-sm rounded-xl py-3.5 shadow-sm justify-center gap-2"
+            >
+              Proceed to Checkout
+              <ArrowRight className="w-4 h-4" />
+            </Button>
 
             {/* Marketplace Guarantees */}
             <div className="pt-4 border-t border-sparehub-border space-y-3 text-xs text-gray-600">

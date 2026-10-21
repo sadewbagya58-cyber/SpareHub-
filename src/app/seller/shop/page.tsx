@@ -3,7 +3,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Store, ArrowLeft, PlusCircle, ExternalLink } from "lucide-react";
 import { getSellerShopProfile } from "@/lib/seller/actions";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShopForm } from "./shop-form";
 
@@ -74,16 +73,18 @@ export default async function SellerShopPage() {
             </div>
 
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link href="/seller/shop/new">
-                <Button variant="primary" size="md" className="gap-2">
-                  <PlusCircle className="w-4 h-4" />
-                  Register Your Storefront
-                </Button>
+              <Link
+                href="/seller/shop/new"
+                className="inline-flex items-center justify-center font-medium rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover shadow-sm text-sm px-4 py-2 gap-2 h-10 font-bold transition-all active:scale-[0.97]"
+              >
+                <PlusCircle className="w-4 h-4" />
+                Register Your Storefront
               </Link>
-              <Link href="/seller/dashboard">
-                <Button variant="outline" size="md">
-                  Seller Dashboard
-                </Button>
+              <Link
+                href="/seller/dashboard"
+                className="inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-sm px-4 py-2 h-10 font-semibold transition-all active:scale-[0.97]"
+              >
+                Seller Dashboard
               </Link>
             </div>
           </CardContent>

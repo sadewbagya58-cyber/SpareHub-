@@ -17,7 +17,6 @@ import {
 import { AuthNav } from "./auth-nav";
 import { CartNavBadge } from "./cart-nav-badge";
 import { NotificationNavBadge } from "./notification-nav-badge";
-import { Button } from "@/components/ui/button";
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -92,11 +91,12 @@ export function Navbar() {
 
           {/* Right Action Controls */}
           <div className="flex items-center gap-1 sm:gap-2 md:gap-3 shrink-0">
-            <Link href="/sell" className="hidden sm:inline-flex">
-              <Button variant="outline" size="sm" className="gap-1.5 font-semibold text-xs">
-                <Store className="w-4 h-4 text-sparehub-orange" />
-                Open Your Shop
-              </Button>
+            <Link
+              href="/sell"
+              className="hidden sm:inline-flex items-center justify-center font-semibold rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-3 py-1.5 gap-1.5 h-8 transition-all active:scale-[0.97]"
+            >
+              <Store className="w-4 h-4 text-sparehub-orange" />
+              Open Your Shop
             </Link>
 
             <Link

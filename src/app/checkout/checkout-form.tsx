@@ -404,11 +404,13 @@ export function CheckoutForm({
               type="submit"
               variant="primary"
               size="lg"
+              isLoading={loading}
+              loadingText="Placing Secure Order..."
               disabled={loading}
               className="w-full font-bold text-sm rounded-xl py-4 shadow-sm justify-center gap-2"
             >
               <Lock className="w-4 h-4" />
-              {loading ? "Placing Secure Order..." : `Place Order • ${formatLKR(cart.totalGrandMinor)}`}
+              Place Order • {formatLKR(cart.totalGrandMinor)}
             </Button>
 
             <p className="text-[11px] text-gray-400 text-center leading-relaxed">

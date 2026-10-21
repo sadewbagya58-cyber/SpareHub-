@@ -1,7 +1,6 @@
 import React from "react";
 import Link from "next/link";
 import { Wrench, Home } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
@@ -23,16 +22,18 @@ export default function NotFound() {
         </div>
 
         <div className="flex items-center justify-center gap-3 pt-2">
-          <Link href="/">
-            <Button variant="primary" size="md" className="font-bold gap-2">
-              <Home className="w-4 h-4" />
-              Return to Homepage
-            </Button>
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center font-bold text-sm rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover shadow-sm px-4 py-2 gap-2 h-10 transition-all active:scale-[0.97]"
+          >
+            <Home className="w-4 h-4" />
+            Return to Homepage
           </Link>
-          <Link href="/search">
-            <Button variant="outline" size="md">
-              Browse All Parts
-            </Button>
+          <Link
+            href="/search"
+            className="inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-sm px-4 py-2 h-10 transition-all active:scale-[0.97]"
+          >
+            Browse All Parts
           </Link>
         </div>
       </div>

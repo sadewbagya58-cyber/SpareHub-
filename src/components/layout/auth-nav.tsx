@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { User, LogOut, Store, ShieldCheck, ShoppingBag, ChevronDown, Settings, Package, Heart, Bell, DollarSign, Percent } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { User, LogOut, Store, ShieldCheck, ShoppingBag, ChevronDown, Settings, Package, Heart, Bell, DollarSign, Percent, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 import { logoutAction } from "@/lib/auth/actions";
@@ -18,6 +17,7 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [profile, setProfile] = useState<{ role: string; roles: string[]; full_name: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [hasSellerProfile, setHasSellerProfile] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -127,11 +127,12 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
 
     return (
       <div className="flex items-center gap-2">
-        <Link href="/login">
-          <Button variant="secondary" size="sm" className="hidden sm:inline-flex gap-1.5">
-            <User className="w-4 h-4" />
-            Sign In
-          </Button>
+        <Link
+          href="/login"
+          className="hidden sm:inline-flex items-center justify-center font-medium rounded-lg bg-sparehub-dark text-white hover:bg-sparehub-dark-muted shadow-sm text-xs px-3 py-1.5 gap-1.5 h-8 transition-all active:scale-[0.97]"
+        >
+          <User className="w-4 h-4" />
+          Sign In
         </Link>
       </div>
     );
@@ -259,13 +260,18 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
           </>
         )}
 
-        <form action={logoutAction}>
+        <form action={logoutAction} onSubmit={() => setIsLoggingOut(true)}>
           <button
             type="submit"
-            className="w-full text-left px-3 py-2 rounded-md text-xs font-semibold text-sparehub-error hover:bg-red-50 flex items-center gap-2"
+            disabled={isLoggingOut}
+            className="w-full text-left px-3 py-2 rounded-md text-xs font-semibold text-sparehub-error hover:bg-red-50 flex items-center gap-2 disabled:opacity-50 transition-colors"
           >
-            <LogOut className="w-4 h-4" />
-            Sign Out
+            {isLoggingOut ? (
+              <Loader2 className="w-4 h-4 animate-spin text-sparehub-error" />
+            ) : (
+              <LogOut className="w-4 h-4" />
+            )}
+            {isLoggingOut ? "Signing Out..." : "Sign Out"}
           </button>
         </form>
       </div>
@@ -425,13 +431,18 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
           )}
 
           <div className="pt-1 border-t border-sparehub-border/60">
-            <form action={logoutAction}>
+            <form action={logoutAction} onSubmit={() => setIsLoggingOut(true)}>
               <button
                 type="submit"
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-sparehub-error hover:bg-red-50 transition-colors"
+                disabled={isLoggingOut}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-sparehub-error hover:bg-red-50 disabled:opacity-50 transition-colors"
               >
-                <LogOut className="w-4 h-4" />
-                Sign Out
+                {isLoggingOut ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-sparehub-error" />
+                ) : (
+                  <LogOut className="w-4 h-4" />
+                )}
+                {isLoggingOut ? "Signing Out..." : "Sign Out"}
               </button>
             </form>
           </div>

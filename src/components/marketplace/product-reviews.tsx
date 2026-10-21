@@ -9,6 +9,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Lock,
+  Loader2,
 } from "lucide-react";
 import {
   getProductReviewsAction,
@@ -42,6 +43,9 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const loadReviews = useCallback(async () => {
     try {
@@ -124,7 +128,14 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
   };
 
   const handleDelete = async (reviewId: string) => {
-    if (!confirm("Are you sure you want to delete this review?")) return;
+    if (confirmDeleteId !== reviewId) {
+      setConfirmDeleteId(reviewId);
+      return;
+    }
+    setConfirmDeleteId(null);
+    setDeletingId(reviewId);
+    setActionError(null);
+
     try {
       const res = await deleteProductReviewAction(reviewId);
       if (res.success) {
@@ -136,10 +147,12 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
         }
         loadReviews();
       } else {
-        alert(res.message);
+        setActionError(res.message);
       }
     } catch {
-      alert("Failed to delete review.");
+      setActionError("Failed to delete review.");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -286,13 +299,31 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
             <Button
               type="submit"
               size="sm"
+              isLoading={submitting}
+              loadingText="Submitting..."
               disabled={submitting}
               className="bg-sparehub-orange hover:bg-sparehub-orange-hover text-white font-bold"
             >
-              {submitting ? "Submitting..." : userReview ? "Save Changes" : "Publish Review"}
+              {userReview ? "Save Changes" : "Publish Review"}
             </Button>
           </div>
         </form>
+      )}
+
+      {actionError && (
+        <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 font-bold flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-sparehub-error shrink-0" />
+            <span>{actionError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="text-red-500 hover:text-red-700 text-xs font-bold"
+          >
+            Dismiss
+          </button>
+        </div>
       )}
 
       {formSuccess && (
@@ -437,11 +468,22 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
                   {userReview?.id === rev.id && (
                     <button
                       type="button"
+                      disabled={deletingId === rev.id}
                       onClick={() => handleDelete(rev.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 ${
+                        confirmDeleteId === rev.id
+                          ? "bg-red-100 text-red-700 font-bold text-[10px] px-2"
+                          : "text-gray-400 hover:text-red-600 hover:bg-red-50"
+                      }`}
                       title="Delete your review"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      {deletingId === rev.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+                      ) : confirmDeleteId === rev.id ? (
+                        "Confirm?"
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
                     </button>
                   )}
                 </div>

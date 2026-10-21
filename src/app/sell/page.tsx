@@ -7,7 +7,6 @@ import {
   AlertCircle,
   Settings
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { getSellerShopProfile } from "@/lib/seller/actions";
 import { SellerOnboardingForm } from "./seller-onboarding-form";
 
@@ -65,17 +64,19 @@ export default async function SellPage() {
               </div>
 
               <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-                <Link href="/seller/dashboard">
-                  <Button variant="primary" size="md" className="gap-2">
-                    <Store className="w-4 h-4" />
-                    Go to Seller Dashboard
-                  </Button>
+                <Link
+                  href="/seller/dashboard"
+                  className="inline-flex items-center justify-center font-medium rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover shadow-sm text-sm px-4 py-2 gap-2 h-10 font-bold transition-all active:scale-[0.97]"
+                >
+                  <Store className="w-4 h-4" />
+                  Go to Seller Dashboard
                 </Link>
-                <Link href="/seller/shop">
-                  <Button variant="outline" size="md" className="gap-2">
-                    <Settings className="w-4 h-4" />
-                    Manage Shop Profile
-                  </Button>
+                <Link
+                  href="/seller/shop"
+                  className="inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-sm px-4 py-2 gap-2 h-10 font-semibold transition-all active:scale-[0.97]"
+                >
+                  <Settings className="w-4 h-4" />
+                  Manage Shop Profile
                 </Link>
               </div>
             </div>

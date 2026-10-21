@@ -80,11 +80,12 @@ export function SellerOnboardingForm({ isAuthenticated, userEmail = "" }: Seller
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
             <span>Please sign in or register an account before submitting your shop application.</span>
           </div>
-          <Link href="/login?redirect=/sell">
-            <Button variant="primary" size="sm" className="gap-1.5 shrink-0 text-xs">
-              <LogIn className="w-3.5 h-3.5" />
-              Sign In to Continue
-            </Button>
+          <Link
+            href="/login?redirect=/sell"
+            className="inline-flex items-center justify-center font-medium rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover shadow-sm text-xs px-3 py-1.5 gap-1.5 h-8 font-bold shrink-0 transition-all active:scale-[0.97]"
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            Sign In to Continue
           </Link>
         </div>
       )}
@@ -229,10 +230,12 @@ export function SellerOnboardingForm({ isAuthenticated, userEmail = "" }: Seller
         type="submit"
         variant="primary"
         size="lg"
+        isLoading={isSubmitting}
+        loadingText="Creating Your Shop..."
         disabled={isSubmitting}
         className="w-full font-bold shadow-sm"
       >
-        {isSubmitting ? "Creating Your Shop..." : "Create Shop & Continue"}
+        Create Shop &amp; Continue
       </Button>
     </form>
   );

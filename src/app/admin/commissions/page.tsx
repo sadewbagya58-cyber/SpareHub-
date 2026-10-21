@@ -15,6 +15,7 @@ import {
   Globe,
   Power,
   X,
+  Loader2,
 } from "lucide-react";
 import {
   getCommissionRulesAction,
@@ -44,6 +45,10 @@ export default function AdminCommissionsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+  const [togglingRuleId, setTogglingRuleId] = useState<string | null>(null);
+  const [deletingRuleId, setDeletingRuleId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -131,28 +136,55 @@ export default function AdminCommissionsPage() {
   };
 
   const handleToggle = async (ruleId: string, currentStatus: boolean) => {
+    if (togglingRuleId) return;
+    setTogglingRuleId(ruleId);
+    setActionError(null);
     const nextStatus = !currentStatus;
     setRules((prev) =>
       prev.map((r) => (r.id === ruleId ? { ...r, isActive: nextStatus } : r))
     );
-    const res = await toggleCommissionRuleAction(ruleId, nextStatus);
-    if (!res.success) {
-      // Revert on failure
+    try {
+      const res = await toggleCommissionRuleAction(ruleId, nextStatus);
+      if (!res.success) {
+        // Revert on failure
+        setRules((prev) =>
+          prev.map((r) => (r.id === ruleId ? { ...r, isActive: currentStatus } : r))
+        );
+        setActionError(res.message);
+      }
+    } catch {
       setRules((prev) =>
         prev.map((r) => (r.id === ruleId ? { ...r, isActive: currentStatus } : r))
       );
-      alert(res.message);
+      setActionError("Failed to toggle commission rule status.");
+    } finally {
+      setTogglingRuleId(null);
     }
   };
 
   const handleDelete = async (ruleId: string) => {
-    if (!confirm("Are you sure you want to delete this commission rule? This cannot be undone.")) return;
+    if (confirmDeleteId !== ruleId) {
+      setConfirmDeleteId(ruleId);
+      return;
+    }
+    setConfirmDeleteId(null);
+    setDeletingRuleId(ruleId);
+    setActionError(null);
+
+    const prevRules = rules;
     setRules((prev) => prev.filter((r) => r.id !== ruleId));
-    const res = await deleteCommissionRuleAction(ruleId);
-    if (!res.success) {
-      alert(res.message);
-      const updated = await getCommissionRulesAction();
-      if (updated.success) setRules(updated.rules);
+
+    try {
+      const res = await deleteCommissionRuleAction(ruleId);
+      if (!res.success) {
+        setRules(prevRules);
+        setActionError(res.message);
+      }
+    } catch {
+      setRules(prevRules);
+      setActionError("Failed to delete commission rule.");
+    } finally {
+      setDeletingRuleId(null);
     }
   };
 
@@ -218,10 +250,11 @@ export default function AdminCommissionsPage() {
           </div>
 
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 w-full sm:w-auto shrink-0">
-            <Link href="/admin/financials" className="flex-1 sm:flex-none">
-              <Button variant="outline" size="sm" className="w-full sm:w-auto font-semibold text-xs whitespace-nowrap">
-                Financial Ledger →
-              </Button>
+            <Link
+              href="/admin/financials"
+              className="flex-1 sm:flex-none inline-flex items-center justify-center font-semibold rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-3 py-1.5 gap-1.5 h-8 whitespace-nowrap transition-all active:scale-[0.97]"
+            >
+              Financial Ledger →
             </Link>
             <Button
               onClick={() => setShowModal(true)}
@@ -233,6 +266,23 @@ export default function AdminCommissionsPage() {
             </Button>
           </div>
         </div>
+
+        {/* Global Action Error Alert */}
+        {actionError && (
+          <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-sparehub-error shrink-0" />
+              <span>{actionError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActionError(null)}
+              className="text-red-500 hover:text-red-700 text-xs font-bold"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Priority Fallback Notice */}
         <div className="bg-purple-50/70 border border-purple-200/80 rounded-2xl p-4 sm:p-5 flex items-start gap-3.5">
@@ -326,24 +376,40 @@ export default function AdminCommissionsPage() {
                     <div className="flex items-center justify-between pt-1">
                       <button
                         type="button"
+                        disabled={togglingRuleId === rule.id}
                         onClick={() => handleToggle(rule.id, rule.isActive)}
-                        className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl cursor-pointer transition-colors ${
+                        className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl cursor-pointer transition-colors disabled:opacity-50 ${
                           rule.isActive
                             ? "bg-green-100 text-green-800 hover:bg-green-200"
                             : "bg-gray-200 text-gray-600 hover:bg-gray-300"
                         }`}
                       >
                         <Power className="w-3.5 h-3.5" />
-                        {rule.isActive ? "Active Rule" : "Disabled"}
+                        {togglingRuleId === rule.id
+                          ? "Updating..."
+                          : rule.isActive
+                          ? "Active Rule"
+                          : "Disabled"}
                       </button>
 
                       <button
                         type="button"
+                        disabled={deletingRuleId === rule.id}
                         onClick={() => handleDelete(rule.id)}
-                        className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                        className={`p-2 rounded-lg transition-colors cursor-pointer disabled:opacity-50 ${
+                          confirmDeleteId === rule.id
+                            ? "bg-red-100 text-red-700 font-bold text-xs px-2.5"
+                            : "text-gray-400 hover:text-red-600 hover:bg-red-50"
+                        }`}
                         title="Delete Rule"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        {deletingRuleId === rule.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+                        ) : confirmDeleteId === rule.id ? (
+                          "Confirm Delete?"
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -428,26 +494,38 @@ export default function AdminCommissionsPage() {
                         <td className="py-3.5 px-4 text-center whitespace-nowrap">
                           <button
                             type="button"
+                            disabled={togglingRuleId === rule.id}
                             onClick={() => handleToggle(rule.id, rule.isActive)}
-                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full cursor-pointer transition-colors ${
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full cursor-pointer transition-colors disabled:opacity-50 ${
                               rule.isActive
                                 ? "bg-green-100 text-green-800 hover:bg-green-200"
                                 : "bg-gray-200 text-gray-600 hover:bg-gray-300"
                             }`}
                           >
                             <Power className="w-3 h-3" />
-                            {rule.isActive ? "Active" : "Disabled"}
+                            {togglingRuleId === rule.id ? "Updating..." : rule.isActive ? "Active" : "Disabled"}
                           </button>
                         </td>
 
                         <td className="py-3.5 px-4 text-right whitespace-nowrap">
                           <button
                             type="button"
+                            disabled={deletingRuleId === rule.id}
                             onClick={() => handleDelete(rule.id)}
-                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
+                            className={`p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50 ${
+                              confirmDeleteId === rule.id
+                                ? "bg-red-100 text-red-700 font-bold text-[10px] px-2"
+                                : "text-gray-400 hover:text-red-600 hover:bg-red-50"
+                            }`}
                             title="Delete Rule"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {deletingRuleId === rule.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+                            ) : confirmDeleteId === rule.id ? (
+                              "Confirm Delete?"
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </td>
                       </tr>

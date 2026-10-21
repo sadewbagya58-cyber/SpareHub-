@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { getCurrentUserProfile } from "@/lib/auth/actions";
 import { getSellerOrdersAction } from "@/lib/orders/actions";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatLKR } from "@/lib/utils";
 
@@ -89,10 +88,11 @@ export default async function SellerOrdersPage({ searchParams }: SellerOrdersPag
             </p>
           </div>
 
-          <Link href="/seller/products">
-            <Button variant="outline" size="sm" className="text-xs font-semibold">
-              Manage Products
-            </Button>
+          <Link
+            href="/seller/products"
+            className="inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-3 py-1.5 gap-1.5 h-8 font-semibold transition-all active:scale-[0.97]"
+          >
+            Manage Products
           </Link>
         </div>
       </div>
@@ -168,11 +168,12 @@ export default async function SellerOrdersPage({ searchParams }: SellerOrdersPag
                     </span>
                   </div>
 
-                  <Link href={`/seller/orders/${so.id}`}>
-                    <Button variant="primary" size="sm" className="gap-1 font-bold">
-                      Fulfill Order
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Button>
+                  <Link
+                    href={`/seller/orders/${so.id}`}
+                    className="inline-flex items-center justify-center font-medium rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover text-xs px-3 py-1.5 gap-1 h-8 font-bold shadow-sm transition-all active:scale-[0.97]"
+                  >
+                    Fulfill Order
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
                 </div>
               </div>

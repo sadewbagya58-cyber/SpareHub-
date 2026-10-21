@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -21,6 +21,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const [added, setAdded] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [isBuying, setIsBuying] = useState(false);
+  const [isPendingBuy, startBuyTransition] = useTransition();
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const productHref = product.slug ? `/products/${product.slug}` : undefined;
@@ -94,7 +95,9 @@ export function ProductCard({ product }: ProductCardProps) {
     }
 
     setIsBuying(true);
-    router.push(`/checkout?buyNow=${encodeURIComponent(product.id)}&qty=1`);
+    startBuyTransition(() => {
+      router.push(`/checkout?buyNow=${encodeURIComponent(product.id)}&qty=1`);
+    });
   };
 
   return (
@@ -284,7 +287,8 @@ export function ProductCard({ product }: ProductCardProps) {
             size="sm"
             variant={added ? "secondary" : "outline"}
             isLoading={isAdding}
-            disabled={isOutOfStock || isAdding || isBuying}
+            loadingText="Adding..."
+            disabled={isOutOfStock || isAdding || isBuying || isPendingBuy}
             onClick={handleAddToCart}
             className="flex-1 text-[11px] sm:text-xs font-bold py-1.5 px-2 h-8 sm:h-9 justify-center gap-1 border-sparehub-border hover:border-sparehub-orange"
           >
@@ -305,8 +309,9 @@ export function ProductCard({ product }: ProductCardProps) {
             type="button"
             size="sm"
             variant="primary"
-            isLoading={isBuying}
-            disabled={isOutOfStock || isAdding || isBuying}
+            isLoading={isBuying || isPendingBuy}
+            loadingText="Opening..."
+            disabled={isOutOfStock || isAdding || isBuying || isPendingBuy}
             onClick={handleBuyNow}
             className="flex-1 text-[11px] sm:text-xs font-bold py-1.5 px-2 h-8 sm:h-9 justify-center gap-1 bg-sparehub-dark hover:bg-neutral-800 text-white"
           >

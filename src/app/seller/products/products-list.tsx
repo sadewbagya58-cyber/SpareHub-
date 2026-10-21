@@ -43,6 +43,8 @@ export function ProductsList({
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Filter products locally for instantaneous UX
   const filteredProducts = initialProducts.filter((product) => {
@@ -68,39 +70,53 @@ export function ProductsList({
   const handleTogglePublish = (productId: string, currentPublished: boolean) => {
     setActionMessage(null);
     setActionError(null);
+    setTogglingId(productId);
 
     startTransition(async () => {
-      const res = await toggleProductPublishAction(productId, !currentPublished);
-      if (res.error) {
-        setActionError(res.error);
-      } else {
-        setActionMessage(
-          !currentPublished
-            ? "Product is now live on the marketplace."
-            : "Product un-published and moved to draft."
-        );
-        router.refresh();
+      try {
+        const res = await toggleProductPublishAction(productId, !currentPublished);
+        if (res.error) {
+          setActionError(res.error);
+        } else {
+          setActionMessage(
+            !currentPublished
+              ? "Product is now live on the marketplace."
+              : "Product un-published and moved to draft."
+          );
+          router.refresh();
+        }
+      } catch {
+        setActionError("Failed to update product visibility.");
+      } finally {
+        setTogglingId(null);
       }
     });
   };
 
-  const handleDelete = (productId: string, title: string) => {
-    if (!confirm(`Are you sure you want to permanently delete "${title}"?`)) {
+  const handleDelete = (productId: string) => {
+    if (confirmDeleteId !== productId) {
+      setConfirmDeleteId(productId);
       return;
     }
 
+    setConfirmDeleteId(null);
     setDeletingId(productId);
     setActionMessage(null);
     setActionError(null);
 
     startTransition(async () => {
-      const res = await deleteProductAction(productId);
-      setDeletingId(null);
-      if (res.error) {
-        setActionError(res.error);
-      } else {
-        setActionMessage("Product listing deleted successfully.");
-        router.refresh();
+      try {
+        const res = await deleteProductAction(productId);
+        if (res.error) {
+          setActionError(res.error);
+        } else {
+          setActionMessage("Product listing deleted successfully.");
+          router.refresh();
+        }
+      } catch {
+        setActionError("Failed to delete product.");
+      } finally {
+        setDeletingId(null);
       }
     });
   };
@@ -351,13 +367,19 @@ export function ProductsList({
 
                     <button
                       type="button"
-                      onClick={() => handleDelete(p.id, p.title)}
+                      onClick={() => handleDelete(p.id)}
                       disabled={deletingId === p.id}
-                      className="inline-flex items-center justify-center p-1.5 text-gray-500 hover:text-red-600 bg-gray-50 hover:bg-red-50 border border-gray-200 rounded-lg transition-colors disabled:opacity-50"
+                      className={`inline-flex items-center justify-center p-1.5 transition-colors disabled:opacity-50 rounded-lg border ${
+                        confirmDeleteId === p.id
+                          ? "bg-red-100 text-red-700 font-bold text-[10px] px-2 border-red-300"
+                          : "text-gray-500 hover:text-red-600 bg-gray-50 hover:bg-red-50 border-gray-200"
+                      }`}
                       title="Delete listing"
                     >
                       {deletingId === p.id ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin text-red-600" />
+                      ) : confirmDeleteId === p.id ? (
+                        "Confirm?"
                       ) : (
                         <Trash2 className="w-3.5 h-3.5" />
                       )}
@@ -486,8 +508,8 @@ export function ProductsList({
                       <button
                         type="button"
                         onClick={() => handleTogglePublish(p.id, p.is_published)}
-                        disabled={isPending}
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all ${
+                        disabled={togglingId === p.id}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all disabled:opacity-50 ${
                           p.is_published
                             ? "bg-green-100 text-sparehub-success hover:bg-green-200"
                             : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -498,7 +520,9 @@ export function ProductsList({
                             : "Click to publish immediately to marketplace"
                         }
                       >
-                        {p.is_published ? (
+                        {togglingId === p.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin text-current" />
+                        ) : p.is_published ? (
                           <>
                             <Eye className="w-3 h-3" />
                             Live
@@ -536,13 +560,19 @@ export function ProductsList({
 
                         <button
                           type="button"
-                          onClick={() => handleDelete(p.id, p.title)}
+                          onClick={() => handleDelete(p.id)}
                           disabled={deletingId === p.id}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                          className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                            confirmDeleteId === p.id
+                              ? "bg-red-100 text-red-700 font-bold text-[10px] px-2"
+                              : "text-gray-400 hover:text-red-600 hover:bg-red-50"
+                          }`}
                           title="Delete listing"
                         >
                           {deletingId === p.id ? (
                             <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+                          ) : confirmDeleteId === p.id ? (
+                            "Confirm?"
                           ) : (
                             <Trash2 className="w-4 h-4" />
                           )}

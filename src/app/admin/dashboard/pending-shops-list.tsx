@@ -186,12 +186,14 @@ export function PendingShopsList({ initialShops }: PendingShopsListProps) {
                         type="button"
                         variant="primary"
                         size="sm"
+                        isLoading={isPending && actionShopId === s.id}
+                        loadingText="Reinstating..."
                         onClick={() => handleReinstate(s.id)}
                         disabled={isPending && actionShopId === s.id}
                         className="gap-1 bg-green-600 hover:bg-green-700 text-white text-xs h-8"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        {isPending && actionShopId === s.id ? "Reinstating..." : "Reinstate Shop"}
+                        Reinstate Shop
                       </Button>
                     ) : (
                       <>
@@ -200,12 +202,14 @@ export function PendingShopsList({ initialShops }: PendingShopsListProps) {
                             type="button"
                             variant="primary"
                             size="sm"
+                            isLoading={isPending && actionShopId === s.id}
+                            loadingText="Approving..."
                             onClick={() => handleApprove(s.id)}
                             disabled={isPending && actionShopId === s.id}
                             className="gap-1 bg-green-600 hover:bg-green-700 text-white text-xs h-8"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            {isPending && actionShopId === s.id ? "Approving..." : "Approve"}
+                            Approve
                           </Button>
                         )}
 
@@ -280,6 +284,8 @@ export function PendingShopsList({ initialShops }: PendingShopsListProps) {
                         type="button"
                         variant="primary"
                         size="sm"
+                        isLoading={isPending && actionShopId === s.id}
+                        loadingText="Suspending..."
                         onClick={() => handleSuspend(s.id)}
                         disabled={isPending && actionShopId === s.id}
                         className="bg-sparehub-error hover:bg-red-700 text-white text-xs h-7 gap-1"

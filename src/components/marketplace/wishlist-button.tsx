@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Heart } from "lucide-react";
 import { toggleWishlistItemAction } from "@/lib/wishlist/actions";
 
@@ -17,6 +18,7 @@ export function WishlistButton({
   variant = "icon",
   className = "",
 }: WishlistButtonProps) {
+  const router = useRouter();
   const [saved, setSaved] = useState(initialSaved);
   const [prevInitialSaved, setPrevInitialSaved] = useState(initialSaved);
   const [loading, setLoading] = useState(false);
@@ -51,7 +53,7 @@ export function WishlistButton({
         // Revert on failure
         setSaved(saved);
         if (res.message?.includes("sign in")) {
-          alert("Please sign in to save parts to your wishlist.");
+          router.push("/login?redirect=" + encodeURIComponent(window.location.pathname));
         }
       }
     } catch {
