@@ -1,11 +1,19 @@
 import dns from "node:dns";
+import net from "node:net";
 import { cache } from "react";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-// Prioritize IPv4 DNS resolution to prevent 4-12s AAAA record timeouts on *.supabase.co CNAMEs
+// Prioritize IPv4 DNS resolution and disable Node 20+ Happy Eyeballs 250ms connection race
+// to prevent 4-35s UND_ERR_CONNECT_TIMEOUT stalls on *.supabase.co cold sockets.
 if (typeof dns?.setDefaultResultOrder === "function") {
   dns.setDefaultResultOrder("ipv4first");
+}
+if (typeof net?.setDefaultAutoSelectFamily === "function") {
+  net.setDefaultAutoSelectFamily(false);
+}
+if (typeof net?.setDefaultAutoSelectFamilyAttemptTimeout === "function") {
+  net.setDefaultAutoSelectFamilyAttemptTimeout(5000);
 }
 
 /**

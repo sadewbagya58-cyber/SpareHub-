@@ -1,8 +1,15 @@
 import dns from "node:dns";
+import net from "node:net";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 if (typeof dns?.setDefaultResultOrder === "function") {
   dns.setDefaultResultOrder("ipv4first");
+}
+if (typeof net?.setDefaultAutoSelectFamily === "function") {
+  net.setDefaultAutoSelectFamily(false);
+}
+if (typeof net?.setDefaultAutoSelectFamilyAttemptTimeout === "function") {
+  net.setDefaultAutoSelectFamilyAttemptTimeout(5000);
 }
 
 let cachedAdminClient: SupabaseClient | null = null;

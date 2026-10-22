@@ -21,12 +21,13 @@ export const metadata = {
 };
 
 export default async function CustomerOrdersPage() {
-  const authData = await getCurrentUserProfile();
+  const [authData, orders] = await Promise.all([
+    getCurrentUserProfile(),
+    getCustomerOrdersAction(),
+  ]);
   if (!authData || !authData.user) {
     redirect("/login?redirect=/account/orders");
   }
-
-  const orders = await getCustomerOrdersAction();
 
   const getStatusBadge = (status: string) => {
     switch (status) {

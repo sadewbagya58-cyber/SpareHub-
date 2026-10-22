@@ -56,9 +56,9 @@ export default async function SellerProductsPage() {
     );
   }
 
-  // Fetch seller's products and categories
+  // Fetch seller's products (reusing resolved shop.id) and categories concurrently
   const [{ products }, categories] = await Promise.all([
-    getSellerProducts(),
+    getSellerProducts({ shopId: shop.id }),
     getProductCategories(),
   ]);
 

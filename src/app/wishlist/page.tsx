@@ -135,11 +135,12 @@ export default function WishlistPage() {
               Save automotive parts while browsing to easily find them later or check back for stock updates.
             </p>
             <div className="mt-6">
-              <Link href="/search">
-                <Button className="bg-sparehub-orange hover:bg-sparehub-orange-hover text-white gap-2 font-bold">
-                  Explore Spare Parts Catalog
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
+              <Link
+                href="/search"
+                className="inline-flex items-center justify-center rounded-xl bg-sparehub-orange hover:bg-sparehub-orange-hover text-white px-5 py-2.5 text-xs gap-2 font-bold shadow-xs transition-all active:scale-[0.97]"
+              >
+                Explore Spare Parts Catalog
+                <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
           </div>

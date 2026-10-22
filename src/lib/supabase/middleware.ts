@@ -26,9 +26,18 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // Fast-path 1: Server Actions and API route handlers authenticate internally via `createServerSupabaseClient()`.
-  // Skipping middleware remote auth here eliminates duplicate `/auth/v1/user` + DB queries on every button action.
-  if (request.headers.get("next-action") || pathname.startsWith("/api/")) {
+  // Fast-path 1: Server Actions, API route handlers, and Next.js background Link prefetches.
+  // Server Actions & API routes authenticate internally via `createServerSupabaseClient()`.
+  // Skipping middleware remote auth on Link prefetches prevents background prefetch requests from saturating Supabase Auth/DB.
+  const isPrefetch =
+    request.headers.get("next-router-prefetch") === "1" ||
+    request.headers.get("purpose") === "prefetch";
+
+  if (
+    request.headers.get("next-action") ||
+    pathname.startsWith("/api/") ||
+    isPrefetch
+  ) {
     return supabaseResponse;
   }
 

@@ -189,10 +189,13 @@ describe("Global Button Interaction & UI Responsiveness Audit Verification", () 
       "src/components/layout/navbar.tsx",
       "src/components/layout/auth-nav.tsx",
       "src/app/account/orders/page.tsx",
+      "src/app/account/notifications/page.tsx",
+      "src/app/wishlist/page.tsx",
       "src/app/admin/dashboard/page.tsx",
       "src/app/admin/orders/page.tsx",
       "src/app/seller/dashboard/page.tsx",
       "src/app/seller/orders/page.tsx",
+      "src/app/seller/orders/seller-orders-list.tsx",
       "src/app/seller/shop/page.tsx",
       "src/app/sell/page.tsx",
       "src/app/sell/seller-onboarding-form.tsx",
@@ -335,6 +338,119 @@ describe("Global Button Interaction & UI Responsiveness Audit Verification", () 
         adminDashboardCode.includes("Promise.all(["),
         "AdminDashboardPage must fetch all 5 dashboard count and moderation queries concurrently"
       );
+    });
+
+    it("disables Node 20+ Happy Eyeballs 250ms connection race (setDefaultAutoSelectFamily) in Supabase clients", () => {
+      const serverSupabaseCode = readSrc("src/lib/supabase/server.ts");
+      const adminSupabaseCode = readSrc("src/lib/supabase/admin.ts");
+
+      assert.ok(
+        serverSupabaseCode.includes("setDefaultAutoSelectFamily(false)") &&
+          serverSupabaseCode.includes("setDefaultAutoSelectFamilyAttemptTimeout(5000)"),
+        "server.ts must disable Node net autoSelectFamily 250ms race to prevent UND_ERR_CONNECT_TIMEOUT on cold sockets"
+      );
+      assert.ok(
+        adminSupabaseCode.includes("setDefaultAutoSelectFamily(false)") &&
+          adminSupabaseCode.includes("setDefaultAutoSelectFamilyAttemptTimeout(5000)"),
+        "admin.ts must disable Node net autoSelectFamily 250ms race"
+      );
+    });
+
+    it("provides instant (<16ms) client-side status tab filtering and Fulfill Order pending state on /seller/orders", () => {
+      const sellerOrdersPageCode = readSrc("src/app/seller/orders/page.tsx");
+      const sellerOrdersListCode = readSrc("src/app/seller/orders/seller-orders-list.tsx");
+      const sellerFulfillmentCode = readSrc("src/app/seller/orders/[id]/seller-order-fulfillment.tsx");
+      const orderActionsCode = readSrc("src/lib/orders/actions.ts");
+
+      assert.ok(
+        sellerOrdersPageCode.includes("Promise.all([") &&
+          sellerOrdersPageCode.includes("<SellerOrdersList"),
+        "SellerOrdersPage must fetch auth and orders concurrently and delegate to client SellerOrdersList"
+      );
+      assert.ok(
+        sellerOrdersListCode.includes("setActiveStatus") &&
+          sellerOrdersListCode.includes("window.history.replaceState") &&
+          sellerOrdersListCode.includes("setNavigatingOrderId"),
+        "SellerOrdersList must filter status tabs synchronously in memory (<16ms) and show immediate Opening... state on Fulfill Order"
+      );
+      assert.ok(
+        sellerFulfillmentCode.includes("setCurrentStatus(targetStatus)") &&
+          sellerFulfillmentCode.includes("if (loading) return;"),
+        "SellerOrderFulfillment must update local status immediately on transition completion and guard against duplicate taps"
+      );
+      assert.ok(
+        orderActionsCode.includes("shop:shops(id, name, slug, phone, seller_profiles(user_id))"),
+        "getSellerOrderDetailAction must verify shop ownership inside the single seller_orders query"
+      );
+    });
+
+    it("caches getSellerShopProfile with React.cache() and parallelizes Seller & Customer pages", () => {
+      const sellerActionsCode = readSrc("src/lib/seller/actions.ts");
+      const sellerProductsPageCode = readSrc("src/app/seller/products/page.tsx");
+      const editProductPageCode = readSrc("src/app/seller/products/[id]/edit/page.tsx");
+      const newProductPageCode = readSrc("src/app/seller/products/new/page.tsx");
+      const customerOrdersPageCode = readSrc("src/app/account/orders/page.tsx");
+      const orderDetailPageCode = readSrc("src/app/orders/[id]/page.tsx");
+
+      assert.ok(
+        sellerActionsCode.includes("getCachedSellerShopProfile = cache(") &&
+          sellerActionsCode.includes("Promise.all(["),
+        "getSellerShopProfile must be wrapped in React.cache() and fetch user_profiles + seller_profiles concurrently"
+      );
+      assert.ok(
+        sellerProductsPageCode.includes("getSellerProducts({ shopId: shop.id })"),
+        "SellerProductsPage must pass resolved shopId to getSellerProducts to avoid duplicate seller_profiles queries"
+      );
+      assert.ok(
+        editProductPageCode.includes("Promise.all([") &&
+          newProductPageCode.includes("Promise.all(["),
+        "NewProductPage and EditProductPage must parallelize profile, product, categories, and taxonomy fetches"
+      );
+      assert.ok(
+        customerOrdersPageCode.includes("Promise.all([") &&
+          orderDetailPageCode.includes("Promise.all(["),
+        "CustomerOrdersPage and OrderDetailPage must parallelize auth profile and order queries"
+      );
+    });
+
+    it("provides global <16ms link pending feedback, MobileNav optimistic highlight, and route loading.tsx boundaries", () => {
+      const touchProviderCode = readSrc("src/components/layout/touch-provider.tsx");
+      const mobileNavCode = readSrc("src/components/layout/mobile-nav.tsx");
+      const accountPageCode = readSrc("src/app/account/page.tsx");
+
+      assert.ok(
+        touchProviderCode.includes('data-nav-pending') &&
+          touchProviderCode.includes('role="progressbar"'),
+        "TouchProvider must mark clicked links with data-nav-pending and render top navigation progress indicator"
+      );
+      assert.ok(
+        mobileNavCode.includes("pendingHref") && mobileNavCode.includes("setPendingHref"),
+        "MobileNav must highlight tapped bottom nav items optimistically via pendingHref"
+      );
+      assert.ok(
+        accountPageCode.includes('href="/account/orders"') &&
+          accountPageCode.includes('href="/cart"') &&
+          accountPageCode.includes('href="/wishlist"') &&
+          accountPageCode.includes('href="/account/notifications"'),
+        "AccountPage Quick Access must include My Orders & Tracking, Shopping Cart, Saved Wishlist, and Notifications"
+      );
+
+      const requiredLoadingFiles = [
+        "src/app/loading.tsx",
+        "src/app/search/loading.tsx",
+        "src/app/products/[slug]/loading.tsx",
+        "src/app/account/loading.tsx",
+        "src/app/seller/loading.tsx",
+        "src/app/admin/loading.tsx",
+        "src/app/cart/loading.tsx",
+        "src/app/checkout/loading.tsx",
+      ];
+      for (const loadingFile of requiredLoadingFiles) {
+        assert.ok(
+          fs.existsSync(path.resolve(process.cwd(), loadingFile)),
+          `Route loading boundary ${loadingFile} must exist for instant Next.js App Router transitions`
+        );
+      }
     });
   });
 });

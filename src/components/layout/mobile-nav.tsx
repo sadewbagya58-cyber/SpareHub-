@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Search, Store, ShoppingCart, User } from "lucide-react";
@@ -14,7 +14,16 @@ import {
 
 export function MobileNav() {
   const pathname = usePathname();
+  const [pendingNav, setPendingNav] = useState<{
+    href: string;
+    fromPathname: string;
+  } | null>(null);
   const { authenticated: isLoggedIn, cartCount } = useUserNavContext();
+
+  const pendingHref =
+    pendingNav && pendingNav.fromPathname === pathname ? pendingNav.href : null;
+  const setPendingHref = (href: string) =>
+    setPendingNav({ href, fromPathname: pathname });
 
   useEffect(() => {
     const handleCartUpdated = async (e: Event) => {
@@ -64,21 +73,23 @@ export function MobileNav() {
     >
       <div className="flex items-center justify-around">
         {navItems.map((item) => {
+          const activeRoute = pendingHref || pathname;
           const isActive =
             item.href === "/account"
-              ? pathname === "/account" ||
-                pathname.startsWith("/account/") ||
-                pathname.startsWith("/seller") ||
-                pathname.startsWith("/admin")
-              : pathname === item.href;
+              ? activeRoute === "/account" ||
+                activeRoute.startsWith("/account/") ||
+                activeRoute.startsWith("/seller") ||
+                activeRoute.startsWith("/admin")
+              : activeRoute === item.href;
           const Icon = item.icon;
 
           return (
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => setPendingHref(item.href)}
               className={cn(
-                "flex flex-col items-center justify-center py-1.5 px-3 rounded-lg text-[11px] font-medium transition-colors relative min-w-[56px] min-h-[48px]",
+                "flex flex-col items-center justify-center py-1.5 px-3 rounded-lg text-[11px] font-medium transition-all duration-150 active:scale-95 relative min-w-[56px] min-h-[48px]",
                 isActive
                   ? "text-sparehub-orange"
                   : "text-gray-500 hover:text-sparehub-dark"

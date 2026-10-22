@@ -101,7 +101,7 @@ export function Navbar() {
             <Link
               href="/search"
               aria-label="Search Catalog"
-              className="p-1.5 sm:p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors lg:hidden"
+              className="p-1.5 sm:p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-all duration-150 active:scale-95 lg:hidden"
             >
               <Search className="w-4 h-4 sm:w-5 sm:h-5" />
             </Link>
@@ -109,7 +109,7 @@ export function Navbar() {
             <Link
               href="/wishlist"
               aria-label="Saved Wishlist"
-              className="p-1.5 sm:p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors"
+              className="p-1.5 sm:p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-all duration-150 active:scale-95"
             >
               <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
             </Link>
@@ -126,7 +126,7 @@ export function Navbar() {
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-1.5 sm:p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-colors md:hidden"
+              className="p-1.5 sm:p-2 rounded-lg text-sparehub-dark hover:bg-sparehub-light transition-all duration-150 active:scale-95 cursor-pointer md:hidden"
               aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
               aria-expanded={mobileMenuOpen}
             >

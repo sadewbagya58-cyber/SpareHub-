@@ -14,7 +14,7 @@ import {
   ArrowRight,
   ShieldCheck
 } from "lucide-react";
-import { getCurrentUserProfile } from "@/lib/auth/actions";
+import { getSellerShopProfile } from "@/lib/seller/actions";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,25 +28,19 @@ export const metadata = {
 };
 
 export default async function SellerDashboardPage() {
-  const authData = await getCurrentUserProfile();
+  const [sellerData, supabase] = await Promise.all([
+    getSellerShopProfile(),
+    createServerSupabaseClient(),
+  ]);
 
-  if (!authData || !authData.user) {
+  if (!sellerData || !sellerData.user) {
     redirect("/login?redirect=/seller/dashboard");
   }
 
-  const { user, profile } = authData;
+  const { userProfile: profile, sellerProfile, shop } = sellerData;
 
   const roles = profile?.roles || (profile?.role ? [profile.role] : ["customer"]);
   let isSeller = roles.includes("seller") || roles.includes("platform_admin");
-
-  const supabase = await createServerSupabaseClient();
-
-  // Fetch seller profile and associated shop
-  const { data: sellerProfile } = await supabase
-    .from("seller_profiles")
-    .select("*, shops(*)")
-    .eq("user_id", user.id)
-    .maybeSingle();
 
   if (sellerProfile) {
     isSeller = true;
@@ -55,8 +49,6 @@ export default async function SellerDashboardPage() {
   if (!isSeller) {
     redirect("/sell");
   }
-
-  const shop = sellerProfile?.shops?.[0];
 
   let productCount = 0;
   let orderCount = 0;

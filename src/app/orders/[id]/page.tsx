@@ -19,14 +19,15 @@ export async function generateMetadata({ params }: OrderDetailPageProps) {
 }
 
 export default async function OrderDetailPage({ params }: OrderDetailPageProps) {
-  const authData = await getCurrentUserProfile();
+  const { id } = await params;
+  const [authData, order] = await Promise.all([
+    getCurrentUserProfile(),
+    getCustomerOrderDetailAction(id),
+  ]);
+
   if (!authData || !authData.user) {
-    const { id } = await params;
     redirect(`/login?redirect=/orders/${id}`);
   }
-
-  const { id } = await params;
-  const order = await getCustomerOrderDetailAction(id);
 
   if (!order) {
     notFound();

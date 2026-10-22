@@ -23,7 +23,12 @@ interface EditProductPageProps {
 
 export default async function EditProductPage({ params }: EditProductPageProps) {
   const { id } = await params;
-  const profileData = await getSellerShopProfile();
+  const [profileData, { product, error }, categories, vehicleTaxonomy] = await Promise.all([
+    getSellerShopProfile(),
+    getSellerProductById(id),
+    getProductCategories(),
+    getVehicleTaxonomyHierarchy(),
+  ]);
 
   if (!profileData || !profileData.user) {
     redirect(`/login?redirect=/seller/products/${id}/edit`);
@@ -33,12 +38,6 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
   if (!shop) {
     redirect("/seller/shop/new");
   }
-
-  const [{ product, error }, categories, vehicleTaxonomy] = await Promise.all([
-    getSellerProductById(id),
-    getProductCategories(),
-    getVehicleTaxonomyHierarchy(),
-  ]);
 
   if (error || !product) {
     notFound();

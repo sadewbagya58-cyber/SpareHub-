@@ -32,6 +32,11 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [currentStatus, setCurrentStatus] = useState<SellerSubOrder["status"]>(subOrder.status);
+  const [historyList, setHistoryList] = useState(subOrder.history || []);
+  const [localCancelReason, setLocalCancelReason] = useState<string | null | undefined>(
+    subOrder.cancellationReason
+  );
 
   // Dispatch Form State
   const [courierName, setCourierName] = useState(subOrder.courierName || "Domex Courier");
@@ -47,6 +52,7 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
     targetStatus: "confirmed" | "processing" | "dispatched" | "delivered" | "cancelled",
     options?: { courierName?: string; trackingNumber?: string; trackingUrl?: string; cancellationReason?: string }
   ) => {
+    if (loading) return;
     setLoading(true);
     setActionStatus(targetStatus);
     setErrorMessage(null);
@@ -57,6 +63,28 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
       if (!res.success) {
         setErrorMessage(res.message || "Failed to update status.");
       } else {
+        const previousStatus = currentStatus;
+        setCurrentStatus(targetStatus);
+        if (targetStatus === "cancelled" && options?.cancellationReason) {
+          setLocalCancelReason(options.cancellationReason);
+        }
+        const notes =
+          targetStatus === "dispatched" && options?.trackingNumber
+            ? `Dispatched via ${options.courierName || "Courier"} (Tracking: ${options.trackingNumber})`
+            : targetStatus === "cancelled"
+            ? `Cancelled: ${options?.cancellationReason || "Vendor cancellation"}`
+            : `Status updated to ${targetStatus}`;
+        setHistoryList((prev) => [
+          ...prev,
+          {
+            id: `local-${Date.now()}`,
+            sellerOrderId: subOrder.id,
+            fromStatus: previousStatus,
+            toStatus: targetStatus,
+            notes,
+            createdAt: new Date().toISOString(),
+          },
+        ]);
         setSuccessMessage(`Order status updated to ${targetStatus}!`);
         setShowDispatchModal(false);
         setShowCancelModal(false);
@@ -73,8 +101,6 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
       setActionStatus(null);
     }
   };
-
-  const currentStatus = subOrder.status;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8">
@@ -285,7 +311,7 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
           {currentStatus === "cancelled" && (
             <div className="flex items-center gap-2 text-xs font-bold text-red-600 bg-red-50 px-3 py-2 rounded-xl border border-red-200">
               <XCircle className="w-4 h-4" />
-              Order cancelled. Stock has been restored. Reason: {subOrder.cancellationReason || "None"}
+              Order cancelled. Stock has been restored. Reason: {localCancelReason || "None"}
             </div>
           )}
         </div>
@@ -345,13 +371,13 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
           </div>
 
           {/* Audit History Timeline */}
-          {subOrder.history && subOrder.history.length > 0 && (
+          {historyList && historyList.length > 0 && (
             <div className="p-6 rounded-2xl border border-sparehub-border bg-white shadow-xs space-y-3">
               <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
                 Fulfillment Activity Trail
               </h3>
               <div className="space-y-2">
-                {subOrder.history.map((h) => (
+                {historyList.map((h) => (
                   <div key={h.id} className="flex items-center gap-2.5 text-xs text-gray-600">
                     <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                     <span className="font-bold capitalize text-sparehub-dark">{h.toStatus}:</span>

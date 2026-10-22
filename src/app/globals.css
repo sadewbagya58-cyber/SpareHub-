@@ -46,6 +46,19 @@ body {
   outline-offset: 2px;
 }
 
+/* Instant tactile feedback for internal link navigation & touch targets */
+a,
+button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+a[data-nav-pending="true"] {
+  opacity: 0.72;
+  transform: scale(0.985);
+  transition: opacity 100ms ease, transform 100ms ease;
+}
+
 /* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 8px;

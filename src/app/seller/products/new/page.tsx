@@ -17,7 +17,11 @@ export const metadata = {
 };
 
 export default async function NewProductPage() {
-  const profileData = await getSellerShopProfile();
+  const [profileData, categories, vehicleTaxonomy] = await Promise.all([
+    getSellerShopProfile(),
+    getProductCategories(),
+    getVehicleTaxonomyHierarchy(),
+  ]);
 
   if (!profileData || !profileData.user) {
     redirect("/login?redirect=/seller/products/new");
@@ -28,11 +32,6 @@ export default async function NewProductPage() {
   if (!shop) {
     redirect("/seller/shop/new");
   }
-
-  const [categories, vehicleTaxonomy] = await Promise.all([
-    getProductCategories(),
-    getVehicleTaxonomyHierarchy(),
-  ]);
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-6">

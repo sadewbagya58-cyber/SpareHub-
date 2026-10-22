@@ -9,7 +9,9 @@ import {
   Store, 
   Lock, 
   LogOut,
-  Calendar
+  Calendar,
+  Heart,
+  Bell
 } from "lucide-react";
 import { getCurrentUserProfile, logoutAction } from "@/lib/auth/actions";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -140,7 +142,7 @@ export default async function AccountPage() {
             <CardContent className="space-y-3">
               <Link
                 href="/account/orders"
-                className="flex items-center justify-between p-3.5 rounded-xl border border-sparehub-border hover:bg-sparehub-light transition-colors group"
+                className="flex items-center justify-between p-3.5 rounded-xl border border-sparehub-border hover:bg-sparehub-light transition-all active:scale-[0.98] group"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
@@ -158,7 +160,7 @@ export default async function AccountPage() {
 
               <Link
                 href="/cart"
-                className="flex items-center justify-between p-3.5 rounded-xl border border-sparehub-border hover:bg-sparehub-light transition-colors group"
+                className="flex items-center justify-between p-3.5 rounded-xl border border-sparehub-border hover:bg-sparehub-light transition-all active:scale-[0.98] group"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-orange-50 text-sparehub-orange">
@@ -169,6 +171,42 @@ export default async function AccountPage() {
                       Shopping Cart
                     </h2>
                     <p className="text-[11px] text-gray-500">View items ready for checkout</p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-gray-400">&rarr;</span>
+              </Link>
+
+              <Link
+                href="/wishlist"
+                className="flex items-center justify-between p-3.5 rounded-xl border border-sparehub-border hover:bg-sparehub-light transition-all active:scale-[0.98] group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-red-50 text-red-500">
+                    <Heart className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xs font-bold text-sparehub-dark group-hover:text-sparehub-orange transition-colors">
+                      Saved Wishlist
+                    </h2>
+                    <p className="text-[11px] text-gray-500">Saved parts &amp; stock tracking</p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-gray-400">&rarr;</span>
+              </Link>
+
+              <Link
+                href="/account/notifications"
+                className="flex items-center justify-between p-3.5 rounded-xl border border-sparehub-border hover:bg-sparehub-light transition-all active:scale-[0.98] group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
+                    <Bell className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xs font-bold text-sparehub-dark group-hover:text-sparehub-orange transition-colors">
+                      Notifications
+                    </h2>
+                    <p className="text-[11px] text-gray-500">Order alerts &amp; delivery updates</p>
                   </div>
                 </div>
                 <span className="text-xs font-bold text-gray-400">&rarr;</span>

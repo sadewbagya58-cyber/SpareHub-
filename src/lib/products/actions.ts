@@ -3,6 +3,7 @@
 import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getSellerShopProfile } from "@/lib/seller/actions";
 import {
   productCreateSchema,
   productUpdateSchema,
@@ -280,6 +281,7 @@ export async function getSellerProducts(options?: {
   search?: string;
   status?: string;
   categoryId?: string;
+  shopId?: string;
 }): Promise<{ products: SellerProductListItem[]; error?: string }> {
   try {
     const supabase = await createServerSupabaseClient();
@@ -291,15 +293,13 @@ export async function getSellerProducts(options?: {
       return { products: [], error: "Authentication required" };
     }
 
-    // Get user's shop
-    const { data: sellerProfile } = await supabase
-      .from("seller_profiles")
-      .select("id, shops(id, name, status)")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    let resolvedShopId = options?.shopId;
+    if (!resolvedShopId) {
+      const sellerData = await getSellerShopProfile();
+      resolvedShopId = sellerData?.shop?.id;
+    }
 
-    const shop = sellerProfile?.shops?.[0];
-    if (!shop) {
+    if (!resolvedShopId) {
       return { products: [] };
     }
 
@@ -327,7 +327,7 @@ export async function getSellerProducts(options?: {
         product_images (image_url, is_primary, display_order)
       `
       )
-      .eq("shop_id", shop.id)
+      .eq("shop_id", resolvedShopId)
       .order("created_at", { ascending: false });
 
     if (options?.status && options.status !== "all") {

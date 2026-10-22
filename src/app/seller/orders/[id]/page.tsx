@@ -19,14 +19,15 @@ export async function generateMetadata({ params }: SellerOrderDetailPageProps) {
 }
 
 export default async function SellerOrderDetailPage({ params }: SellerOrderDetailPageProps) {
-  const authData = await getCurrentUserProfile();
+  const { id } = await params;
+  const [authData, subOrder] = await Promise.all([
+    getCurrentUserProfile(),
+    getSellerOrderDetailAction(id),
+  ]);
+
   if (!authData || !authData.user) {
-    const { id } = await params;
     redirect(`/login?redirect=/seller/orders/${id}`);
   }
-
-  const { id } = await params;
-  const subOrder = await getSellerOrderDetailAction(id);
 
   if (!subOrder) {
     notFound();

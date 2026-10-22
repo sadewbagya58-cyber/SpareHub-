@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
@@ -31,9 +32,11 @@ export interface ShopBrandingActionResult {
 }
 
 /**
- * Server Helper: Fetch seller profile and associated shop for the active user.
+ * Request-cached seller profile and shop lookup.
+ * Fetches `user_profiles` and `seller_profiles(..., shops(*))` concurrently in a single parallel roundtrip
+ * and memoizes the result across all Server Components/Actions in the same request.
  */
-export async function getSellerShopProfile() {
+const getCachedSellerShopProfile = cache(async () => {
   try {
     const supabase = await createServerSupabaseClient();
     const {
@@ -42,19 +45,19 @@ export async function getSellerShopProfile() {
 
     if (!user) return null;
 
-    // Fetch user profile
-    const { data: userProfile } = await supabase
-      .from("user_profiles")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    // Fetch seller profile with linked shops
-    const { data: sellerProfile } = await supabase
-      .from("seller_profiles")
-      .select("*, shops(*)")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    // Fetch user profile and seller profile with linked shops concurrently in 1 parallel roundtrip
+    const [{ data: userProfile }, { data: sellerProfile }] = await Promise.all([
+      supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("seller_profiles")
+        .select("*, shops(*)")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+    ]);
 
     const shop = sellerProfile?.shops?.[0] || null;
 
@@ -68,6 +71,13 @@ export async function getSellerShopProfile() {
     console.error("Error in getSellerShopProfile:", err);
     return null;
   }
+});
+
+/**
+ * Server Helper: Fetch seller profile and associated shop for the active user.
+ */
+export async function getSellerShopProfile() {
+  return getCachedSellerShopProfile();
 }
 
 /**

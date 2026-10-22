@@ -260,11 +260,10 @@ export default function NotificationsPage() {
                       onClick={() => {
                         if (!notif.read) handleMarkAsRead(notif.id);
                       }}
+                      className="inline-flex items-center justify-center rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light px-3 h-8 gap-1.5 text-xs font-semibold transition-all active:scale-[0.97]"
                     >
-                      <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs font-semibold">
-                        View
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </Button>
+                      View
+                      <ExternalLink className="w-3.5 h-3.5" />
                     </Link>
                   )}
 
