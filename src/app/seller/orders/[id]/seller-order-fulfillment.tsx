@@ -62,8 +62,12 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
         setShowCancelModal(false);
         router.refresh();
       }
-    } catch {
-      setErrorMessage("Network error updating fulfillment status. Please try again.");
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Network or server error updating fulfillment status. Please try again.";
+      setErrorMessage(msg);
     } finally {
       setLoading(false);
       setActionStatus(null);

@@ -399,3 +399,263 @@ describe("SH-FEATURE-001: Seller-Managed Delivery Cost Configuration", () => {
     );
   });
 });
+
+describe("SH-FEATURE-001-D1 & SH-QA-016: Buy Now Delivery Fee Consistency & Order Processing Robustness", () => {
+  const checkoutPagePath = path.resolve(process.cwd(), "src/app/checkout/page.tsx");
+  const actionsPath = path.resolve(process.cwd(), "src/lib/orders/actions.ts");
+  const deliveryPath = path.resolve(process.cwd(), "src/lib/orders/delivery.ts");
+  const migrationPath = path.resolve(
+    process.cwd(),
+    "supabase/migrations/20261022000012_checkout_idempotency_and_buy_now.sql"
+  );
+
+  const checkoutPageCode = fs.readFileSync(checkoutPagePath, "utf-8");
+  const actionsCode = fs.readFileSync(actionsPath, "utf-8");
+  const deliveryCode = fs.readFileSync(deliveryPath, "utf-8");
+  const migrationCode = fs.readFileSync(migrationPath, "utf-8");
+
+  it("ensures Buy Now query on checkout page retrieves all delivery fee columns", () => {
+    assert.ok(
+      checkoutPageCode.includes("delivery_enabled") &&
+      checkoutPageCode.includes("default_delivery_fee_minor") &&
+      checkoutPageCode.includes("district_delivery_fees") &&
+      checkoutPageCode.includes("free_delivery_threshold_minor"),
+      "Buy Now query must fetch shop delivery configuration"
+    );
+  });
+
+  it("populates singleGroup delivery settings for accurate client-side preview in Buy Now flow", () => {
+    assert.ok(
+      checkoutPageCode.includes("deliveryEnabled: s?.delivery_enabled ?? true") &&
+      checkoutPageCode.includes("defaultDeliveryFeeMinor: Number(s?.default_delivery_fee_minor) || 0"),
+      "singleGroup must propagate deliveryEnabled and defaultDeliveryFeeMinor"
+    );
+  });
+
+  it("handles case-insensitive and whitespace-tolerant district delivery fee lookups", () => {
+    assert.ok(
+      deliveryCode.includes("cleanDistrict") || deliveryCode.includes("toLowerCase"),
+      "delivery.ts must handle district key variations safely"
+    );
+  });
+
+  it("ensures Buy Now fallback query in actions.ts does not fail on invalid inner join syntax", () => {
+    assert.ok(
+      !actionsCode.includes("shops!inner"),
+      "Must not use broken shops!inner join syntax in actions.ts"
+    );
+    assert.ok(
+      actionsCode.includes("shop:shops("),
+      "Must use valid relation syntax shop:shops(...)"
+    );
+  });
+
+  it("persists delivery fees correctly on seller_orders and customer_orders in Buy Now fallback", () => {
+    assert.ok(
+      actionsCode.includes("delivery_fee_minor: deliveryFeeMinor") &&
+      actionsCode.includes("total_delivery_fee_minor: deliveryFeeMinor"),
+      "Actions must persist delivery fees on both seller_orders and customer_orders"
+    );
+  });
+
+  it("defines checkout idempotency and buy now support in SQL migration", () => {
+    assert.ok(
+      migrationCode.includes("checkout_attempt_id"),
+      "Migration must define checkout_attempt_id"
+    );
+    assert.ok(
+      migrationCode.includes("p_buy_now_product_id"),
+      "process_checkout_order must support p_buy_now_product_id"
+    );
+  });
+});
+
+describe("SH-QA-017: Checkout Idempotency & Lost Response Recovery", () => {
+  const actionsPath = path.resolve(process.cwd(), "src/lib/orders/actions.ts");
+  const formPath = path.resolve(process.cwd(), "src/app/checkout/checkout-form.tsx");
+
+  const actionsCode = fs.readFileSync(actionsPath, "utf-8");
+  const formCode = fs.readFileSync(formPath, "utf-8");
+
+  it("exposes verifyCheckoutAttemptAction for idempotent recovery", () => {
+    assert.ok(
+      actionsCode.includes("export async function verifyCheckoutAttemptAction("),
+      "Must export verifyCheckoutAttemptAction"
+    );
+  });
+
+  it("checks existing checkout_attempt_id before creating new orders", () => {
+    assert.ok(
+      actionsCode.includes('.eq("checkout_attempt_id", payload.idempotencyKey.trim())') ||
+      actionsCode.includes('.eq("checkout_attempt_id", attemptId.trim())'),
+      "processCheckoutAction must check for existing checkout_attempt_id"
+    );
+  });
+
+  it("handles network timeout / dropped connection recovery in checkout-form handleSubmit", () => {
+    assert.ok(
+      formCode.includes("verifyCheckoutAttemptAction(idempotencyKey)"),
+      "Checkout form must attempt recovery on network catch block"
+    );
+  });
+});
+
+describe("SH-QA-018: Seller Fulfillment Status Transition Idempotency & Fault Tolerance", () => {
+  const actionsPath = path.resolve(process.cwd(), "src/lib/orders/actions.ts");
+  const sellerFulfillmentPath = path.resolve(
+    process.cwd(),
+    "src/app/seller/orders/[id]/seller-order-fulfillment.tsx"
+  );
+
+  const actionsCode = fs.readFileSync(actionsPath, "utf-8");
+  const sellerFulfillmentCode = fs.readFileSync(sellerFulfillmentPath, "utf-8");
+
+  it("guards against redundant status updates idempotently", () => {
+    assert.ok(
+      actionsCode.includes("if (targetStatus === currentStatus)"),
+      "updateSellerOrderStatusAction must return success early if status is already targetStatus"
+    );
+  });
+
+  it("protects seller order status updates from reconciliation crashes", () => {
+    assert.ok(
+      actionsCode.includes("reconcileParentCustomerOrder") &&
+      (actionsCode.includes("reconciliation error:") || actionsCode.includes("catch (recErr)") || actionsCode.includes("catch (syncErr)")),
+      "Must wrap reconcileParentCustomerOrder in try-catch to prevent crashing fulfillment updates"
+    );
+  });
+
+  it("provides user-friendly retry and error messaging in seller order fulfillment UI", () => {
+    assert.ok(
+      sellerFulfillmentCode.includes("Network or server error updating fulfillment status"),
+      "Seller fulfillment UI must provide clear feedback on network or server error"
+    );
+  });
+});
+
+describe("Order Cancellation Policy After Seller Confirmation", () => {
+  const actionsPath = path.resolve(process.cwd(), "src/lib/orders/actions.ts");
+  const orderViewPath = path.resolve(process.cwd(), "src/app/orders/[id]/order-detail-view.tsx");
+
+  const actionsCode = fs.readFileSync(actionsPath, "utf-8");
+  const orderViewCode = fs.readFileSync(orderViewPath, "utf-8");
+
+  it("strictly forbids customer cancellation once any sub-order is confirmed, processing, dispatched, or delivered", () => {
+    assert.ok(
+      actionsCode.includes('so.status === "confirmed"') &&
+      actionsCode.includes('so.status === "processing"'),
+      "cancelCustomerOrderAction must check confirmed and processing states"
+    );
+    assert.ok(
+      actionsCode.includes("vendor has already confirmed and begun preparing your order"),
+      "Must explain vendor has already confirmed when rejecting"
+    );
+  });
+
+  it("evaluates sub-order statuses in UI canCancel condition", () => {
+    assert.ok(
+      orderViewCode.includes('order.status === "pending"'),
+      "UI canCancel requires pending parent order"
+    );
+    assert.ok(
+      orderViewCode.includes('so.status === "placed"'),
+      "UI canCancel requires sub-orders to be strictly placed"
+    );
+  });
+});
+
+describe("SH-QA-019: Wishlist Remote Image Optimization & Graceful Fallback", () => {
+  const wishlistPagePath = path.resolve(process.cwd(), "src/app/wishlist/page.tsx");
+  const nextConfigPath = path.resolve(process.cwd(), "next.config.ts");
+  const wishlistActionsPath = path.resolve(process.cwd(), "src/lib/wishlist/actions.ts");
+
+  const wishlistPageCode = fs.readFileSync(wishlistPagePath, "utf-8");
+  const nextConfigCode = fs.readFileSync(nextConfigPath, "utf-8");
+  const wishlistActionsCode = fs.readFileSync(wishlistActionsPath, "utf-8");
+
+  it("configures Supabase remotePatterns in next.config.ts", () => {
+    assert.ok(
+      nextConfigCode.includes("remotePatterns") &&
+      nextConfigCode.includes("supabase.co"),
+      "next.config.ts must allow Supabase image domains"
+    );
+  });
+
+  it("uses unoptimized flag and onError fallback in Wishlist view", () => {
+    assert.ok(
+      wishlistPageCode.includes("unoptimized"),
+      "Wishlist image must specify unoptimized attribute"
+    );
+    assert.ok(
+      wishlistPageCode.includes("onError="),
+      "Wishlist image must handle onError gracefully"
+    );
+  });
+
+  it("resolves public storage URLs cleanly in wishlist actions", () => {
+    assert.ok(
+      wishlistActionsCode.includes("getPublicUrl") || wishlistActionsCode.includes("storage/v1/object/public"),
+      "Wishlist actions must produce valid public URLs"
+    );
+  });
+});
+
+describe("SH-QA-020: Mobile Navigation Hierarchy & Duplicate Elimination", () => {
+  const navbarPath = path.resolve(process.cwd(), "src/components/layout/navbar.tsx");
+  const authNavPath = path.resolve(process.cwd(), "src/components/layout/auth-nav.tsx");
+
+  const navbarCode = fs.readFileSync(navbarPath, "utf-8");
+  const authNavCode = fs.readFileSync(authNavPath, "utf-8");
+
+  it("removes duplicate wishlist and notification buttons from navbar mobile sheet", () => {
+    const mobileMenuMatch = navbarCode.match(/\{mobileMenuOpen && \(([\s\S]*?)\)\}/);
+    const mobileMenuSection = mobileMenuMatch ? mobileMenuMatch[1] : "";
+    assert.ok(
+      !mobileMenuSection.includes('href="/account/notifications"') &&
+      !mobileMenuSection.includes('href="/wishlist"'),
+      "Navbar mobile sheet must not duplicate wishlist or notifications"
+    );
+  });
+
+  it("organizes auth-nav mobile drawer into clear labeled groups with min 44px touch targets", () => {
+    assert.ok(
+      authNavCode.includes("Customer Account"),
+      "Must have Customer Account group label"
+    );
+    assert.ok(
+      authNavCode.includes("Seller Center"),
+      "Must have Seller Center group label"
+    );
+    assert.ok(
+      authNavCode.includes("min-h-[44px]"),
+      "Must enforce minimum 44px touch targets for mobile accessibility"
+    );
+  });
+});
+
+describe("SH-QA-021: Seller Dashboard Mobile Quick Actions Grid", () => {
+  const sellerDashboardPath = path.resolve(process.cwd(), "src/app/seller/dashboard/page.tsx");
+  const sellerDashboardCode = fs.readFileSync(sellerDashboardPath, "utf-8");
+
+  it("renders Add Product button full-width on mobile and auto on desktop", () => {
+    assert.ok(
+      sellerDashboardCode.includes("w-full sm:w-auto inline-flex items-center justify-center") &&
+      sellerDashboardCode.includes("Add Product"),
+      "Add Product must be full-width on mobile"
+    );
+  });
+
+  it("arranges secondary seller actions in a 2-column mobile grid", () => {
+    assert.ok(
+      sellerDashboardCode.includes("grid grid-cols-2 gap-2 w-full sm:flex sm:flex-wrap sm:w-auto"),
+      "Quick actions must display as 2-column grid on mobile and flex-wrap on desktop"
+    );
+    assert.ok(
+      sellerDashboardCode.includes("My Products") &&
+      sellerDashboardCode.includes("Shop Settings") &&
+      sellerDashboardCode.includes("Earnings &amp; Payouts") &&
+      sellerDashboardCode.includes("My Account"),
+      "Must include all four key seller shortcuts"
+    );
+  });
+});

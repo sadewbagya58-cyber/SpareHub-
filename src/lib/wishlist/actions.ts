@@ -64,10 +64,24 @@ export async function getWishlistAction(): Promise<{
     let imageUrl: string | null = null;
 
     if (p && Array.isArray(p.product_images) && p.product_images.length > 0) {
-      const primary =
-        p.product_images.find((img: { is_primary: boolean }) => img.is_primary) ||
-        p.product_images[0];
-      imageUrl = primary?.image_url || null;
+      const sorted = [...p.product_images].sort(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (a: any, b: any) =>
+          (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0) ||
+          (a.display_order ?? 0) - (b.display_order ?? 0)
+      );
+      const rawUrl = sorted[0]?.image_url?.trim();
+      if (rawUrl) {
+        if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+          imageUrl = rawUrl;
+        } else if (rawUrl.startsWith("/storage/")) {
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+          imageUrl = `${supabaseUrl.replace(/\/$/, "")}${rawUrl}`;
+        } else {
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+          imageUrl = `${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/public/product-images/${rawUrl.replace(/^\//, "")}`;
+        }
+      }
     }
 
     return {

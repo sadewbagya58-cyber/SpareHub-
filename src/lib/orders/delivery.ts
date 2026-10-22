@@ -97,10 +97,18 @@ export function calculateShopDeliveryFee(
     };
   }
 
-  // 5. Check district-specific delivery fee override
+  // 5. Check district-specific delivery fee override (case-insensitive & trimmed)
   const districtFees = shop.district_delivery_fees;
   if (districtFees && typeof districtFees === "object") {
-    const override = districtFees[normalizedDistrict];
+    let override: number | undefined = districtFees[normalizedDistrict];
+    if (override === undefined) {
+      for (const [k, v] of Object.entries(districtFees)) {
+        if (k.trim().toLowerCase() === normalizedDistrict) {
+          override = Number(v);
+          break;
+        }
+      }
+    }
     if (typeof override === "number" && !isNaN(override) && override >= 0) {
       return {
         allowed: true,

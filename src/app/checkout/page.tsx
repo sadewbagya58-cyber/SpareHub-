@@ -59,7 +59,13 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
           name,
           slug,
           district,
-          status
+          status,
+          delivery_enabled,
+          default_delivery_fee_minor,
+          district_delivery_fees,
+          free_delivery_threshold_minor,
+          supported_districts,
+          estimated_delivery_days
         )
       `)
       .eq("id", buyNow)
@@ -113,6 +119,12 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
       shopName: s?.name || "Verified Vendor",
       shopSlug: s?.slug,
       shopDistrict: s?.district,
+      deliveryEnabled: s?.delivery_enabled ?? true,
+      defaultDeliveryFeeMinor: Number(s?.default_delivery_fee_minor) || 0,
+      districtDeliveryFees: s?.district_delivery_fees || null,
+      freeDeliveryThresholdMinor: s?.free_delivery_threshold_minor ? Number(s.free_delivery_threshold_minor) : null,
+      supportedDistricts: s?.supported_districts || null,
+      estimatedDeliveryDays: s?.estimated_delivery_days || "2-4 business days",
       items: [singleItem],
       subtotalMinorUnits: singleItem.priceMinorUnits * buyQty,
     };

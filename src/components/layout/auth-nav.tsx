@@ -106,21 +106,37 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
   if (!user) {
     if (isMobile) {
       return (
-        <div className="pt-2 border-t border-sparehub-border space-y-2">
-          <Link
-            href="/login"
-            onClick={onNavigate}
-            className="flex items-center justify-center w-full py-2.5 rounded-lg bg-sparehub-dark text-white text-xs font-bold"
-          >
-            Sign In
-          </Link>
-          <Link
-            href="/register"
-            onClick={onNavigate}
-            className="flex items-center justify-center w-full py-2.5 rounded-lg border border-sparehub-border text-sparehub-dark text-xs font-bold hover:bg-sparehub-light"
-          >
-            Register Account
-          </Link>
+        <div className="pt-3 border-t border-sparehub-border space-y-3">
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2 block">
+              Vendor Store
+            </span>
+            <Link
+              href="/sell"
+              onClick={onNavigate}
+              className="px-3 min-h-[44px] rounded-xl text-xs font-semibold text-sparehub-orange hover:bg-orange-50 flex items-center justify-between border border-sparehub-orange/30 bg-orange-50/50 transition-colors"
+            >
+              <span>Open a Shop on SpareHub</span>
+              <Store className="w-4 h-4 text-sparehub-orange shrink-0" />
+            </Link>
+          </div>
+
+          <div className="space-y-2 pt-1">
+            <Link
+              href="/login"
+              onClick={onNavigate}
+              className="flex items-center justify-center w-full min-h-[44px] rounded-xl bg-sparehub-dark text-white text-xs font-bold active:scale-[0.98] transition-transform"
+            >
+              Sign In to Your Account
+            </Link>
+            <Link
+              href="/register"
+              onClick={onNavigate}
+              className="flex items-center justify-center w-full min-h-[44px] rounded-xl border border-sparehub-border text-sparehub-dark text-xs font-bold hover:bg-sparehub-light active:scale-[0.98] transition-all"
+            >
+              Register New Account
+            </Link>
+          </div>
         </div>
       );
     }
@@ -141,139 +157,179 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
   // Mobile rendering when user is logged in
   if (isMobile) {
     return (
-      <div className="pt-3 border-t border-sparehub-border space-y-2">
-        <div className="px-3 py-2 bg-sparehub-light rounded-lg">
-          <p className="text-xs font-bold text-sparehub-dark truncate">
-            {profile?.full_name || user.email}
-          </p>
-          <div className="flex items-center gap-1 mt-1">
-            {roles.map((r) => (
-              <Badge key={r} variant="neutral" className="text-[9px] uppercase">
-                {r.replace("_", " ")}
-              </Badge>
-            ))}
+      <div className="pt-3 border-t border-sparehub-border space-y-4">
+        {/* User Identity Summary */}
+        <div className="p-3 bg-sparehub-light rounded-xl border border-sparehub-border/60">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-sparehub-dark text-white flex items-center justify-center font-black text-xs shrink-0">
+              {(profile?.full_name || user.email || "U").charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-sparehub-dark truncate">
+                {profile?.full_name || user.email}
+              </p>
+              <p className="text-[10px] text-gray-400 truncate font-mono">
+                {user.email}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-1 shrink-0">
+              {roles.map((r) => (
+                <Badge key={r} variant="neutral" className="text-[9px] uppercase px-1.5 py-0.5">
+                  {r.replace("_", " ")}
+                </Badge>
+              ))}
+            </div>
           </div>
         </div>
 
-        <Link
-          href="/account"
-          onClick={onNavigate}
-          className="px-3 py-2 rounded-md text-xs font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center gap-2"
-        >
-          <User className="w-4 h-4 text-gray-400" />
-          My Profile & Settings
-        </Link>
+        {/* Customer Account Group */}
+        <div className="space-y-1">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2 block">
+            Customer Account
+          </span>
+          <div className="space-y-0.5">
+            <Link
+              href="/account"
+              onClick={onNavigate}
+              className="px-3 min-h-[44px] rounded-xl text-xs font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center gap-2.5 transition-colors"
+            >
+              <User className="w-4 h-4 text-gray-400 shrink-0" />
+              My Profile &amp; Settings
+            </Link>
 
-        <Link
-          href="/account/orders"
-          onClick={onNavigate}
-          className="px-3 py-2 rounded-md text-xs font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center gap-2"
-        >
-          <Package className="w-4 h-4 text-gray-400" />
-          My Orders & Tracking
-        </Link>
+            <Link
+              href="/account/orders"
+              onClick={onNavigate}
+              className="px-3 min-h-[44px] rounded-xl text-xs font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center gap-2.5 transition-colors"
+            >
+              <Package className="w-4 h-4 text-gray-400 shrink-0" />
+              My Orders &amp; Tracking
+            </Link>
 
-        <Link
-          href="/wishlist"
-          onClick={onNavigate}
-          className="px-3 py-2 rounded-md text-xs font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center gap-2"
-        >
-          <Heart className="w-4 h-4 text-gray-400" />
-          Saved Wishlist
-        </Link>
+            <Link
+              href="/wishlist"
+              onClick={onNavigate}
+              className="px-3 min-h-[44px] rounded-xl text-xs font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center gap-2.5 transition-colors"
+            >
+              <Heart className="w-4 h-4 text-gray-400 shrink-0" />
+              Saved Wishlist
+            </Link>
 
-        <Link
-          href="/account/notifications"
-          onClick={onNavigate}
-          className="px-3 py-2 rounded-md text-xs font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center gap-2"
-        >
-          <Bell className="w-4 h-4 text-gray-400" />
-          Notifications
-        </Link>
+            <Link
+              href="/account/notifications"
+              onClick={onNavigate}
+              className="px-3 min-h-[44px] rounded-xl text-xs font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center gap-2.5 transition-colors"
+            >
+              <Bell className="w-4 h-4 text-gray-400 shrink-0" />
+              Notifications
+            </Link>
+          </div>
+        </div>
 
+        {/* Seller Center Group (only if seller) */}
         {isSeller && (
-          <>
-            <Link
-              href="/seller/dashboard"
-              onClick={onNavigate}
-              className="px-3 py-2 rounded-md text-xs font-medium text-amber-900 hover:bg-amber-50 flex items-center gap-2"
-            >
-              <Store className="w-4 h-4 text-amber-600" />
-              Seller Dashboard
-            </Link>
-            <Link
-              href="/seller/earnings"
-              onClick={onNavigate}
-              className="px-3 py-2 rounded-md text-xs font-medium text-emerald-900 hover:bg-emerald-50 flex items-center gap-2"
-            >
-              <DollarSign className="w-4 h-4 text-emerald-600" />
-              Earnings &amp; Payouts
-            </Link>
-            <Link
-              href="/seller/shop"
-              onClick={onNavigate}
-              className="px-3 py-2 rounded-md text-xs font-medium text-amber-900 hover:bg-amber-50 flex items-center gap-2"
-            >
-              <Settings className="w-4 h-4 text-amber-600" />
-              Shop Settings
-            </Link>
-          </>
+          <div className="space-y-1 pt-2 border-t border-sparehub-border/60">
+            <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider px-2 block">
+              Seller Center
+            </span>
+            <div className="space-y-0.5">
+              <Link
+                href="/seller/dashboard"
+                onClick={onNavigate}
+                className="px-3 min-h-[44px] rounded-xl text-xs font-medium text-amber-950 hover:bg-amber-50 flex items-center gap-2.5 transition-colors"
+              >
+                <Store className="w-4 h-4 text-amber-600 shrink-0" />
+                Seller Dashboard
+              </Link>
+              <Link
+                href="/seller/earnings"
+                onClick={onNavigate}
+                className="px-3 min-h-[44px] rounded-xl text-xs font-medium text-emerald-950 hover:bg-emerald-50 flex items-center gap-2.5 transition-colors"
+              >
+                <DollarSign className="w-4 h-4 text-emerald-600 shrink-0" />
+                Earnings &amp; Payouts
+              </Link>
+              <Link
+                href="/seller/shop"
+                onClick={onNavigate}
+                className="px-3 min-h-[44px] rounded-xl text-xs font-medium text-amber-950 hover:bg-amber-50 flex items-center gap-2.5 transition-colors"
+              >
+                <Settings className="w-4 h-4 text-amber-600 shrink-0" />
+                Shop Settings
+              </Link>
+            </div>
+          </div>
         )}
 
+        {/* Seller Onboarding (only if NOT seller) */}
         {!isSeller && (
-          <Link
-            href="/sell"
-            onClick={onNavigate}
-            className="px-3 py-2 rounded-md text-xs font-medium text-sparehub-orange hover:bg-sparehub-orange-light flex items-center gap-2"
-          >
-            <Store className="w-4 h-4" />
-            Open a Seller Shop
-          </Link>
+          <div className="space-y-1 pt-2 border-t border-sparehub-border/60">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2 block">
+              Vendor Store
+            </span>
+            <Link
+              href="/sell"
+              onClick={onNavigate}
+              className="px-3 min-h-[44px] rounded-xl text-xs font-semibold text-sparehub-orange hover:bg-orange-50 flex items-center justify-between border border-sparehub-orange/30 bg-orange-50/50 transition-colors"
+            >
+              <span>Open a Shop on SpareHub</span>
+              <Store className="w-4 h-4 text-sparehub-orange shrink-0" />
+            </Link>
+          </div>
         )}
 
+        {/* Administrator Group (only if admin) */}
         {isAdmin && (
-          <>
-            <Link
-              href="/admin/dashboard"
-              onClick={onNavigate}
-              className="px-3 py-2 rounded-md text-xs font-medium text-red-900 hover:bg-red-50 flex items-center gap-2"
-            >
-              <ShieldCheck className="w-4 h-4 text-red-600" />
-              Admin Control Center
-            </Link>
-            <Link
-              href="/admin/commissions"
-              onClick={onNavigate}
-              className="px-3 py-2 rounded-md text-xs font-medium text-purple-900 hover:bg-purple-50 flex items-center gap-2"
-            >
-              <Percent className="w-4 h-4 text-purple-600" />
-              Commission Rules
-            </Link>
-            <Link
-              href="/admin/financials"
-              onClick={onNavigate}
-              className="px-3 py-2 rounded-md text-xs font-medium text-emerald-900 hover:bg-emerald-50 flex items-center gap-2"
-            >
-              <DollarSign className="w-4 h-4 text-emerald-600" />
-              Financial Ledger
-            </Link>
-          </>
+          <div className="space-y-1 pt-2 border-t border-sparehub-border/60">
+            <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider px-2 block">
+              Platform Administration
+            </span>
+            <div className="space-y-0.5">
+              <Link
+                href="/admin/dashboard"
+                onClick={onNavigate}
+                className="px-3 min-h-[44px] rounded-xl text-xs font-medium text-red-950 hover:bg-red-50 flex items-center gap-2.5 transition-colors"
+              >
+                <ShieldCheck className="w-4 h-4 text-red-600 shrink-0" />
+                Admin Control Center
+              </Link>
+              <Link
+                href="/admin/commissions"
+                onClick={onNavigate}
+                className="px-3 min-h-[44px] rounded-xl text-xs font-medium text-purple-950 hover:bg-purple-50 flex items-center gap-2.5 transition-colors"
+              >
+                <Percent className="w-4 h-4 text-purple-600 shrink-0" />
+                Commission Rules
+              </Link>
+              <Link
+                href="/admin/financials"
+                onClick={onNavigate}
+                className="px-3 min-h-[44px] rounded-xl text-xs font-medium text-emerald-950 hover:bg-emerald-50 flex items-center gap-2.5 transition-colors"
+              >
+                <DollarSign className="w-4 h-4 text-emerald-600 shrink-0" />
+                Financial Ledger
+              </Link>
+            </div>
+          </div>
         )}
 
-        <form action={logoutAction} onSubmit={() => setIsLoggingOut(true)}>
-          <button
-            type="submit"
-            disabled={isLoggingOut}
-            className="w-full text-left px-3 py-2 rounded-md text-xs font-semibold text-sparehub-error hover:bg-red-50 flex items-center gap-2 disabled:opacity-50 transition-colors"
-          >
-            {isLoggingOut ? (
-              <Loader2 className="w-4 h-4 animate-spin text-sparehub-error" />
-            ) : (
-              <LogOut className="w-4 h-4" />
-            )}
-            {isLoggingOut ? "Signing Out..." : "Sign Out"}
-          </button>
-        </form>
+        {/* Session Actions */}
+        <div className="pt-2 border-t border-sparehub-border/60">
+          <form action={logoutAction} onSubmit={() => setIsLoggingOut(true)}>
+            <button
+              type="submit"
+              disabled={isLoggingOut}
+              className="w-full text-left px-3 min-h-[44px] rounded-xl text-xs font-semibold text-sparehub-error hover:bg-red-50 flex items-center gap-2.5 disabled:opacity-50 transition-colors cursor-pointer"
+            >
+              {isLoggingOut ? (
+                <Loader2 className="w-4 h-4 animate-spin text-sparehub-error" />
+              ) : (
+                <LogOut className="w-4 h-4" />
+              )}
+              {isLoggingOut ? "Signing Out..." : "Sign Out"}
+            </button>
+          </form>
+        </div>
       </div>
     );
   }
@@ -331,7 +387,7 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-sparehub-dark hover:bg-sparehub-light transition-colors"
           >
             <Package className="w-4 h-4 text-gray-400" />
-            My Orders
+            My Orders & Tracking
           </Link>
 
           <Link

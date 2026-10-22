@@ -7,7 +7,6 @@ import {
   Heart,
   ShoppingCart,
   Trash2,
-  Package,
   Store,
   ChevronRight,
   ArrowRight,
@@ -27,6 +26,7 @@ export default function WishlistPage() {
   const [cartAddingId, setCartAddingId] = useState<string | null>(null);
   const [addedMap, setAddedMap] = useState<Record<string, boolean>>({});
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
+  const [imageErrorMap, setImageErrorMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let isMounted = true;
@@ -157,18 +157,29 @@ export default function WishlistPage() {
                   className="bg-white rounded-2xl border border-sparehub-border overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
                 >
                   <div className="relative aspect-video bg-gray-50 border-b border-sparehub-border/60">
-                    {p.imageUrl ? (
+                    {p.imageUrl && !imageErrorMap[p.id] ? (
                       <Image
                         src={p.imageUrl}
                         alt={p.title}
                         fill
                         className="object-cover"
                         sizes="(max-width: 768px) 100vw, 33vw"
+                        unoptimized
+                        onError={() => setImageErrorMap((prev) => ({ ...prev, [p.id]: true }))}
                       />
                     ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                        <Package className="w-8 h-8 opacity-40 mb-1" />
-                        <span className="text-[11px]">No Image Available</span>
+                      <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-sparehub-light">
+                        <div className="w-10 h-10 rounded-full bg-white shadow-xs flex items-center justify-center text-sparehub-orange font-black text-base mb-1">
+                          ⚙️
+                        </div>
+                        <span className="text-[11px] font-semibold text-gray-500">
+                          {p.brandName || "Genuine Spare"}
+                        </span>
+                        {p.partNumber && (
+                          <span className="text-[10px] text-gray-400 font-mono">
+                            {p.partNumber}
+                          </span>
+                        )}
                       </div>
                     )}
 

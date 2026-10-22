@@ -16,7 +16,11 @@ import { Badge } from "@/components/ui/badge";
 import { SRI_LANKA_DISTRICTS } from "@/lib/constants";
 import { formatLKR } from "@/lib/utils";
 import type { CartResponse } from "@/lib/cart/actions";
-import { processCheckoutAction, type CheckoutPayload } from "@/lib/orders/actions";
+import {
+  processCheckoutAction,
+  verifyCheckoutAttemptAction,
+  type CheckoutPayload,
+} from "@/lib/orders/actions";
 import { calculateMultiVendorDeliverySummary } from "@/lib/orders/delivery";
 
 interface CheckoutFormProps {
@@ -123,7 +127,26 @@ export function CheckoutForm({
         router.push(`/orders/${res.orderId}`);
       }
     } catch {
-      setErrorMessage("A network or server error occurred. Please try again.");
+      // SH-QA-017 Idempotent lost-response recovery: check if order actually completed
+      try {
+        const verifyRes = await verifyCheckoutAttemptAction(idempotencyKey);
+        if (verifyRes?.orderId) {
+          if (!isBuyNow) {
+            window.dispatchEvent(
+              new CustomEvent("sparehub:cart-updated", {
+                detail: { count: 0 },
+              })
+            );
+          }
+          router.push(`/orders/${verifyRes.orderId}`);
+          return;
+        }
+      } catch {
+        // Recovery check also failed
+      }
+      setErrorMessage(
+        "A network connection error occurred while confirming your order. If you were charged or an order was placed, please check your orders page before retrying."
+      );
       setLoading(false);
     }
   };

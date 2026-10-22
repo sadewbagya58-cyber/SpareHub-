@@ -21,41 +21,46 @@ const LK_PHONE_REGEX = /^(?:\+94|0)(?:7[0-9]|1[1-9]|2[1-8]|3[1-8]|4[1-7]|5[1-7]|
  * Runs via createAdminClient to ensure multi-tenant visibility and avoid silent RLS drops.
  */
 export async function reconcileParentCustomerOrder(customerOrderId: string): Promise<string> {
-  const adminClient = createAdminClient();
-  const { data: allSiblings } = await adminClient
-    .from("seller_orders")
-    .select("status")
-    .eq("customer_order_id", customerOrderId);
+  try {
+    const adminClient = createAdminClient();
+    const { data: allSiblings } = await adminClient
+      .from("seller_orders")
+      .select("status")
+      .eq("customer_order_id", customerOrderId);
 
-  const statuses = (allSiblings || []).map((s: { status: string }) => s.status);
-  const newParentStatus = deriveParentOrderStatus(statuses);
+    const statuses = (allSiblings || []).map((s: { status: string }) => s.status);
+    const newParentStatus = deriveParentOrderStatus(statuses);
 
-  const { data: custOrder } = await adminClient
-    .from("customer_orders")
-    .select("payment_method, payment_status")
-    .eq("id", customerOrderId)
-    .single();
+    const { data: custOrder } = await adminClient
+      .from("customer_orders")
+      .select("payment_method, payment_status")
+      .eq("id", customerOrderId)
+      .single();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const updatePayload: any = {
-    status: newParentStatus,
-    updated_at: new Date().toISOString(),
-  };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updatePayload: any = {
+      status: newParentStatus,
+      updated_at: new Date().toISOString(),
+    };
 
-  if (custOrder?.payment_method === "cod") {
-    if (newParentStatus === "completed" && custOrder.payment_status === "cod_pending") {
-      updatePayload.payment_status = "captured";
-    } else if (newParentStatus === "cancelled" && custOrder.payment_status === "cod_pending") {
-      updatePayload.payment_status = "unpaid";
+    if (custOrder?.payment_method === "cod") {
+      if (newParentStatus === "completed" && custOrder.payment_status === "cod_pending") {
+        updatePayload.payment_status = "captured";
+      } else if (newParentStatus === "cancelled" && custOrder.payment_status === "cod_pending") {
+        updatePayload.payment_status = "unpaid";
+      }
     }
+
+    await adminClient
+      .from("customer_orders")
+      .update(updatePayload)
+      .eq("id", customerOrderId);
+
+    return newParentStatus;
+  } catch (err) {
+    console.error("Non-blocking error in reconcileParentCustomerOrder:", err);
+    return "pending";
   }
-
-  await adminClient
-    .from("customer_orders")
-    .update(updatePayload)
-    .eq("id", customerOrderId);
-
-  return newParentStatus;
 }
 
 export interface CheckoutPayload {
@@ -80,6 +85,37 @@ export interface CheckoutResult {
   orderId?: string;
   orderNumber?: string;
   totalGrandMinor?: number;
+}
+
+/**
+ * Verifies whether a given checkoutAttemptId already resulted in a successfully created customer order.
+ * Essential for recovering from lost/interrupted network responses without creating duplicates.
+ */
+export async function verifyCheckoutAttemptAction(attemptId: string): Promise<{
+  orderId?: string;
+  orderNumber?: string;
+  totalGrandMinor?: number;
+} | null> {
+  if (!attemptId?.trim()) return null;
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: order } = await supabase
+    .from("customer_orders")
+    .select("id, order_number, total_grand_minor")
+    .eq("customer_id", user.id)
+    .eq("checkout_attempt_id", attemptId.trim())
+    .maybeSingle();
+
+  if (!order) return null;
+  return {
+    orderId: order.id,
+    orderNumber: order.order_number,
+    totalGrandMinor: Number(order.total_grand_minor),
+  };
 }
 
 /**
@@ -128,11 +164,30 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
     return { success: false, message: "Please sign in to complete your checkout." };
   }
 
+  // 0. Idempotency Check: if checkoutAttemptId / idempotencyKey already produced an order, return it immediately
+  if (payload.idempotencyKey?.trim()) {
+    const { data: existingAttempt } = await supabase
+      .from("customer_orders")
+      .select("id, order_number, total_grand_minor")
+      .eq("customer_id", user.id)
+      .eq("checkout_attempt_id", payload.idempotencyKey.trim())
+      .maybeSingle();
+
+    if (existingAttempt) {
+      return {
+        success: true,
+        orderId: existingAttempt.id,
+        orderNumber: existingAttempt.order_number,
+        totalGrandMinor: Number(existingAttempt.total_grand_minor),
+      };
+    }
+  }
+
   // If Buy Now mode: handle isolated single-product checkout
   if (payload.isBuyNow && payload.buyNowProductId) {
     const buyQty = Math.max(1, Math.floor(Number(payload.buyNowQuantity) || 1));
 
-    // Try RPC with Buy Now parameters first
+    // Try RPC with Buy Now parameters and idempotency attempt ID first
     const { data: rpcData, error: rpcError } = await supabase.rpc("process_checkout_order", {
       p_shipping_full_name: fullName,
       p_shipping_phone: phone,
@@ -143,6 +198,7 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
       p_shipping_postal_code: payload.shippingPostalCode?.trim() || null,
       p_payment_method: payload.paymentMethod,
       p_customer_notes: payload.customerNotes?.trim() || null,
+      p_checkout_attempt_id: payload.idempotencyKey?.trim() || null,
       p_buy_now_product_id: payload.buyNowProductId,
       p_buy_now_quantity: buyQty,
     });
@@ -201,7 +257,7 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
           is_published,
           status,
           shop_id,
-          shops!inner (
+          shop:shops (
             id,
             name,
             status,
@@ -217,11 +273,12 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
         .maybeSingle();
 
       if (pErr || !p) {
+        console.error("Buy Now product query error:", pErr);
         return { success: false, message: "Selected product could not be found." };
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const s: any = p.shops;
+      const s: any = (p as any).shop || (p as any).shops;
       if (!p.is_published || p.status !== "active" || s?.status === "suspended") {
         return { success: false, message: "This product is currently unavailable for purchase." };
       }
@@ -234,7 +291,7 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
       }
 
       const merchandiseSubtotal = Number(p.price_minor_units) * buyQty;
-      const deliveryRes = calculateShopDeliveryFee(s, district, merchandiseSubtotal);
+      const deliveryRes = calculateShopDeliveryFee(s || { id: p.shop_id }, district, merchandiseSubtotal);
       if (!deliveryRes.allowed) {
         return {
           success: false,
@@ -272,6 +329,7 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
           total_delivery_fee_minor: deliveryFeeMinor,
           total_discount_minor: 0,
           total_grand_minor: orderTotalGrandMinor,
+          checkout_attempt_id: payload.idempotencyKey?.trim() || null,
         })
         .select("id, order_number, total_grand_minor")
         .single();
@@ -476,6 +534,7 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
     p_shipping_postal_code: payload.shippingPostalCode?.trim() || null,
     p_payment_method: payload.paymentMethod,
     p_customer_notes: payload.customerNotes?.trim() || null,
+    p_checkout_attempt_id: payload.idempotencyKey?.trim() || null,
   });
 
   if (rpcError) {
@@ -495,26 +554,41 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
   // 5. Persist shop-specific delivery fees if not handled natively by RPC
   let totalGrand = Number(res.total_grand_minor);
   if (deliverySummary && deliverySummary.totalDeliveryFeeMinor > 0) {
-    const admin = createAdminClient();
-    for (const sf of deliverySummary.shopFees) {
+    try {
+      const admin = createAdminClient();
+      for (const sf of deliverySummary.shopFees) {
+        await admin
+          .from("seller_orders")
+          .update({
+            delivery_fee_minor: sf.deliveryFeeMinor,
+            total_amount_minor: sf.merchandiseSubtotalMinor + sf.deliveryFeeMinor,
+          })
+          .eq("customer_order_id", res.customer_order_id)
+          .eq("shop_id", sf.shopId);
+      }
+      totalGrand = totalGrand + deliverySummary.totalDeliveryFeeMinor;
       await admin
-        .from("seller_orders")
+        .from("customer_orders")
         .update({
-          delivery_fee_minor: sf.deliveryFeeMinor,
-          total_amount_minor: sf.merchandiseSubtotalMinor + sf.deliveryFeeMinor,
+          total_delivery_fee_minor: deliverySummary.totalDeliveryFeeMinor,
+          total_grand_minor: totalGrand,
+          checkout_attempt_id: payload.idempotencyKey?.trim() || null,
         })
-        .eq("customer_order_id", res.customer_order_id)
-        .eq("shop_id", sf.shopId);
+        .eq("id", res.customer_order_id);
+      res.total_grand_minor = totalGrand;
+    } catch (adminErr) {
+      console.error("Non-blocking delivery fee persistence via admin client:", adminErr);
     }
-    totalGrand = totalGrand + deliverySummary.totalDeliveryFeeMinor;
-    await admin
-      .from("customer_orders")
-      .update({
-        total_delivery_fee_minor: deliverySummary.totalDeliveryFeeMinor,
-        total_grand_minor: totalGrand,
-      })
-      .eq("id", res.customer_order_id);
-    res.total_grand_minor = totalGrand;
+  } else if (payload.idempotencyKey?.trim()) {
+    try {
+      const admin = createAdminClient();
+      await admin
+        .from("customer_orders")
+        .update({ checkout_attempt_id: payload.idempotencyKey.trim() })
+        .eq("id", res.customer_order_id);
+    } catch {
+      // non-blocking
+    }
   }
 
   // 4. If online payment method selected, create payment record entry
@@ -898,31 +972,47 @@ export async function cancelCustomerOrderAction(orderId: string, reason: string)
     return { success: false, message: "No sub-orders found for this order." };
   }
 
-  // SH-QA-012: Check if any sub-order is already dispatched or delivered
-  const hasDelivered = subOrders.some((so) => so.status === "delivered");
-  if (hasDelivered) {
+  // Strict cancellation restriction:
+  // Once ANY seller sub-order reaches 'confirmed', 'processing', 'dispatched', or 'delivered', ordinary customer cancellation is prohibited.
+  const hasDeliveredSubOrder = subOrders.some((so) => so.status === "delivered");
+  if (hasDeliveredSubOrder) {
     return {
       success: false,
-      message: "Order cannot be cancelled because one or more packages have already been delivered.",
+      message: "One or more packages in this order have already been delivered. Cancellation is not permitted.",
     };
   }
 
-  const hasDispatched = subOrders.some((so) => so.status === "dispatched");
-  if (hasDispatched) {
+  const hasDispatchedSubOrder = subOrders.some((so) => so.status === "dispatched");
+  if (hasDispatchedSubOrder) {
     return {
       success: false,
-      message: "Order cannot be cancelled because one or more packages have already been dispatched.",
+      message: "One or more packages in this order have already been dispatched. Cancellation is not permitted.",
     };
   }
 
-  // Only allow cancellation if all sub-orders are still in 'placed' or 'confirmed'
+  const hasConfirmedOrBeyond = subOrders.some(
+    (so) =>
+      so.status === "confirmed" ||
+      so.status === "processing" ||
+      so.status === "returned"
+  );
+  if (hasConfirmedOrBeyond) {
+    return {
+      success: false,
+      message:
+        "Order cannot be cancelled because the vendor has already confirmed and begun preparing your order. Please contact vendor or customer support for return requests.",
+    };
+  }
+
+  // Only allow cancellation if all sub-orders are still in 'placed' (or already 'cancelled')
   const isCancellable = subOrders.every(
-    (so) => so.status === "placed" || so.status === "confirmed" || so.status === "cancelled"
+    (so) => so.status === "placed" || so.status === "cancelled"
   );
   if (!isCancellable) {
     return {
       success: false,
-      message: "Order cannot be cancelled because vendor packaging has already begun. Please contact the vendor directly.",
+      message:
+        "Order cannot be cancelled because vendor packaging has already begun. Please contact the vendor directly.",
     };
   }
 
@@ -1360,6 +1450,11 @@ export async function updateSellerOrderStatusAction(
   // processing -> dispatched, cancelled
   // dispatched -> delivered, returned
   const currentStatus = so.status;
+  // Idempotent guard: if already in the target status, succeed immediately
+  if (targetStatus === currentStatus) {
+    return { success: true, message: `Order is already in "${targetStatus}" status.` };
+  }
+
   const ALLOWED_TRANSITIONS: Record<string, string[]> = {
     placed: ["confirmed", "cancelled"],
     confirmed: ["processing", "cancelled"],
@@ -1437,8 +1532,12 @@ export async function updateSellerOrderStatusAction(
     notes: historyNotes,
   });
 
-  // Reconcile parent customer order status and payment status via adminClient
-  await reconcileParentCustomerOrder(so.customer_order_id);
+  // Reconcile parent customer order status and payment status via adminClient (safe non-blocking)
+  try {
+    await reconcileParentCustomerOrder(so.customer_order_id);
+  } catch (recErr) {
+    console.error("Non-blocking parent order reconciliation error:", recErr);
+  }
 
   // Reconcile commission ledger status
   try {

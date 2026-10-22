@@ -11,8 +11,7 @@ import {
   MapPin, 
   ShieldCheck, 
   Phone,
-  Heart,
-  Bell
+  Heart
 } from "lucide-react";
 import { AuthNav } from "./auth-nav";
 import { CartNavBadge } from "./cart-nav-badge";
@@ -143,61 +142,45 @@ export function Navbar() {
 
       {/* Mobile Menu Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-sparehub-border bg-white px-4 pt-3 pb-6 space-y-4 animate-in slide-in-from-top-2 duration-200">
+        <div className="md:hidden border-t border-sparehub-border bg-white px-4 pt-3 pb-8 space-y-4 max-h-[calc(100vh-4rem)] overflow-y-auto animate-in slide-in-from-top-2 duration-200">
+          {/* Prominent Search Bar */}
           <form action="/search" method="GET" className="relative w-full">
             <input
               type="text"
               name="q"
-              placeholder="Search part or OEM number..."
-              className="w-full rounded-lg border border-sparehub-border bg-sparehub-light py-2 pl-9 pr-3 text-sm text-sparehub-dark focus:bg-white focus:outline-none focus:ring-2 focus:ring-sparehub-orange"
+              placeholder="Search by part name or OEM code..."
+              className="w-full rounded-xl border border-sparehub-border bg-sparehub-light py-2.5 pl-10 pr-4 text-xs text-sparehub-dark focus:bg-white focus:outline-none focus:ring-2 focus:ring-sparehub-orange"
             />
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           </form>
 
-          <nav className="flex flex-col space-y-2">
-            <Link
-              href="/"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 rounded-md text-sm font-medium text-sparehub-dark hover:bg-sparehub-light"
-            >
-              Home Marketplace
-            </Link>
-            <Link
-              href="/search"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 rounded-md text-sm font-medium text-sparehub-dark hover:bg-sparehub-light"
-            >
-              All Spare Parts
-            </Link>
-            <Link
-              href="/sell"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 rounded-md text-sm font-medium text-sparehub-orange hover:bg-sparehub-orange-light flex items-center justify-between"
-            >
-              <span>Sell on SpareHub (Open Shop)</span>
-              <Store className="w-4 h-4" />
-            </Link>
+          {/* Section: Marketplace */}
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-2 block">
+              Marketplace
+            </span>
+            <div className="space-y-0.5">
+              <Link
+                href="/"
+                onClick={() => setMobileMenuOpen(false)}
+                className="px-3 min-h-[44px] rounded-xl text-xs font-semibold text-sparehub-dark hover:bg-sparehub-light flex items-center gap-2.5 transition-colors"
+              >
+                <Store className="w-4 h-4 text-gray-400 shrink-0" />
+                Home Marketplace
+              </Link>
+              <Link
+                href="/search"
+                onClick={() => setMobileMenuOpen(false)}
+                className="px-3 min-h-[44px] rounded-xl text-xs font-semibold text-sparehub-dark hover:bg-sparehub-light flex items-center gap-2.5 transition-colors"
+              >
+                <Wrench className="w-4 h-4 text-gray-400 shrink-0" />
+                All Spare Parts
+              </Link>
+            </div>
+          </div>
 
-            <Link
-              href="/wishlist"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 rounded-md text-sm font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center justify-between"
-            >
-              <span>Saved Wishlist</span>
-              <Heart className="w-4 h-4 text-gray-500" />
-            </Link>
-
-            <Link
-              href="/account/notifications"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 rounded-md text-sm font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center justify-between"
-            >
-              <span>Notifications</span>
-              <Bell className="w-4 h-4 text-gray-500" />
-            </Link>
-            
-            <AuthNav isMobile onNavigate={() => setMobileMenuOpen(false)} />
-          </nav>
+          {/* User Account / Seller / Admin / Auth Section */}
+          <AuthNav isMobile onNavigate={() => setMobileMenuOpen(false)} />
         </div>
       )}
     </header>

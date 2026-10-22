@@ -34,15 +34,18 @@ export function OrderDetailView({ order }: OrderDetailViewProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const hasNonCancellableSubOrder = (order.sellerOrders || []).some(
-    (so) => so.status === "dispatched" || so.status === "delivered" || so.status === "cancelled" || so.status === "returned"
+    (so) =>
+      so.status === "confirmed" ||
+      so.status === "processing" ||
+      so.status === "dispatched" || so.status === "delivered" ||
+      so.status === "cancelled" ||
+      so.status === "returned"
   );
   const canCancel =
-    order.status !== "cancelled" &&
-    order.status !== "completed" &&
-    order.status !== "partially_dispatched" &&
+    order.status === "pending" &&
     !hasNonCancellableSubOrder &&
     (order.sellerOrders || []).length > 0 &&
-    (order.sellerOrders || []).every((so) => so.status === "placed" || so.status === "confirmed");
+    (order.sellerOrders || []).every((so) => so.status === "placed");
 
   const handleCancelOrder = async () => {
     setCancelling(true);

@@ -142,54 +142,63 @@ export default async function SellerDashboardPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 w-full lg:w-auto">
             {shop ? (
               <>
                 <Link
                   href="/seller/products/new"
-                  className="w-full sm:w-auto inline-flex items-center justify-center font-medium rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover shadow-sm text-xs px-3 py-1.5 gap-1.5 h-8 transition-all active:scale-[0.97]"
+                  className="w-full sm:w-auto inline-flex items-center justify-center font-medium rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover shadow-sm text-xs px-3.5 py-2 sm:py-1.5 gap-1.5 h-10 sm:h-8 transition-all active:scale-[0.97]"
                 >
                   <PlusCircle className="w-4 h-4 shrink-0" />
                   Add Product
                 </Link>
-                <Link
-                  href="/seller/products"
-                  className="flex-1 sm:flex-initial inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-3 py-1.5 gap-1.5 h-8 transition-all active:scale-[0.97]"
-                >
-                  <Package className="w-4 h-4 shrink-0" />
-                  My Products ({productCount})
-                </Link>
-                <Link
-                  href="/seller/shop"
-                  className="flex-1 sm:flex-initial inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-3 py-1.5 gap-1.5 h-8 transition-all active:scale-[0.97]"
-                >
-                  <Settings className="w-4 h-4 shrink-0" />
-                  Shop Settings
-                </Link>
-                <Link
-                  href="/seller/earnings"
-                  className="flex-1 sm:flex-initial inline-flex items-center justify-center font-medium rounded-lg border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50 text-xs px-3 py-1.5 gap-1.5 h-8 transition-all active:scale-[0.97]"
-                >
-                  <DollarSign className="w-4 h-4 shrink-0 text-emerald-600" />
-                  Earnings &amp; Payouts
-                </Link>
+                <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:flex-wrap sm:w-auto">
+                  <Link
+                    href="/seller/products"
+                    className="inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-2.5 py-1.5 gap-1.5 h-10 sm:h-8 transition-all active:scale-[0.97] text-center"
+                  >
+                    <Package className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">My Products ({productCount})</span>
+                  </Link>
+                  <Link
+                    href="/seller/shop"
+                    className="inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-2.5 py-1.5 gap-1.5 h-10 sm:h-8 transition-all active:scale-[0.97] text-center"
+                  >
+                    <Settings className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">Shop Settings</span>
+                  </Link>
+                  <Link
+                    href="/seller/earnings"
+                    className="inline-flex items-center justify-center font-medium rounded-lg border border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50 text-xs px-2.5 py-1.5 gap-1.5 h-10 sm:h-8 transition-all active:scale-[0.97] text-center"
+                  >
+                    <DollarSign className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                    <span className="truncate">Earnings &amp; Payouts</span>
+                  </Link>
+                  <Link
+                    href="/account"
+                    className="inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-2.5 py-1.5 h-10 sm:h-8 transition-all active:scale-[0.97] text-center"
+                  >
+                    <span className="truncate">My Account</span>
+                  </Link>
+                </div>
               </>
             ) : (
-              <Link
-                href="/seller/shop/new"
-                className="w-full sm:w-auto inline-flex items-center justify-center font-medium rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover shadow-sm text-xs px-3 py-1.5 gap-1.5 h-8 transition-all active:scale-[0.97]"
-              >
-                <PlusCircle className="w-4 h-4 shrink-0" />
-                Create Your Shop
-              </Link>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Link
+                  href="/seller/shop/new"
+                  className="w-full sm:w-auto inline-flex items-center justify-center font-medium rounded-lg bg-sparehub-orange text-white hover:bg-sparehub-orange-hover shadow-sm text-xs px-3.5 py-2 sm:py-1.5 gap-1.5 h-10 sm:h-8 transition-all active:scale-[0.97]"
+                >
+                  <PlusCircle className="w-4 h-4 shrink-0" />
+                  Create Your Shop
+                </Link>
+                <Link
+                  href="/account"
+                  className="w-full sm:w-auto inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-dark hover:bg-sparehub-light text-xs px-3 py-1.5 h-10 sm:h-8 transition-all active:scale-[0.97]"
+                >
+                  My Account
+                </Link>
+              </div>
             )}
-
-            <Link
-              href="/account"
-              className="w-full sm:w-auto inline-flex items-center justify-center font-medium rounded-lg text-sparehub-dark hover:bg-sparehub-light text-xs px-3 py-1.5 h-8 transition-all active:scale-[0.97]"
-            >
-              Account
-            </Link>
           </div>
         </div>
       </div>
