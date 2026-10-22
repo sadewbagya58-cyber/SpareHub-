@@ -268,3 +268,30 @@ export function extractOwnedStoragePath(
   return decodedPath;
 }
 
+export const shopDeliverySettingsSchema = z.object({
+  shopId: z.string().uuid("Invalid shop identifier"),
+  delivery_enabled: z.boolean(),
+  default_delivery_fee_lkr: z
+    .number()
+    .min(0, "Default delivery fee cannot be negative")
+    .max(100000, "Delivery fee is too high"),
+  free_delivery_threshold_lkr: z
+    .number()
+    .min(0, "Free delivery threshold cannot be negative")
+    .max(10000000, "Threshold is too high")
+    .nullable()
+    .optional(),
+  district_fees_lkr: z
+    .record(z.string(), z.number().min(0, "District delivery fee cannot be negative"))
+    .optional(),
+  supported_districts: z.array(z.string()).nullable().optional(),
+  estimated_delivery_days: z
+    .string()
+    .trim()
+    .max(50, "Estimated delivery days text is too long")
+    .optional(),
+});
+
+export type ShopDeliverySettingsInput = z.infer<typeof shopDeliverySettingsSchema>;
+
+

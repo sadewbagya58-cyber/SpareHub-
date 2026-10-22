@@ -32,14 +32,14 @@ export function ProductGallery({ images, title }: ProductGalleryProps) {
   const activeImage = images[selectedIndex] || images[0];
 
   return (
-    <div className="space-y-4">
-      {/* Main Feature Image */}
-      <div className="relative aspect-square w-full rounded-2xl bg-white border border-sparehub-border overflow-hidden shadow-xs">
+    <div className="space-y-3 sm:space-y-4">
+      {/* Main Feature Image - compact on mobile, full on desktop */}
+      <div className="relative aspect-4/3 sm:aspect-square max-h-[300px] sm:max-h-[480px] w-full rounded-2xl bg-white border border-sparehub-border overflow-hidden shadow-xs">
         <Image
           src={activeImage.image_url}
           alt={activeImage.alt_text || title}
           fill
-          className="object-cover"
+          className="object-contain sm:object-cover"
           unoptimized
           priority
         />
@@ -47,13 +47,13 @@ export function ProductGallery({ images, title }: ProductGalleryProps) {
 
       {/* Thumbnails Strip */}
       {images.length > 1 && (
-        <div className="flex items-center gap-3 overflow-x-auto pb-2">
+        <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto pb-1">
           {images.map((img, idx) => (
             <button
               key={idx}
               type="button"
               onClick={() => setSelectedIndex(idx)}
-              className={`relative w-20 h-20 rounded-xl overflow-hidden shrink-0 border-2 transition-all ${
+              className={`relative w-14 h-14 sm:w-20 sm:h-20 rounded-xl overflow-hidden shrink-0 border-2 transition-all cursor-pointer ${
                 selectedIndex === idx
                   ? "border-sparehub-orange ring-2 ring-sparehub-orange/20 scale-102"
                   : "border-sparehub-border hover:border-gray-400 opacity-70 hover:opacity-100"

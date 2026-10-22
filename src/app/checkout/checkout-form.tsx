@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Banknote,
@@ -17,6 +17,7 @@ import { SRI_LANKA_DISTRICTS } from "@/lib/constants";
 import { formatLKR } from "@/lib/utils";
 import type { CartResponse } from "@/lib/cart/actions";
 import { processCheckoutAction, type CheckoutPayload } from "@/lib/orders/actions";
+import { calculateMultiVendorDeliverySummary } from "@/lib/orders/delivery";
 
 interface CheckoutFormProps {
   cart: CartResponse;
@@ -55,9 +56,35 @@ export function CheckoutForm({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [idempotencyKey] = useState(() => `chk-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
 
+  // Delivery fee summary based on selected destination district
+  const deliverySummary = useMemo(() => {
+    const shopList = cart.groups.map((g) => ({
+      shop: {
+        id: g.shopId,
+        name: g.shopName,
+        delivery_enabled: g.deliveryEnabled ?? true,
+        default_delivery_fee_minor: g.defaultDeliveryFeeMinor ?? 0,
+        district_delivery_fees: g.districtDeliveryFees || null,
+        free_delivery_threshold_minor: g.freeDeliveryThresholdMinor ?? null,
+        supported_districts: g.supportedDistricts || null,
+        estimated_delivery_days: g.estimatedDeliveryDays || "2-4 business days",
+      },
+      merchandiseSubtotalMinor: g.subtotalMinorUnits,
+    }));
+    return calculateMultiVendorDeliverySummary(shopList, district);
+  }, [cart.groups, district]);
+
+  const totalDeliveryFee = deliverySummary.allowed ? deliverySummary.totalDeliveryFeeMinor : 0;
+  const grandTotalWithDelivery = cart.totalGrandMinor + totalDeliveryFee;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (loading) return;
+
+    if (!deliverySummary.allowed) {
+      setErrorMessage(deliverySummary.error || "Delivery is unavailable for the selected district.");
+      return;
+    }
 
     setErrorMessage(null);
     setLoading(true);
@@ -348,9 +375,21 @@ export function CheckoutForm({
                       <Store className="w-3.5 h-3.5 text-sparehub-orange" />
                       {group.shopName}
                     </span>
-                    <span className="font-black text-sparehub-dark">
-                      {formatLKR(group.subtotalMinorUnits)}
-                    </span>
+                    <div className="text-right">
+                      <span className="font-black text-sparehub-dark block">
+                        {formatLKR(group.subtotalMinorUnits)}
+                      </span>
+                      {(() => {
+                        const sf = deliverySummary.shopFees.find((s) => s.shopId === group.shopId);
+                        if (!sf) return null;
+                        if (sf.error) return <span className="text-[10px] text-red-600 block">Delivery unavailable</span>;
+                        return (
+                          <span className="text-[10px] text-gray-500 block">
+                            + Delivery: {sf.isFree ? "Free" : formatLKR(sf.deliveryFeeMinor)}
+                          </span>
+                        );
+                      })()}
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
@@ -382,11 +421,22 @@ export function CheckoutForm({
               </div>
 
               <div className="flex items-center justify-between text-gray-600">
-                <span>Estimated Delivery</span>
-                <span className="text-[11px] font-medium text-gray-500">
-                  Seller Courier
+                <span>Estimated Delivery ({district})</span>
+                <span className="font-medium text-sparehub-dark">
+                  {deliverySummary.allowed
+                    ? totalDeliveryFee > 0
+                      ? formatLKR(totalDeliveryFee)
+                      : "Free Delivery"
+                    : "Unavailable"}
                 </span>
               </div>
+
+              {!deliverySummary.allowed && deliverySummary.error && (
+                <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{deliverySummary.error}</span>
+                </div>
+              )}
 
               <div className="pt-3 border-t border-sparehub-border flex items-baseline justify-between">
                 <div>
@@ -394,7 +444,7 @@ export function CheckoutForm({
                   <span className="text-[10px] text-gray-400">Total payable in LKR</span>
                 </div>
                 <span className="text-2xl font-black text-sparehub-dark">
-                  {formatLKR(cart.totalGrandMinor)}
+                  {formatLKR(grandTotalWithDelivery)}
                 </span>
               </div>
             </div>
@@ -406,11 +456,11 @@ export function CheckoutForm({
               size="lg"
               isLoading={loading}
               loadingText="Placing Secure Order..."
-              disabled={loading}
+              disabled={loading || !deliverySummary.allowed}
               className="w-full font-bold text-sm rounded-xl py-4 shadow-sm justify-center gap-2"
             >
               <Lock className="w-4 h-4" />
-              Place Order • {formatLKR(cart.totalGrandMinor)}
+              Place Order • {formatLKR(grandTotalWithDelivery)}
             </Button>
 
             <p className="text-[11px] text-gray-400 text-center leading-relaxed">

@@ -5,6 +5,7 @@ import { Store, ArrowLeft, PlusCircle, ExternalLink } from "lucide-react";
 import { getSellerShopProfile } from "@/lib/seller/actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShopForm } from "./shop-form";
+import { ShopDeliverySettings } from "@/components/seller/shop-delivery-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -90,8 +91,11 @@ export default async function SellerShopPage() {
           </CardContent>
         </Card>
       ) : (
-        /* When shop exists: Edit Form & Compliance Management */
-        <ShopForm shop={shop} sellerType={sellerProfile?.seller_type} />
+        /* When shop exists: Edit Form, Compliance & Delivery Management */
+        <div className="space-y-8">
+          <ShopForm shop={shop} sellerType={sellerProfile?.seller_type} />
+          <ShopDeliverySettings shop={shop} />
+        </div>
       )}
     </div>
   );

@@ -78,160 +78,16 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
         <span className="text-sparehub-dark truncate max-w-xs">{product.title}</span>
       </div>
 
-      {/* Main Product Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Gallery & Fitment */}
-        <div className="lg:col-span-7 space-y-8">
+      {/* Main Product Layout: Mobile-first ordering with desktop 2-column grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+        {/* 1. Gallery: Top of Mobile & Top-Left of Desktop */}
+        <div className="lg:col-span-7 lg:col-start-1 lg:row-start-1">
           <ProductGallery images={product.images} title={product.title} />
-
-          {/* Vehicle Compatibility Section */}
-          <div className="bg-white rounded-2xl border border-sparehub-border p-5 sm:p-6 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between gap-2 pb-3 border-b border-sparehub-border">
-              <div className="flex items-center gap-2">
-                <Car className="w-5 h-5 text-sparehub-orange shrink-0" />
-                <h3 className="font-bold text-base text-sparehub-dark">
-                  Vehicle Fitment &amp; Compatibility
-                </h3>
-              </div>
-              {!product.is_universal && product.compatibilities?.length > 0 && (
-                <span className="text-xs font-semibold text-gray-500">
-                  {product.compatibilities.length} Compatible{" "}
-                  {product.compatibilities.length === 1 ? "Vehicle" : "Vehicles"}
-                </span>
-              )}
-            </div>
-
-            {product.is_universal ? (
-              <div className="p-4 rounded-xl bg-green-50 border border-green-200 text-xs text-green-800 flex items-start gap-3">
-                <CheckCircle2 className="w-5 h-5 text-sparehub-success shrink-0 mt-0.5" />
-                <div>
-                  <strong className="block text-sm font-bold">
-                    Universal Fitment Part
-                  </strong>
-                  <span>
-                    This item conforms to universal industry standards and fits any standard vehicle conforming to the technical specifications.
-                  </span>
-                </div>
-              </div>
-            ) : product.compatibilities && product.compatibilities.length > 0 ? (
-              <div className="space-y-3">
-                <p className="text-xs text-gray-500">
-                  Verified compatibility for Sri Lankan vehicles (Type, Make, Model, Variant &amp; Year range):
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {product.compatibilities.map(
-                    (c: EnrichedCompatibilityItem, idx: number) => {
-                      const yearRange = formatVariantYearRange(
-                        c.year_start,
-                        c.year_end
-                      );
-
-                      return (
-                        <div
-                          key={c.id || idx}
-                          className="p-3.5 rounded-xl border border-sparehub-border bg-gray-50/60 flex items-start gap-2.5"
-                        >
-                          <CheckCircle2 className="w-4 h-4 text-sparehub-success shrink-0 mt-0.5" />
-                          <div className="min-w-0 flex-1 space-y-1.5">
-                            <div className="flex flex-wrap items-center justify-between gap-1.5">
-                              {c.vehicle_type_name && (
-                                <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white border border-gray-200 text-gray-600">
-                                  {c.vehicle_type_name}
-                                </span>
-                              )}
-                              <span
-                                className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                                  c.is_exact_fit
-                                    ? "bg-green-100 text-sparehub-success"
-                                    : "bg-blue-100 text-blue-700"
-                                }`}
-                              >
-                                {c.is_exact_fit ? "Direct OEM Fit" : "Compatible"}
-                              </span>
-                            </div>
-
-                            <div className="text-sm font-bold text-sparehub-dark">
-                              {c.make_name} {c.model_name}
-                            </div>
-
-                            <div className="text-[11px] text-gray-600 space-y-0.5">
-                              {c.generation_chassis ? (
-                                <div className="font-medium text-gray-800">
-                                  Variant / Chassis:{" "}
-                                  <span className="font-mono">
-                                    {c.generation_chassis}
-                                  </span>
-                                </div>
-                              ) : (
-                                <div className="text-gray-500">
-                                  Variant: All Generations / Model-Wide
-                                </div>
-                              )}
-
-                              {yearRange && (
-                                <div>
-                                  Years:{" "}
-                                  <span className="font-semibold text-gray-800">
-                                    {yearRange}
-                                  </span>
-                                </div>
-                              )}
-
-                              {(c.engine_code || c.fuel_type || c.transmission) && (
-                                <div className="text-gray-500">
-                                  {[
-                                    c.engine_code ? `Engine: ${c.engine_code}` : null,
-                                    c.fuel_type,
-                                    c.transmission,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(" • ")}
-                                </div>
-                              )}
-                            </div>
-
-                            {c.notes && (
-                              <div className="pt-1 border-t border-gray-200/70 text-[11px] text-gray-600">
-                                <span className="font-semibold text-gray-700">
-                                  Fitment Note:
-                                </span>{" "}
-                                {c.notes}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    }
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="p-4 rounded-xl border border-dashed border-gray-300 text-center text-xs text-gray-500">
-                Fitment information was not explicitly specified. Please contact the seller directly to verify compatibility with your vehicle chassis or registration number.
-              </div>
-            )}
-          </div>
-
-          {/* Technical Description */}
-          <div className="bg-white rounded-2xl border border-sparehub-border p-6 space-y-4 shadow-xs">
-            <div className="flex items-center gap-2 pb-3 border-b border-sparehub-border">
-              <Layers className="w-5 h-5 text-sparehub-orange" />
-              <h3 className="font-bold text-base text-sparehub-dark">
-                Description &amp; Specifications
-              </h3>
-            </div>
-            <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
-              {product.description}
-            </div>
-          </div>
-
-          {/* Product Reviews & Ratings */}
-          <ProductReviews productId={product.id} />
         </div>
 
-        {/* Right Column: Pricing, Overview & Vendor Card */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="bg-white rounded-2xl border border-sparehub-border p-6 space-y-5 shadow-xs">
+        {/* 2. Purchase Details & Seller Card: Immediately below Gallery on Mobile, Sticky Right Column on Desktop */}
+        <div className="lg:col-span-5 lg:col-start-8 lg:row-start-1 lg:row-span-4 space-y-6 lg:sticky lg:top-24">
+          <div className="bg-white rounded-2xl border border-sparehub-border p-5 sm:p-6 space-y-5 shadow-xs">
             {/* Badges: Category & Condition */}
             <div className="flex flex-wrap items-center gap-2">
               {product.categories?.name && (
@@ -264,7 +120,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
 
             {/* Title */}
             <div>
-              <h1 className="text-2xl font-black text-sparehub-dark tracking-tight leading-snug">
+              <h1 className="text-xl sm:text-2xl font-black text-sparehub-dark tracking-tight leading-snug">
                 {product.title}
               </h1>
               <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500 font-mono">
@@ -421,6 +277,152 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
               </div>
             </div>
           )}
+        </div>
+
+        {/* 3. Vehicle Compatibility Section */}
+        <div className="lg:col-span-7 lg:col-start-1 lg:row-start-2 bg-white rounded-2xl border border-sparehub-border p-5 sm:p-6 space-y-4 shadow-xs">
+          <div className="flex items-center justify-between gap-2 pb-3 border-b border-sparehub-border">
+            <div className="flex items-center gap-2">
+              <Car className="w-5 h-5 text-sparehub-orange shrink-0" />
+              <h3 className="font-bold text-base text-sparehub-dark">
+                Vehicle Fitment &amp; Compatibility
+              </h3>
+            </div>
+            {!product.is_universal && product.compatibilities?.length > 0 && (
+              <span className="text-xs font-semibold text-gray-500">
+                {product.compatibilities.length} Compatible{" "}
+                {product.compatibilities.length === 1 ? "Vehicle" : "Vehicles"}
+              </span>
+            )}
+          </div>
+
+          {product.is_universal ? (
+            <div className="p-4 rounded-xl bg-green-50 border border-green-200 text-xs text-green-800 flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-sparehub-success shrink-0 mt-0.5" />
+              <div>
+                <strong className="block text-sm font-bold">
+                  Universal Fitment Part
+                </strong>
+                <span>
+                  This item conforms to universal industry standards and fits any standard vehicle conforming to the technical specifications.
+                </span>
+              </div>
+            </div>
+          ) : product.compatibilities && product.compatibilities.length > 0 ? (
+            <div className="space-y-3">
+              <p className="text-xs text-gray-500">
+                Verified compatibility for Sri Lankan vehicles (Type, Make, Model, Variant &amp; Year range):
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {product.compatibilities.map(
+                  (c: EnrichedCompatibilityItem, idx: number) => {
+                    const yearRange = formatVariantYearRange(
+                      c.year_start,
+                      c.year_end
+                    );
+
+                    return (
+                      <div
+                        key={c.id || idx}
+                        className="p-3.5 rounded-xl border border-sparehub-border bg-gray-50/60 flex items-start gap-2.5"
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-sparehub-success shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
+                            {c.vehicle_type_name && (
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white border border-gray-200 text-gray-600">
+                                {c.vehicle_type_name}
+                              </span>
+                            )}
+                            <span
+                              className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                                c.is_exact_fit
+                                  ? "bg-green-100 text-sparehub-success"
+                                  : "bg-blue-100 text-blue-700"
+                              }`}
+                            >
+                              {c.is_exact_fit ? "Direct OEM Fit" : "Compatible"}
+                            </span>
+                          </div>
+
+                          <div className="text-sm font-bold text-sparehub-dark">
+                            {c.make_name} {c.model_name}
+                          </div>
+
+                          <div className="text-[11px] text-gray-600 space-y-0.5">
+                            {c.generation_chassis ? (
+                              <div className="font-medium text-gray-800">
+                                Variant / Chassis:{" "}
+                                <span className="font-mono">
+                                  {c.generation_chassis}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="text-gray-500">
+                                Variant: All Generations / Model-Wide
+                              </div>
+                            )}
+
+                            {yearRange && (
+                              <div>
+                                Years:{" "}
+                                <span className="font-semibold text-gray-800">
+                                  {yearRange}
+                                </span>
+                              </div>
+                            )}
+
+                            {(c.engine_code || c.fuel_type || c.transmission) && (
+                              <div className="text-gray-500">
+                                {[
+                                  c.engine_code ? `Engine: ${c.engine_code}` : null,
+                                  c.fuel_type,
+                                  c.transmission,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" • ")}
+                              </div>
+                            )}
+                          </div>
+
+                          {c.notes && (
+                            <div className="pt-1 border-t border-gray-200/70 text-[11px] text-gray-600">
+                              <span className="font-semibold text-gray-700">
+                                Fitment Note:
+                              </span>{" "}
+                              {c.notes}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 rounded-xl border border-dashed border-gray-300 text-center text-xs text-gray-500">
+              Fitment information was not explicitly specified. Please contact the seller directly to verify compatibility with your vehicle chassis or registration number.
+            </div>
+          )}
+        </div>
+
+        {/* 4. Technical Description */}
+        <div className="lg:col-span-7 lg:col-start-1 lg:row-start-3 bg-white rounded-2xl border border-sparehub-border p-6 space-y-4 shadow-xs">
+          <div className="flex items-center gap-2 pb-3 border-b border-sparehub-border">
+            <Layers className="w-5 h-5 text-sparehub-orange" />
+            <h3 className="font-bold text-base text-sparehub-dark">
+              Description &amp; Specifications
+            </h3>
+          </div>
+          <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+            {product.description}
+          </div>
+        </div>
+
+        {/* 5. Product Reviews & Ratings */}
+        <div className="lg:col-span-7 lg:col-start-1 lg:row-start-4">
+          <ProductReviews productId={product.id} />
         </div>
       </div>
     </div>

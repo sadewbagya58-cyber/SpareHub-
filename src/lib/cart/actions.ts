@@ -56,7 +56,13 @@ export async function getCartAction(): Promise<CartResponse> {
           name,
           slug,
           district,
-          status
+          status,
+          delivery_enabled,
+          default_delivery_fee_minor,
+          district_delivery_fees,
+          free_delivery_threshold_minor,
+          supported_districts,
+          estimated_delivery_days
         )
       )
     `)
@@ -75,6 +81,8 @@ export async function getCartAction(): Promise<CartResponse> {
   }
 
   const items: CartItem[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const shopDeliveryMap = new Map<string, any>();
 
   for (const row of data) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -83,6 +91,9 @@ export async function getCartAction(): Promise<CartResponse> {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const s: any = p.shop;
+    if (s?.id) {
+      shopDeliveryMap.set(s.id, s);
+    }
     const sortedImages = Array.isArray(p.product_images)
       ? [...p.product_images].sort(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -123,11 +134,18 @@ export async function getCartAction(): Promise<CartResponse> {
     totalItemCount += item.quantity;
 
     if (!groupMap.has(item.shopId)) {
+      const s = shopDeliveryMap.get(item.shopId);
       groupMap.set(item.shopId, {
         shopId: item.shopId,
         shopName: item.shopName,
         shopSlug: item.shopSlug,
         shopDistrict: item.shopDistrict,
+        deliveryEnabled: s?.delivery_enabled ?? true,
+        defaultDeliveryFeeMinor: Number(s?.default_delivery_fee_minor) || 0,
+        districtDeliveryFees: s?.district_delivery_fees || null,
+        freeDeliveryThresholdMinor: s?.free_delivery_threshold_minor ? Number(s.free_delivery_threshold_minor) : null,
+        supportedDistricts: s?.supported_districts || null,
+        estimatedDeliveryDays: s?.estimated_delivery_days || "2-4 business days",
         items: [],
         subtotalMinorUnits: 0,
       });

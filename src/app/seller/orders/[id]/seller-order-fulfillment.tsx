@@ -321,6 +321,23 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
                 </div>
               ))}
             </div>
+
+            <div className="pt-3 border-t border-gray-100 space-y-1.5 text-xs">
+              <div className="flex items-center justify-between text-gray-600">
+                <span>Merchandise Subtotal</span>
+                <span className="font-bold text-sparehub-dark">{formatLKR(subOrder.subtotalMinor)}</span>
+              </div>
+              <div className="flex items-center justify-between text-gray-600">
+                <span>Delivery Fee (Courier)</span>
+                <span className="font-medium text-gray-700">
+                  {subOrder.deliveryFeeMinor > 0 ? formatLKR(subOrder.deliveryFeeMinor) : "Free"}
+                </span>
+              </div>
+              <div className="pt-2 border-t border-gray-200 flex items-center justify-between font-bold text-sm text-sparehub-dark">
+                <span>Sub-Order Total</span>
+                <span>{formatLKR(subOrder.totalAmountMinor || (subOrder.subtotalMinor + subOrder.deliveryFeeMinor))}</span>
+              </div>
+            </div>
           </div>
 
           {/* Audit History Timeline */}
@@ -394,7 +411,14 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
               Method: <strong className="capitalize">{subOrder.customerOrder?.paymentMethod === "cod" ? "Cash on Delivery (Courier Collects)" : "Online Payment"}</strong>
             </p>
             <p className="text-gray-500 text-[11px]">
-              Status: <strong className="capitalize">{subOrder.customerOrder?.paymentStatus.replace("_", " ")}</strong>
+              Status:{" "}
+              {currentStatus === "cancelled" && subOrder.customerOrder?.paymentStatus === "unpaid" ? (
+                <strong className="text-gray-500">Unpaid (Cancelled)</strong>
+              ) : currentStatus === "delivered" && subOrder.customerOrder?.paymentMethod === "cod" ? (
+                <strong className="text-sparehub-success">Paid on Delivery</strong>
+              ) : (
+                <strong className="capitalize">{subOrder.customerOrder?.paymentStatus.replace("_", " ")}</strong>
+              )}
             </p>
           </div>
         </div>

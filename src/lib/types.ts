@@ -64,6 +64,12 @@ export interface MultiVendorCartGroup {
   shopName: string;
   shopSlug?: string;
   shopDistrict?: string;
+  deliveryEnabled?: boolean;
+  defaultDeliveryFeeMinor?: number;
+  districtDeliveryFees?: Record<string, number> | null;
+  freeDeliveryThresholdMinor?: number | null;
+  supportedDistricts?: string[] | null;
+  estimatedDeliveryDays?: string | null;
   items: CartItem[];
   subtotalMinorUnits: number;
 }

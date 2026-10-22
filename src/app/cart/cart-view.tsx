@@ -41,11 +41,18 @@ function recalculateCart(prev: CartResponse, updatedItems: CartItem[]): CartResp
     newTotalCount += item.quantity;
 
     if (!groupMap.has(item.shopId)) {
+      const existingGrp = prev.groups?.find((g) => g.shopId === item.shopId);
       groupMap.set(item.shopId, {
         shopId: item.shopId,
         shopName: item.shopName,
         shopSlug: item.shopSlug,
         shopDistrict: item.shopDistrict,
+        deliveryEnabled: existingGrp?.deliveryEnabled ?? true,
+        defaultDeliveryFeeMinor: existingGrp?.defaultDeliveryFeeMinor ?? 0,
+        districtDeliveryFees: existingGrp?.districtDeliveryFees || null,
+        freeDeliveryThresholdMinor: existingGrp?.freeDeliveryThresholdMinor ?? null,
+        supportedDistricts: existingGrp?.supportedDistricts || null,
+        estimatedDeliveryDays: existingGrp?.estimatedDeliveryDays || "2-4 business days",
         items: [],
         subtotalMinorUnits: 0,
       });

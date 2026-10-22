@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
   shopCreateSchema,
   shopUpdateSchema,
+  shopDeliverySettingsSchema,
   slugify,
   SHOP_BRANDING_BUCKET,
   validateShopBrandingFile,
@@ -780,3 +781,92 @@ export async function toggleShopStatusAction(
     return { error: msg };
   }
 }
+
+export async function updateShopDeliverySettingsAction(payload: {
+  shopId: string;
+  delivery_enabled: boolean;
+  default_delivery_fee_lkr: number;
+  free_delivery_threshold_lkr?: number | null;
+  district_fees_lkr?: Record<string, number>;
+  supported_districts?: string[] | null;
+  estimated_delivery_days?: string;
+}): Promise<{ success?: boolean; error?: string; message?: string }> {
+  try {
+    const supabase = await createServerSupabaseClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { error: "Authentication required to update delivery settings." };
+    }
+
+    const validation = shopDeliverySettingsSchema.safeParse(payload);
+    if (!validation.success) {
+      const firstError = validation.error.issues[0]?.message || "Invalid delivery settings.";
+      return { error: firstError };
+    }
+
+    const data = validation.data;
+
+    // Verify shop ownership via seller_profiles
+    const { data: currentShop, error: fetchErr } = await supabase
+      .from("shops")
+      .select("id, seller_profile_id, seller_profiles!inner(user_id)")
+      .eq("id", data.shopId)
+      .eq("seller_profiles.user_id", user.id)
+      .maybeSingle();
+
+    if (fetchErr || !currentShop) {
+      return { error: "Shop not found or you do not have permission to configure delivery." };
+    }
+
+    // Convert LKR to minor units (x100)
+    const defaultDeliveryFeeMinor = Math.round(data.default_delivery_fee_lkr * 100);
+    const freeDeliveryThresholdMinor =
+      data.free_delivery_threshold_lkr != null &&
+      !isNaN(data.free_delivery_threshold_lkr) &&
+      data.free_delivery_threshold_lkr > 0
+        ? Math.round(data.free_delivery_threshold_lkr * 100)
+        : null;
+
+    const districtFeesMinor: Record<string, number> = {};
+    if (data.district_fees_lkr) {
+      for (const [dist, feeLKR] of Object.entries(data.district_fees_lkr)) {
+        if (typeof feeLKR === "number" && !isNaN(feeLKR) && feeLKR >= 0) {
+          districtFeesMinor[dist.toLowerCase().trim()] = Math.round(feeLKR * 100);
+        }
+      }
+    }
+
+    const { error: updateErr } = await supabase
+      .from("shops")
+      .update({
+        delivery_enabled: data.delivery_enabled,
+        default_delivery_fee_minor: defaultDeliveryFeeMinor,
+        free_delivery_threshold_minor: freeDeliveryThresholdMinor,
+        district_delivery_fees: districtFeesMinor,
+        supported_districts: data.supported_districts || null,
+        estimated_delivery_days: data.estimated_delivery_days?.trim() || "2-4 business days",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", data.shopId);
+
+    if (updateErr) {
+      return { error: updateErr.message };
+    }
+
+    revalidatePath("/seller/shop");
+    revalidatePath("/cart");
+    revalidatePath("/checkout");
+
+    return {
+      success: true,
+      message: "Delivery settings updated successfully.",
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to update delivery settings.";
+    return { error: msg };
+  }
+}
+

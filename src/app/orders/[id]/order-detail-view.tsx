@@ -33,7 +33,16 @@ export function OrderDetailView({ order }: OrderDetailViewProps) {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const canCancel = order.status === "pending";
+  const hasNonCancellableSubOrder = (order.sellerOrders || []).some(
+    (so) => so.status === "dispatched" || so.status === "delivered" || so.status === "cancelled" || so.status === "returned"
+  );
+  const canCancel =
+    order.status !== "cancelled" &&
+    order.status !== "completed" &&
+    order.status !== "partially_dispatched" &&
+    !hasNonCancellableSubOrder &&
+    (order.sellerOrders || []).length > 0 &&
+    (order.sellerOrders || []).every((so) => so.status === "placed" || so.status === "confirmed");
 
   const handleCancelOrder = async () => {
     setCancelling(true);
@@ -163,9 +172,12 @@ export function OrderDetailView({ order }: OrderDetailViewProps) {
                 </div>
 
                 <div className="text-right">
-                  <span className="text-[11px] text-gray-400 block">Subtotal</span>
+                  <span className="text-[11px] text-gray-400 block">
+                    Subtotal: {formatLKR(subOrder.subtotalMinor)}
+                    {subOrder.deliveryFeeMinor > 0 && ` + Delivery: ${formatLKR(subOrder.deliveryFeeMinor)}`}
+                  </span>
                   <span className="text-sm font-black text-sparehub-dark">
-                    {formatLKR(subOrder.subtotalMinor)}
+                    Total: {formatLKR(subOrder.totalAmountMinor || (subOrder.subtotalMinor + subOrder.deliveryFeeMinor))}
                   </span>
                 </div>
               </div>
@@ -297,9 +309,15 @@ export function OrderDetailView({ order }: OrderDetailViewProps) {
 
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">Payment Status</span>
-                <span className="font-bold text-sparehub-dark capitalize">
-                  {order.paymentStatus.replace("_", " ")}
-                </span>
+                {order.status === "cancelled" && order.paymentStatus === "unpaid" ? (
+                  <span className="font-bold text-gray-500">Unpaid (Cancelled)</span>
+                ) : order.paymentStatus === "captured" && order.paymentMethod === "cod" ? (
+                  <span className="font-bold text-sparehub-success">Paid on Delivery</span>
+                ) : (
+                  <span className="font-bold text-sparehub-dark capitalize">
+                    {order.paymentStatus.replace("_", " ")}
+                  </span>
+                )}
               </div>
 
               <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
@@ -311,7 +329,9 @@ export function OrderDetailView({ order }: OrderDetailViewProps) {
 
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">Delivery Fee</span>
-                <span className="font-medium text-gray-500">LKR 0.00</span>
+                <span className="font-medium text-gray-700">
+                  {order.totalDeliveryFeeMinor > 0 ? formatLKR(order.totalDeliveryFeeMinor) : "Free"}
+                </span>
               </div>
 
               <div className="pt-3 border-t border-sparehub-border flex items-baseline justify-between">

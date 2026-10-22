@@ -5,9 +5,58 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { createNotification } from "@/lib/notifications/actions";
 import type { CustomerOrderSummary, SellerSubOrder } from "@/lib/types";
+import {
+  calculateShopDeliveryFee,
+  calculateMultiVendorDeliverySummary,
+  deriveParentOrderStatus,
+} from "@/lib/orders/delivery";
+
+export { deriveParentOrderStatus };
 
 // Sri Lankan phone validation (same standard as seller onboarding & auth)
 const LK_PHONE_REGEX = /^(?:\+94|0)(?:7[0-9]|1[1-9]|2[1-8]|3[1-8]|4[1-7]|5[1-7]|6[3-7]|8[1-2])[0-9]{7}$/;
+
+/**
+ * Reconciles customer_orders.status and payment_status based on child seller_orders.
+ * Runs via createAdminClient to ensure multi-tenant visibility and avoid silent RLS drops.
+ */
+export async function reconcileParentCustomerOrder(customerOrderId: string): Promise<string> {
+  const adminClient = createAdminClient();
+  const { data: allSiblings } = await adminClient
+    .from("seller_orders")
+    .select("status")
+    .eq("customer_order_id", customerOrderId);
+
+  const statuses = (allSiblings || []).map((s: { status: string }) => s.status);
+  const newParentStatus = deriveParentOrderStatus(statuses);
+
+  const { data: custOrder } = await adminClient
+    .from("customer_orders")
+    .select("payment_method, payment_status")
+    .eq("id", customerOrderId)
+    .single();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updatePayload: any = {
+    status: newParentStatus,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (custOrder?.payment_method === "cod") {
+    if (newParentStatus === "completed" && custOrder.payment_status === "cod_pending") {
+      updatePayload.payment_status = "captured";
+    } else if (newParentStatus === "cancelled" && custOrder.payment_status === "cod_pending") {
+      updatePayload.payment_status = "unpaid";
+    }
+  }
+
+  await adminClient
+    .from("customer_orders")
+    .update(updatePayload)
+    .eq("id", customerOrderId);
+
+  return newParentStatus;
+}
 
 export interface CheckoutPayload {
   shippingFullName: string;
@@ -152,7 +201,17 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
           is_published,
           status,
           shop_id,
-          shops!inner (id, status)
+          shops!inner (
+            id,
+            name,
+            status,
+            delivery_enabled,
+            default_delivery_fee_minor,
+            district_delivery_fees,
+            free_delivery_threshold_minor,
+            supported_districts,
+            estimated_delivery_days
+          )
         `)
         .eq("id", payload.buyNowProductId)
         .maybeSingle();
@@ -174,7 +233,18 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
         };
       }
 
-      const grandTotal = Number(p.price_minor_units) * buyQty;
+      const merchandiseSubtotal = Number(p.price_minor_units) * buyQty;
+      const deliveryRes = calculateShopDeliveryFee(s, district, merchandiseSubtotal);
+      if (!deliveryRes.allowed) {
+        return {
+          success: false,
+          message: deliveryRes.reason || "Delivery is unavailable for this vendor in the selected district.",
+        };
+      }
+
+      const deliveryFeeMinor = deliveryRes.feeMinor;
+      const orderTotalGrandMinor = merchandiseSubtotal + deliveryFeeMinor;
+
       const orderNumber =
         "SH-" +
         new Date().toISOString().slice(0, 10).replace(/-/g, "") +
@@ -198,10 +268,10 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
           shipping_city: city,
           shipping_postal_code: payload.shippingPostalCode?.trim() || null,
           customer_notes: payload.customerNotes?.trim() || null,
-          total_items_subtotal_minor: grandTotal,
-          total_delivery_fee_minor: 0,
+          total_items_subtotal_minor: merchandiseSubtotal,
+          total_delivery_fee_minor: deliveryFeeMinor,
           total_discount_minor: 0,
-          total_grand_minor: grandTotal,
+          total_grand_minor: orderTotalGrandMinor,
         })
         .select("id, order_number, total_grand_minor")
         .single();
@@ -220,9 +290,9 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
           shop_id: p.shop_id,
           sub_order_number: subOrderNumber,
           status: "placed",
-          subtotal_minor: grandTotal,
-          delivery_fee_minor: 0,
-          total_amount_minor: grandTotal,
+          subtotal_minor: merchandiseSubtotal,
+          delivery_fee_minor: deliveryFeeMinor,
+          total_amount_minor: orderTotalGrandMinor,
         })
         .select("id")
         .single();
@@ -241,7 +311,7 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
         product_brand_snapshot: p.brand_name,
         unit_price_minor_units: p.price_minor_units,
         quantity: buyQty,
-        total_price_minor_units: grandTotal,
+        total_price_minor_units: merchandiseSubtotal,
       });
 
       if (itemErr) {
@@ -313,7 +383,7 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
         success: true,
         orderId: custOrder.id,
         orderNumber: custOrder.order_number,
-        totalGrandMinor: grandTotal,
+        totalGrandMinor: orderTotalGrandMinor,
       };
     } catch (err: unknown) {
       console.error("Error in Buy Now checkout fallback:", err);
@@ -350,7 +420,52 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
     }
   }
 
-  // 3. Call process_checkout_order RPC
+  // 3. Pre-validate delivery across all vendor shops in cart
+  const { data: cartData } = await supabase
+    .from("cart_items")
+    .select(`
+      quantity,
+      product:products (
+        price_minor_units,
+        shop:shops (
+          id,
+          name,
+          status,
+          delivery_enabled,
+          default_delivery_fee_minor,
+          district_delivery_fees,
+          free_delivery_threshold_minor,
+          supported_districts,
+          estimated_delivery_days
+        )
+      )
+    `)
+    .eq("user_id", user.id);
+
+  let deliverySummary: ReturnType<typeof calculateMultiVendorDeliverySummary> | null = null;
+  if (cartData && cartData.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const shopMap = new Map<string, { shop: any; merchandiseSubtotalMinor: number }>();
+    for (const c of cartData) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const p: any = c.product;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const s: any = p?.shop;
+      if (!s) continue;
+      const sub = (Number(p.price_minor_units) || 0) * c.quantity;
+      if (!shopMap.has(s.id)) {
+        shopMap.set(s.id, { shop: s, merchandiseSubtotalMinor: 0 });
+      }
+      shopMap.get(s.id)!.merchandiseSubtotalMinor += sub;
+    }
+
+    deliverySummary = calculateMultiVendorDeliverySummary(Array.from(shopMap.values()), district);
+    if (!deliverySummary.allowed) {
+      return { success: false, message: deliverySummary.error || "Delivery is unavailable for one or more shops." };
+    }
+  }
+
+  // 4. Call process_checkout_order RPC
   const { data: rpcData, error: rpcError } = await supabase.rpc("process_checkout_order", {
     p_shipping_full_name: fullName,
     p_shipping_phone: phone,
@@ -375,6 +490,31 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
   const res: any = rpcData;
   if (!res || !res.customer_order_id) {
     return { success: false, message: "Checkout did not complete successfully. Please try again." };
+  }
+
+  // 5. Persist shop-specific delivery fees if not handled natively by RPC
+  let totalGrand = Number(res.total_grand_minor);
+  if (deliverySummary && deliverySummary.totalDeliveryFeeMinor > 0) {
+    const admin = createAdminClient();
+    for (const sf of deliverySummary.shopFees) {
+      await admin
+        .from("seller_orders")
+        .update({
+          delivery_fee_minor: sf.deliveryFeeMinor,
+          total_amount_minor: sf.merchandiseSubtotalMinor + sf.deliveryFeeMinor,
+        })
+        .eq("customer_order_id", res.customer_order_id)
+        .eq("shop_id", sf.shopId);
+    }
+    totalGrand = totalGrand + deliverySummary.totalDeliveryFeeMinor;
+    await admin
+      .from("customer_orders")
+      .update({
+        total_delivery_fee_minor: deliverySummary.totalDeliveryFeeMinor,
+        total_grand_minor: totalGrand,
+      })
+      .eq("id", res.customer_order_id);
+    res.total_grand_minor = totalGrand;
   }
 
   // 4. If online payment method selected, create payment record entry
@@ -481,6 +621,8 @@ export async function getCustomerOrdersAction(): Promise<CustomerOrderSummary[]>
         sub_order_number,
         status,
         subtotal_minor,
+        delivery_fee_minor,
+        total_amount_minor,
         shop:shops(id, name, slug)
       )
     `)
@@ -523,8 +665,8 @@ export async function getCustomerOrdersAction(): Promise<CustomerOrderSummary[]>
           status: so.status,
           fulfillmentType: "seller_courier",
           subtotalMinor: Number(so.subtotal_minor) || 0,
-          deliveryFeeMinor: 0,
-          totalAmountMinor: Number(so.subtotal_minor) || 0,
+          deliveryFeeMinor: Number(so.delivery_fee_minor) || 0,
+          totalAmountMinor: Number(so.total_amount_minor) || (Number(so.subtotal_minor) || 0) + (Number(so.delivery_fee_minor) || 0),
           createdAt: row.created_at,
         }))
       : [],
@@ -656,7 +798,7 @@ export async function getCustomerOrderDetailAction(orderId: string): Promise<Cus
     cancellationReason: so.cancellation_reason,
     subtotalMinor: Number(so.subtotal_minor) || 0,
     deliveryFeeMinor: Number(so.delivery_fee_minor) || 0,
-    totalAmountMinor: Number(so.total_amount_minor) || 0,
+    totalAmountMinor: Number(so.total_amount_minor) || (Number(so.subtotal_minor) || 0) + (Number(so.delivery_fee_minor) || 0),
     createdAt: so.created_at,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     items: (so.order_items || []).map((oi: any) => ({
@@ -670,15 +812,18 @@ export async function getCustomerOrderDetailAction(orderId: string): Promise<Cus
       quantity: oi.quantity,
       totalPriceMinorUnits: Number(oi.total_price_minor_units) || 0,
     })),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    history: (so.order_status_history || []).map((h: any) => ({
-      id: h.id,
-      sellerOrderId: so.id,
-      fromStatus: h.from_status,
-      toStatus: h.to_status,
-      notes: h.notes,
-      createdAt: h.created_at,
-    })),
+    history: (so.order_status_history || [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((h: any) => ({
+        id: h.id,
+        sellerOrderId: so.id,
+        fromStatus: h.from_status,
+        toStatus: h.to_status,
+        notes: h.notes,
+        createdAt: h.created_at,
+      })),
   }));
 
   return {
@@ -720,81 +865,110 @@ export async function cancelCustomerOrderAction(orderId: string, reason: string)
 
   if (!user) return { success: false, message: "Authentication required." };
 
+  const adminClient = createAdminClient();
+
   // Fetch order to verify customer ownership and cancellable status
-  const { data: co, error: coErr } = await supabase
+  const { data: co, error: coErr } = await adminClient
     .from("customer_orders")
-    .select("id, order_number, status, customer_id")
+    .select("id, order_number, status, payment_method, payment_status, customer_id")
     .eq("id", orderId)
     .single();
 
   if (coErr || !co) return { success: false, message: "Order not found." };
   if (co.customer_id !== user.id) return { success: false, message: "Unauthorized." };
 
-  if (co.status !== "pending") {
+  if (co.status === "cancelled") {
+    return { success: false, message: "This order has already been cancelled." };
+  }
+
+  if (co.status === "completed") {
     return {
       success: false,
-      message: `Order cannot be cancelled because it is already in "${co.status}" status. Please contact the vendor directly.`,
+      message: "Delivered orders cannot be cancelled through customer order actions. Please contact support or the vendor for return requests.",
     };
   }
 
-  // Update customer order status to cancelled
-  const { error: updErr } = await supabase
-    .from("customer_orders")
-    .update({
-      status: "cancelled",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", orderId);
-
-  if (updErr) {
-    return { success: false, message: "Failed to cancel order." };
-  }
-
-  // Fetch all sub-orders and items to restore stock
-  const { data: subOrders } = await supabase
+  // Fetch all sub-orders and check fulfillment status
+  const { data: subOrders, error: soErr } = await adminClient
     .from("seller_orders")
-    .select("id, order_items(product_id, quantity)")
+    .select("id, status, sub_order_number, order_items(product_id, quantity)")
     .eq("customer_order_id", orderId);
 
-  if (subOrders) {
-    for (const so of subOrders) {
-      await supabase
-        .from("seller_orders")
-        .update({
-          status: "cancelled",
-          cancelled_at: new Date().toISOString(),
-          cancellation_reason: reason || "Cancelled by customer prior to dispatch",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", so.id);
-
-      // Restore stock for each item
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      for (const item of (so as any).order_items || []) {
-        // Increment stock
-        const { data: prod } = await supabase
-          .from("products")
-          .select("stock_quantity")
-          .eq("id", item.product_id)
-          .single();
-        if (prod) {
-          await supabase
-            .from("products")
-            .update({ stock_quantity: prod.stock_quantity + item.quantity })
-            .eq("id", item.product_id);
-        }
-      }
-
-      // Record in history
-      await supabase.from("order_status_history").insert({
-        seller_order_id: so.id,
-        from_status: "placed",
-        to_status: "cancelled",
-        changed_by: user.id,
-        notes: `Customer cancelled: ${reason || "No reason specified"}`,
-      });
-    }
+  if (soErr || !subOrders || subOrders.length === 0) {
+    return { success: false, message: "No sub-orders found for this order." };
   }
+
+  // SH-QA-012: Check if any sub-order is already dispatched or delivered
+  const hasDelivered = subOrders.some((so) => so.status === "delivered");
+  if (hasDelivered) {
+    return {
+      success: false,
+      message: "Order cannot be cancelled because one or more packages have already been delivered.",
+    };
+  }
+
+  const hasDispatched = subOrders.some((so) => so.status === "dispatched");
+  if (hasDispatched) {
+    return {
+      success: false,
+      message: "Order cannot be cancelled because one or more packages have already been dispatched.",
+    };
+  }
+
+  // Only allow cancellation if all sub-orders are still in 'placed' or 'confirmed'
+  const isCancellable = subOrders.every(
+    (so) => so.status === "placed" || so.status === "confirmed" || so.status === "cancelled"
+  );
+  if (!isCancellable) {
+    return {
+      success: false,
+      message: "Order cannot be cancelled because vendor packaging has already begun. Please contact the vendor directly.",
+    };
+  }
+
+  // Cancel each eligible sub-order
+  for (const so of subOrders) {
+    if (so.status === "cancelled") continue;
+    const previousStatus = so.status;
+
+    await adminClient
+      .from("seller_orders")
+      .update({
+        status: "cancelled",
+        cancelled_at: new Date().toISOString(),
+        cancellation_reason: reason?.trim() || "Cancelled by customer prior to dispatch",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", so.id);
+
+    // Restore stock for each item
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const item of (so as any).order_items || []) {
+      const { data: prod } = await adminClient
+        .from("products")
+        .select("stock_quantity")
+        .eq("id", item.product_id)
+        .single();
+      if (prod) {
+        await adminClient
+          .from("products")
+          .update({ stock_quantity: prod.stock_quantity + item.quantity })
+          .eq("id", item.product_id);
+      }
+    }
+
+    // Record in history with accurate previous status
+    await adminClient.from("order_status_history").insert({
+      seller_order_id: so.id,
+      from_status: previousStatus,
+      to_status: "cancelled",
+      changed_by: user.id,
+      notes: `Customer cancelled: ${reason?.trim() || "No reason specified"}`,
+    });
+  }
+
+  // Reconcile parent customer order status and payment status (sets status to 'cancelled', and COD payment_status to 'unpaid')
+  await reconcileParentCustomerOrder(orderId);
 
   // Reconcile commission ledger for cancelled sub-orders
   try {
@@ -1263,34 +1437,8 @@ export async function updateSellerOrderStatusAction(
     notes: historyNotes,
   });
 
-  // Reconcile parent customer order status
-  const { data: allSiblings } = await supabase
-    .from("seller_orders")
-    .select("status")
-    .eq("customer_order_id", so.customer_order_id);
-
-  if (allSiblings && allSiblings.length > 0) {
-    const statuses = allSiblings.map((s) => s.status);
-    let parentStatus = "processing";
-
-    if (statuses.every((s) => s === "delivered")) {
-      parentStatus = "completed";
-    } else if (statuses.every((s) => s === "cancelled")) {
-      parentStatus = "cancelled";
-    } else if (statuses.some((s) => s === "dispatched")) {
-      parentStatus = "partially_dispatched";
-    } else if (statuses.every((s) => s === "confirmed" || s === "processing")) {
-      parentStatus = "processing";
-    }
-
-    await supabase
-      .from("customer_orders")
-      .update({
-        status: parentStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", so.customer_order_id);
-  }
+  // Reconcile parent customer order status and payment status via adminClient
+  await reconcileParentCustomerOrder(so.customer_order_id);
 
   // Reconcile commission ledger status
   try {

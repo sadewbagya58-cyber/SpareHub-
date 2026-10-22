@@ -165,7 +165,7 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
         </Link>
 
         <Link
-          href="/orders"
+          href="/account/orders"
           onClick={onNavigate}
           className="px-3 py-2 rounded-md text-xs font-medium text-sparehub-dark hover:bg-sparehub-light flex items-center gap-2"
         >
@@ -326,7 +326,7 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
           </Link>
 
           <Link
-            href="/orders"
+            href="/account/orders"
             onClick={() => setDropdownOpen(false)}
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-sparehub-dark hover:bg-sparehub-light transition-colors"
           >
