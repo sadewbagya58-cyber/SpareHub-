@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { ProductGallery } from "@/components/marketplace/product-gallery";
 import { ProductBuyBox } from "@/components/marketplace/product-buy-box";
 import { ProductReviews } from "@/components/marketplace/product-reviews";
+import { getProductReviewsAction } from "@/lib/reviews/actions";
 
 interface ProductPageProps {
   params: Promise<{ slug: string }>;
@@ -50,6 +51,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
     notFound();
   }
 
+  const initialReviews = await getProductReviewsAction(product.id);
   const shop = product.shops;
 
   return (
@@ -422,7 +424,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
 
         {/* 5. Product Reviews & Ratings */}
         <div className="lg:col-span-7 lg:col-start-1 lg:row-start-4">
-          <ProductReviews productId={product.id} />
+          <ProductReviews productId={product.id} initialData={initialReviews} />
         </div>
       </div>
     </div>

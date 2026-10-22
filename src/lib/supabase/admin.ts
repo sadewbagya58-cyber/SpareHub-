@@ -1,4 +1,11 @@
-import { createClient } from "@supabase/supabase-js";
+import dns from "node:dns";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+if (typeof dns?.setDefaultResultOrder === "function") {
+  dns.setDefaultResultOrder("ipv4first");
+}
+
+let cachedAdminClient: SupabaseClient | null = null;
 
 /**
  * Creates an administrative Supabase client using the Secret / Service-Role key.
@@ -15,6 +22,10 @@ export function createAdminClient() {
     );
   }
 
+  if (cachedAdminClient) {
+    return cachedAdminClient;
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
@@ -25,10 +36,12 @@ export function createAdminClient() {
     );
   }
 
-  return createClient(supabaseUrl, serviceRoleKey, {
+  cachedAdminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
   });
+
+  return cachedAdminClient;
 }

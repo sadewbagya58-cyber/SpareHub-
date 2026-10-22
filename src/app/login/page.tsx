@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { loginAction, type AuthActionResult } from "@/lib/auth/actions";
 import { safeRedirectUrl } from "@/lib/validators/auth";
+import { refreshUserNavContext } from "@/lib/client/user-nav-store";
 
 function LoginForm() {
   const router = useRouter();
@@ -16,6 +17,7 @@ function LoginForm() {
   const targetRedirect = safeRedirectUrl(rawRedirect, "/account");
 
   const [isPending, startTransition] = useTransition();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<AuthActionResult | null>(null);
 
   const [email, setEmail] = useState("");
@@ -23,7 +25,9 @@ function LoginForm() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isSubmitting || isPending) return;
     setResult(null);
+    setIsSubmitting(true);
 
     const formData = new FormData();
     formData.append("email", email);
@@ -33,12 +37,18 @@ function LoginForm() {
     }
 
     startTransition(async () => {
-      const res = await loginAction(null, formData);
-      setResult(res);
+      try {
+        const res = await loginAction(null, formData);
+        setResult(res);
 
-      if (res.success && res.redirectTo) {
-        router.push(res.redirectTo);
-        router.refresh();
+        if (res.success && res.redirectTo) {
+          void refreshUserNavContext(true);
+          router.push(res.redirectTo);
+        } else {
+          setIsSubmitting(false);
+        }
+      } catch {
+        setIsSubmitting(false);
       }
     });
   };
@@ -99,7 +109,7 @@ function LoginForm() {
           type="submit"
           variant="primary"
           size="lg"
-          isLoading={isPending}
+          isLoading={isSubmitting || isPending}
           loadingText="Signing In..."
           className="w-full font-bold shadow-sm"
         >

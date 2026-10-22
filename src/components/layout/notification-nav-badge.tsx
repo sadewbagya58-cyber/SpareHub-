@@ -1,65 +1,76 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { Bell, CheckCheck, ExternalLink } from "lucide-react";
 import {
   getUserNotificationsAction,
-  getUnreadNotificationCountAction,
   markNotificationAsReadAction,
   markAllNotificationsAsReadAction,
 } from "@/lib/notifications/actions";
+import {
+  useUserNavContext,
+  updateUserNavState,
+  refreshUserNavContext,
+} from "@/lib/client/user-nav-store";
 import type { NotificationItem } from "@/lib/types";
 
 export function NotificationNavBadge() {
-  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const { authenticated, unreadNotificationCount: unreadCount } = useUserNavContext();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownOpenRef = useRef(false);
 
-  const loadDropdownNotifications = async () => {
+  useEffect(() => {
+    dropdownOpenRef.current = dropdownOpen;
+  }, [dropdownOpen]);
+
+  const loadDropdownNotifications = useCallback(async () => {
+    if (!authenticated) {
+      setNotifications([]);
+      return;
+    }
     setLoading(true);
     try {
       const res = await getUserNotificationsAction({ limit: 5 });
       setNotifications(res.notifications);
-      setUnreadCount(res.unreadCount);
+      updateUserNavState({ unreadNotificationCount: res.unreadCount });
     } catch {
       // fallback
     } finally {
       setLoading(false);
     }
-  };
+  }, [authenticated]);
 
   useEffect(() => {
-    let isMounted = true;
-    async function fetchCount() {
-      try {
-        const count = await getUnreadNotificationCountAction();
-        if (isMounted) setUnreadCount(count);
-      } catch {
-        // silent fallback
+    const handleUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent<{ unreadCount?: number }>;
+      if (typeof customEvent.detail?.unreadCount === "number") {
+        updateUserNavState({ unreadNotificationCount: customEvent.detail.unreadCount });
+      } else {
+        void refreshUserNavContext(true);
       }
-    }
-
-    fetchCount();
-
-    const handleUpdated = () => {
-      fetchCount();
-      if (dropdownOpen) {
-        loadDropdownNotifications();
+      if (dropdownOpenRef.current) {
+        void loadDropdownNotifications();
       }
     };
 
     window.addEventListener("sparehub:notifications-updated", handleUpdated);
-    const interval = setInterval(fetchCount, 30000); // 30s background sync
+
+    // Non-blocking background sync via GET /api/user-context only when logged in and tab is visible
+    const interval = setInterval(() => {
+      if (authenticated && document.visibilityState === "visible") {
+        void refreshUserNavContext(true);
+      }
+    }, 60000);
 
     return () => {
-      isMounted = false;
       window.removeEventListener("sparehub:notifications-updated", handleUpdated);
       clearInterval(interval);
     };
-  }, [dropdownOpen]);
+  }, [authenticated, loadDropdownNotifications]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -73,27 +84,38 @@ export function NotificationNavBadge() {
   }, []);
 
   const handleToggle = () => {
-    if (!dropdownOpen) {
-      loadDropdownNotifications();
+    const nextOpen = !dropdownOpen;
+    setDropdownOpen(nextOpen);
+    if (nextOpen) {
+      void loadDropdownNotifications();
     }
-    setDropdownOpen(!dropdownOpen);
   };
 
   const handleMarkAllRead = async () => {
-    await markAllNotificationsAsReadAction();
-    setUnreadCount(0);
+    // Immediate optimistic UI update (<16ms)
+    const prevNotifications = notifications;
+    const prevUnread = unreadCount;
+    updateUserNavState({ unreadNotificationCount: 0 });
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+
+    const res = await markAllNotificationsAsReadAction();
+    if (!res.success) {
+      updateUserNavState({ unreadNotificationCount: prevUnread });
+      setNotifications(prevNotifications);
+    }
   };
 
   const handleItemClick = async (notif: NotificationItem) => {
+    setDropdownOpen(false);
     if (!notif.read) {
-      await markNotificationAsReadAction(notif.id);
-      setUnreadCount((c) => Math.max(0, c - 1));
+      // Immediate optimistic UI update (<16ms)
+      const nextCount = Math.max(0, unreadCount - 1);
+      updateUserNavState({ unreadNotificationCount: nextCount });
       setNotifications((prev) =>
         prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
       );
+      await markNotificationAsReadAction(notif.id);
     }
-    setDropdownOpen(false);
   };
 
   return (

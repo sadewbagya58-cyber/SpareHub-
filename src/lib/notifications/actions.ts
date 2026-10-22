@@ -2,7 +2,6 @@
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { revalidatePath } from "next/cache";
 import type { NotificationItem } from "@/lib/types";
 
 /**
@@ -189,7 +188,6 @@ export async function markNotificationAsReadAction(notificationId: string): Prom
     .eq("user_id", user.id)
     .eq("read", false);
 
-  revalidatePath("/account/notifications");
   return { success: true, unreadCount: count || 0 };
 }
 
@@ -219,7 +217,6 @@ export async function markAllNotificationsAsReadAction(): Promise<{
     return { success: false };
   }
 
-  revalidatePath("/account/notifications");
   return { success: true };
 }
 
@@ -246,6 +243,5 @@ export async function deleteNotificationAction(notificationId: string): Promise<
     return { success: false };
   }
 
-  revalidatePath("/account/notifications");
   return { success: true };
 }

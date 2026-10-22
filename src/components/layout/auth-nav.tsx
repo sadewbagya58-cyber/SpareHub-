@@ -4,9 +4,8 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { User, LogOut, Store, ShieldCheck, ShoppingBag, ChevronDown, Settings, Package, Heart, Bell, DollarSign, Percent, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { createClient } from "@/lib/supabase/client";
 import { logoutAction } from "@/lib/auth/actions";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { useUserNavContext } from "@/lib/client/user-nav-store";
 
 interface AuthNavProps {
   isMobile?: boolean;
@@ -14,73 +13,15 @@ interface AuthNavProps {
 }
 
 export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [profile, setProfile] = useState<{ role: string; roles: string[]; full_name: string } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    initialized,
+    user,
+    profile,
+    hasSellerProfile,
+  } = useUserNavContext();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [hasSellerProfile, setHasSellerProfile] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const supabase = createClient();
-
-    // Check active session
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-      if (user) {
-        Promise.all([
-          supabase
-            .from("user_profiles")
-            .select("role, roles, full_name")
-            .eq("id", user.id)
-            .maybeSingle(),
-          supabase
-            .from("seller_profiles")
-            .select("id")
-            .eq("user_id", user.id)
-            .maybeSingle(),
-        ]).then(([profileRes, sellerRes]) => {
-          if (profileRes.data) setProfile(profileRes.data);
-          if (sellerRes.data) setHasSellerProfile(true);
-          setLoading(false);
-        });
-      } else {
-        setLoading(false);
-      }
-    });
-
-    // Listen for auth state changes (login, logout)
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          Promise.all([
-            supabase
-              .from("user_profiles")
-              .select("role, roles, full_name")
-              .eq("id", session.user.id)
-              .maybeSingle(),
-            supabase
-              .from("seller_profiles")
-              .select("id")
-              .eq("user_id", session.user.id)
-              .maybeSingle(),
-          ]).then(([profileRes, sellerRes]) => {
-            if (profileRes.data) setProfile(profileRes.data);
-            if (sellerRes.data) setHasSellerProfile(true);
-          });
-        } else {
-          setProfile(null);
-          setHasSellerProfile(false);
-        }
-      }
-    );
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -93,7 +34,7 @@ export function AuthNav({ isMobile = false, onNavigate }: AuthNavProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  if (loading) {
+  if (!initialized) {
     return (
       <div className="h-8 w-20 rounded-lg bg-gray-100 animate-pulse hidden sm:inline-block" />
     );

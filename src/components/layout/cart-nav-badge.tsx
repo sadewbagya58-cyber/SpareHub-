@@ -1,37 +1,29 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import Link from "next/link";
 import { ShoppingCart } from "lucide-react";
-import { getCartCountAction } from "@/lib/cart/actions";
+import {
+  useUserNavContext,
+  updateUserNavState,
+  refreshUserNavContext,
+} from "@/lib/client/user-nav-store";
 
 export function CartNavBadge() {
-  const [count, setCount] = useState<number>(0);
+  const { cartCount: count } = useUserNavContext();
 
   useEffect(() => {
-    let isMounted = true;
-    async function loadCount() {
-      try {
-        const c = await getCartCountAction();
-        if (isMounted) setCount(c);
-      } catch {
-        // graceful fallback to 0
-      }
-    }
-    loadCount();
-
     const handleCartUpdated = (e: Event) => {
       const customEvent = e as CustomEvent<{ count?: number }>;
       if (typeof customEvent.detail?.count === "number") {
-        setCount(customEvent.detail.count);
+        updateUserNavState({ cartCount: customEvent.detail.count });
       } else {
-        loadCount();
+        void refreshUserNavContext(true);
       }
     };
 
     window.addEventListener("sparehub:cart-updated", handleCartUpdated);
     return () => {
-      isMounted = false;
       window.removeEventListener("sparehub:cart-updated", handleCartUpdated);
     };
   }, []);

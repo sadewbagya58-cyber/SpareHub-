@@ -1,7 +1,6 @@
 "use server";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
 import type { WishlistItem } from "@/lib/types";
 
 /**
@@ -180,8 +179,6 @@ export async function toggleWishlistItemAction(productId: string): Promise<{
       return { success: false, inWishlist: true, message: "Could not remove item from wishlist." };
     }
 
-    revalidatePath("/wishlist");
-    revalidatePath("/products");
     return { success: true, inWishlist: false, message: "Removed from your saved items." };
   } else {
     // Add to wishlist
@@ -194,8 +191,6 @@ export async function toggleWishlistItemAction(productId: string): Promise<{
       return { success: false, inWishlist: false, message: "Could not add item to wishlist." };
     }
 
-    revalidatePath("/wishlist");
-    revalidatePath("/products");
     return { success: true, inWishlist: true, message: "Saved to your wishlist!" };
   }
 }
@@ -226,7 +221,5 @@ export async function removeWishlistItemAction(productId: string): Promise<{
     return { success: false, message: "Failed to remove item." };
   }
 
-  revalidatePath("/wishlist");
-  revalidatePath("/products");
   return { success: true, message: "Item removed from wishlist." };
 }

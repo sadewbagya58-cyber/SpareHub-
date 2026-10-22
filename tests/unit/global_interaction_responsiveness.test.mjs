@@ -212,4 +212,129 @@ describe("Global Button Interaction & UI Responsiveness Audit Verification", () 
       });
     }
   });
+
+  describe("8. SH-QA-022: Elimination of 4–7s Global Supabase & Next.js Interaction Latency", () => {
+    it("configures IPv4-first DNS resolution and request-scoped auth deduplication in server & admin Supabase clients", () => {
+      const serverSupabaseCode = readSrc("src/lib/supabase/server.ts");
+      const adminSupabaseCode = readSrc("src/lib/supabase/admin.ts");
+
+      assert.ok(
+        serverSupabaseCode.includes('setDefaultResultOrder("ipv4first")'),
+        "server.ts must prioritize IPv4 DNS resolution to prevent 4-12s AAAA record timeouts on *.supabase.co"
+      );
+      assert.ok(
+        adminSupabaseCode.includes('setDefaultResultOrder("ipv4first")'),
+        "admin.ts must prioritize IPv4 DNS resolution"
+      );
+      assert.ok(
+        serverSupabaseCode.includes("cache(") && serverSupabaseCode.includes("inflightGetUserPromise"),
+        "server.ts must memoize client creation per request and deduplicate auth.getUser() calls"
+      );
+      assert.ok(
+        serverSupabaseCode.includes('c.name.startsWith("sb-")'),
+        "server.ts must fast-path anonymous requests without sb-* cookies in 0ms"
+      );
+    });
+
+    it("implements middleware fast-paths for Server Actions, anonymous requests, and public routes", () => {
+      const middlewareCode = readSrc("src/lib/supabase/middleware.ts");
+
+      assert.ok(
+        middlewareCode.includes('request.headers.get("next-action")') &&
+          middlewareCode.includes('pathname.startsWith("/api/")'),
+        "Middleware must bypass duplicate edge auth roundtrips on Server Action POSTs and /api/ routes"
+      );
+      assert.ok(
+        middlewareCode.includes('cookie.name.startsWith("sb-")') &&
+          middlewareCode.includes("if (!hasAuthCookie)"),
+        "Middleware must short-circuit in 0ms when no Supabase auth cookie is present"
+      );
+      assert.ok(
+        middlewareCode.includes("if (!isAuthPage && !isProtectedRoute)"),
+        "Middleware must not block public marketplace routes on edge Auth roundtrips"
+      );
+      assert.ok(
+        middlewareCode.includes("Promise.all(["),
+        "Middleware seller verification must query user_profiles and seller_profiles concurrently"
+      );
+    });
+
+    it("unifies client navbar chrome via non-blocking GET /api/user-context and eliminates mount-time Server Action queue blocking", () => {
+      const apiRouteCode = readSrc("src/app/api/user-context/route.ts");
+      const storeCode = readSrc("src/lib/client/user-nav-store.ts");
+      const cartBadgeCode = readSrc("src/components/layout/cart-nav-badge.tsx");
+      const notifBadgeCode = readSrc("src/components/layout/notification-nav-badge.tsx");
+      const authNavCode = readSrc("src/components/layout/auth-nav.tsx");
+      const productPageCode = readSrc("src/app/products/[slug]/page.tsx");
+      const productReviewsCode = readSrc("src/components/marketplace/product-reviews.tsx");
+
+      assert.ok(
+        apiRouteCode.includes("export async function GET()") &&
+          apiRouteCode.includes("Promise.all(["),
+        "/api/user-context must expose a parallelized GET handler that never blocks Next.js actionQueue"
+      );
+      assert.ok(
+        storeCode.includes('fetch("/api/user-context"') &&
+          storeCode.includes("hasBrowserAuthCookie"),
+        "user-nav-store must deduplicate /api/user-context GET requests and short-circuit anonymous visitors in 0ms"
+      );
+      assert.ok(
+        cartBadgeCode.includes("useUserNavContext") &&
+          !cartBadgeCode.includes("await getCartCountAction()"),
+        "CartNavBadge must read from unified user-nav-store instead of firing mount-time Server Action POST"
+      );
+      assert.ok(
+        notifBadgeCode.includes("useUserNavContext") &&
+          !notifBadgeCode.includes("getUnreadNotificationCountAction"),
+        "NotificationNavBadge must read from unified user-nav-store instead of polling via Server Action POST"
+      );
+      assert.ok(
+        authNavCode.includes("useUserNavContext") &&
+          !authNavCode.includes("supabase.auth.getUser()"),
+        "AuthNav must read from unified user-nav-store instead of running duplicate client DB queries on mount/drawer open"
+      );
+      assert.ok(
+        productPageCode.includes("initialData={initialReviews}") &&
+          productReviewsCode.includes("if (initialData)"),
+        "ProductDetailPage must preload initial reviews on the server so ProductReviews does not queue a mount-time Server Action"
+      );
+    });
+
+    it("caches reference vehicle taxonomy & categories and parallelizes cart, search, and dashboard queries", () => {
+      const taxonomyCode = readSrc("src/lib/products/taxonomy.ts");
+      const productActionsCode = readSrc("src/lib/products/actions.ts");
+      const cartActionsCode = readSrc("src/lib/cart/actions.ts");
+      const wishlistActionsCode = readSrc("src/lib/wishlist/actions.ts");
+      const sellerDashboardCode = readSrc("src/app/seller/dashboard/page.tsx");
+      const adminDashboardCode = readSrc("src/app/admin/dashboard/page.tsx");
+
+      assert.ok(
+        taxonomyCode.includes("TAXONOMY_CACHE_TTL_MS") &&
+          taxonomyCode.includes("cachedTaxonomy") &&
+          taxonomyCode.includes("cachedCategories"),
+        "taxonomy.ts must cache categories and 4-level vehicle hierarchy in memory with TTL and in-flight deduplication"
+      );
+      assert.ok(
+        productActionsCode.includes("getCachedPublicProductBySlug = cache("),
+        "getPublicProductBySlug must be wrapped in React.cache() to deduplicate generateMetadata and page queries"
+      );
+      assert.ok(
+        cartActionsCode.includes("Promise.all([") &&
+          !cartActionsCode.includes('revalidatePath("/cart")'),
+        "addToCartAction must fetch product and cart_items in parallel and avoid blocking revalidatePath('/cart')"
+      );
+      assert.ok(
+        !wishlistActionsCode.includes('revalidatePath("/products")'),
+        "wishlist actions must not trigger broad revalidatePath('/products') RSC re-renders during optimistic toggles"
+      );
+      assert.ok(
+        sellerDashboardCode.includes("Promise.all(["),
+        "SellerDashboardPage must fetch product count and seller orders concurrently"
+      );
+      assert.ok(
+        adminDashboardCode.includes("Promise.all(["),
+        "AdminDashboardPage must fetch all 5 dashboard count and moderation queries concurrently"
+      );
+    });
+  });
 });

@@ -34,30 +34,33 @@ export default async function AdminDashboardPage() {
 
   const supabase = await createServerSupabaseClient();
 
-  // Fetch count of active shops, suspended shops, users, and customer orders
-  const { count: activeShopCount } = await supabase
-    .from("shops")
-    .select("*", { count: "exact", head: true })
-    .neq("status", "suspended");
-
-  const { count: suspendedShopCount } = await supabase
-    .from("shops")
-    .select("*", { count: "exact", head: true })
-    .eq("status", "suspended");
-
-  const { count: userCount } = await supabase
-    .from("user_profiles")
-    .select("*", { count: "exact", head: true });
-
-  const { count: orderCount } = await supabase
-    .from("customer_orders")
-    .select("*", { count: "exact", head: true });
-
-  // Fetch shops with linked seller profile for supervision and moderation
-  const { data: moderationShops } = await supabase
-    .from("shops")
-    .select("id, name, slug, description, phone, email, district, city, address_line1, status, created_at, seller_profiles(seller_type, id_number, id_type)")
-    .order("created_at", { ascending: false });
+  // Fetch platform counts and moderation queue concurrently in a single parallel batch (1 roundtrip instead of 5 sequential)
+  const [
+    { count: activeShopCount },
+    { count: suspendedShopCount },
+    { count: userCount },
+    { count: orderCount },
+    { data: moderationShops },
+  ] = await Promise.all([
+    supabase
+      .from("shops")
+      .select("*", { count: "exact", head: true })
+      .neq("status", "suspended"),
+    supabase
+      .from("shops")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "suspended"),
+    supabase
+      .from("user_profiles")
+      .select("*", { count: "exact", head: true }),
+    supabase
+      .from("customer_orders")
+      .select("*", { count: "exact", head: true }),
+    supabase
+      .from("shops")
+      .select("id, name, slug, description, phone, email, district, city, address_line1, status, created_at, seller_profiles(seller_type, id_number, id_type)")
+      .order("created_at", { ascending: false }),
+  ]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-8">

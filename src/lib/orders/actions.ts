@@ -23,19 +23,20 @@ const LK_PHONE_REGEX = /^(?:\+94|0)(?:7[0-9]|1[1-9]|2[1-8]|3[1-8]|4[1-7]|5[1-7]|
 export async function reconcileParentCustomerOrder(customerOrderId: string): Promise<string> {
   try {
     const adminClient = createAdminClient();
-    const { data: allSiblings } = await adminClient
-      .from("seller_orders")
-      .select("status")
-      .eq("customer_order_id", customerOrderId);
+    const [{ data: allSiblings }, { data: custOrder }] = await Promise.all([
+      adminClient
+        .from("seller_orders")
+        .select("status")
+        .eq("customer_order_id", customerOrderId),
+      adminClient
+        .from("customer_orders")
+        .select("payment_method, payment_status")
+        .eq("id", customerOrderId)
+        .single(),
+    ]);
 
     const statuses = (allSiblings || []).map((s: { status: string }) => s.status);
     const newParentStatus = deriveParentOrderStatus(statuses);
-
-    const { data: custOrder } = await adminClient
-      .from("customer_orders")
-      .select("payment_method, payment_status")
-      .eq("id", customerOrderId)
-      .single();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updatePayload: any = {
@@ -449,56 +450,48 @@ export async function processCheckoutAction(payload: CheckoutPayload): Promise<C
     }
   }
 
-  // 2. Anti-double-submit / Idempotency guard for standard cart checkout:
-  // Check if an identical order was already placed by this user in the last 15 seconds
+  // 2 & 3. Run anti-double-submit check and cart delivery pre-validation concurrently in 1 parallel roundtrip
   const fifteenSecondsAgo = new Date(Date.now() - 15000).toISOString();
-  const { data: recentOrder } = await supabase
-    .from("customer_orders")
-    .select("id, order_number, total_grand_minor")
-    .eq("customer_id", user.id)
-    .gte("created_at", fifteenSecondsAgo)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (recentOrder) {
-    // If user's cart is now empty, return the existing order directly!
-    const { count: cartCount } = await supabase
+  const [{ data: recentOrder }, { data: cartData }] = await Promise.all([
+    supabase
+      .from("customer_orders")
+      .select("id, order_number, total_grand_minor")
+      .eq("customer_id", user.id)
+      .gte("created_at", fifteenSecondsAgo)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
       .from("cart_items")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id);
-
-    if (cartCount === 0) {
-      return {
-        success: true,
-        orderId: recentOrder.id,
-        orderNumber: recentOrder.order_number,
-        totalGrandMinor: Number(recentOrder.total_grand_minor),
-      };
-    }
-  }
-
-  // 3. Pre-validate delivery across all vendor shops in cart
-  const { data: cartData } = await supabase
-    .from("cart_items")
-    .select(`
-      quantity,
-      product:products (
-        price_minor_units,
-        shop:shops (
-          id,
-          name,
-          status,
-          delivery_enabled,
-          default_delivery_fee_minor,
-          district_delivery_fees,
-          free_delivery_threshold_minor,
-          supported_districts,
-          estimated_delivery_days
+      .select(`
+        quantity,
+        product:products (
+          price_minor_units,
+          shop:shops (
+            id,
+            name,
+            status,
+            delivery_enabled,
+            default_delivery_fee_minor,
+            district_delivery_fees,
+            free_delivery_threshold_minor,
+            supported_districts,
+            estimated_delivery_days
+          )
         )
-      )
-    `)
-    .eq("user_id", user.id);
+      `)
+      .eq("user_id", user.id),
+  ]);
+
+  if (recentOrder && (!cartData || cartData.length === 0)) {
+    // If user's cart is already empty after a recent order, return the existing order directly!
+    return {
+      success: true,
+      orderId: recentOrder.id,
+      orderNumber: recentOrder.order_number,
+      totalGrandMinor: Number(recentOrder.total_grand_minor),
+    };
+  }
 
   let deliverySummary: ReturnType<typeof calculateMultiVendorDeliverySummary> | null = null;
   if (cartData && cartData.length > 0) {
@@ -760,31 +753,82 @@ export async function getCustomerOrderDetailAction(orderId: string): Promise<Cus
 
   if (!user) return null;
 
-  const { data: co, error: coErr } = await supabase
-    .from("customer_orders")
-    .select(`
-      id,
-      order_number,
-      customer_id,
-      status,
-      payment_method,
-      payment_status,
-      shipping_full_name,
-      shipping_phone,
-      shipping_address_line1,
-      shipping_address_line2,
-      shipping_district,
-      shipping_city,
-      shipping_postal_code,
-      customer_notes,
-      total_items_subtotal_minor,
-      total_delivery_fee_minor,
-      total_discount_minor,
-      total_grand_minor,
-      created_at
-    `)
-    .eq("id", orderId)
-    .single();
+  // Fetch parent customer order and sub-orders concurrently in 1 parallel roundtrip
+  const [{ data: co, error: coErr }, { data: subOrders, error: soErr }] = await Promise.all([
+    supabase
+      .from("customer_orders")
+      .select(`
+        id,
+        order_number,
+        customer_id,
+        status,
+        payment_method,
+        payment_status,
+        shipping_full_name,
+        shipping_phone,
+        shipping_address_line1,
+        shipping_address_line2,
+        shipping_district,
+        shipping_city,
+        shipping_postal_code,
+        customer_notes,
+        total_items_subtotal_minor,
+        total_delivery_fee_minor,
+        total_discount_minor,
+        total_grand_minor,
+        created_at
+      `)
+      .eq("id", orderId)
+      .single(),
+    supabase
+      .from("seller_orders")
+      .select(`
+        id,
+        customer_order_id,
+        shop_id,
+        sub_order_number,
+        status,
+        fulfillment_type,
+        courier_name,
+        tracking_number,
+        tracking_url,
+        dispatched_at,
+        delivered_at,
+        cancelled_at,
+        cancellation_reason,
+        subtotal_minor,
+        delivery_fee_minor,
+        total_amount_minor,
+        created_at,
+        shop:shops (
+          id,
+          name,
+          slug,
+          phone,
+          district
+        ),
+        order_items:order_items (
+          id,
+          seller_order_id,
+          product_id,
+          product_title_snapshot,
+          product_part_number_snapshot,
+          product_brand_snapshot,
+          unit_price_minor_units,
+          quantity,
+          total_price_minor_units
+        ),
+        order_status_history:order_status_history (
+          id,
+          from_status,
+          to_status,
+          notes,
+          created_at
+        )
+      `)
+      .eq("customer_order_id", orderId)
+      .order("created_at", { ascending: true }),
+  ]);
 
   if (coErr || !co) return null;
 
@@ -799,56 +843,6 @@ export async function getCustomerOrderDetailAction(orderId: string): Promise<Cus
       return null;
     }
   }
-
-  // Fetch sub-orders with items and status history
-  const { data: subOrders, error: soErr } = await supabase
-    .from("seller_orders")
-    .select(`
-      id,
-      customer_order_id,
-      shop_id,
-      sub_order_number,
-      status,
-      fulfillment_type,
-      courier_name,
-      tracking_number,
-      tracking_url,
-      dispatched_at,
-      delivered_at,
-      cancelled_at,
-      cancellation_reason,
-      subtotal_minor,
-      delivery_fee_minor,
-      total_amount_minor,
-      created_at,
-      shop:shops (
-        id,
-        name,
-        slug,
-        phone,
-        district
-      ),
-      order_items:order_items (
-        id,
-        seller_order_id,
-        product_id,
-        product_title_snapshot,
-        product_part_number_snapshot,
-        product_brand_snapshot,
-        unit_price_minor_units,
-        quantity,
-        total_price_minor_units
-      ),
-      order_status_history:order_status_history (
-        id,
-        from_status,
-        to_status,
-        notes,
-        created_at
-      )
-    `)
-    .eq("customer_order_id", orderId)
-    .order("created_at", { ascending: true });
 
   if (soErr || !subOrders) {
     console.error("Error fetching seller sub-orders:", soErr);
@@ -1516,7 +1510,7 @@ export async function updateSellerOrderStatusAction(
     return { success: false, message: `Failed to update status: ${updErr.message}` };
   }
 
-  // Insert status history entry
+  // Insert status history, reconcile parent customer order, and update commission ledger concurrently
   let historyNotes = `Status updated to ${targetStatus}`;
   if (targetStatus === "dispatched" && options?.trackingNumber) {
     historyNotes = `Dispatched via ${options.courierName || "Courier"} (Tracking: ${options.trackingNumber})`;
@@ -1524,40 +1518,38 @@ export async function updateSellerOrderStatusAction(
     historyNotes = `Cancelled: ${options?.cancellationReason || "Vendor cancellation"}`;
   }
 
-  await supabase.from("order_status_history").insert({
-    seller_order_id: subOrderId,
-    from_status: currentStatus,
-    to_status: targetStatus,
-    changed_by: user.id,
-    notes: historyNotes,
-  });
-
-  // Reconcile parent customer order status and payment status via adminClient (safe non-blocking)
-  try {
-    await reconcileParentCustomerOrder(so.customer_order_id);
-  } catch (recErr) {
-    console.error("Non-blocking parent order reconciliation error:", recErr);
-  }
-
-  // Reconcile commission ledger status
-  try {
-    const adminClient = createAdminClient();
-    if (targetStatus === "delivered") {
-      await adminClient
-        .from("commission_ledger")
-        .update({ status: "earned" })
-        .eq("seller_order_id", subOrderId)
-        .eq("status", "accrued");
-    } else if (targetStatus === "cancelled") {
-      await adminClient
-        .from("commission_ledger")
-        .update({ status: "cancelled" })
-        .eq("seller_order_id", subOrderId)
-        .in("status", ["accrued", "earned"]);
-    }
-  } catch (clErr) {
-    console.error("Non-blocking commission ledger reconciliation error:", clErr);
-  }
+  await Promise.all([
+    supabase.from("order_status_history").insert({
+      seller_order_id: subOrderId,
+      from_status: currentStatus,
+      to_status: targetStatus,
+      changed_by: user.id,
+      notes: historyNotes,
+    }),
+    reconcileParentCustomerOrder(so.customer_order_id).catch((recErr) => {
+      console.error("Non-blocking parent order reconciliation error:", recErr);
+    }),
+    (async () => {
+      try {
+        const adminClient = createAdminClient();
+        if (targetStatus === "delivered") {
+          await adminClient
+            .from("commission_ledger")
+            .update({ status: "earned" })
+            .eq("seller_order_id", subOrderId)
+            .eq("status", "accrued");
+        } else if (targetStatus === "cancelled") {
+          await adminClient
+            .from("commission_ledger")
+            .update({ status: "cancelled" })
+            .eq("seller_order_id", subOrderId)
+            .in("status", ["accrued", "earned"]);
+        }
+      } catch (clErr) {
+        console.error("Non-blocking commission ledger reconciliation error:", clErr);
+      }
+    })(),
+  ]);
 
   // Lifecycle notification to customer
   try {

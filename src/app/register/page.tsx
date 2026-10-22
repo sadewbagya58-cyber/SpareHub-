@@ -7,6 +7,7 @@ import { Wrench, ArrowLeft, Lock, Mail, User, Phone, CheckCircle2, AlertCircle }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { registerAction, type AuthActionResult } from "@/lib/auth/actions";
+import { refreshUserNavContext } from "@/lib/client/user-nav-store";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -49,10 +50,11 @@ export default function RegisterPage() {
       setResult(res);
 
       if (res.success && !res.requiresEmailVerification) {
+        void refreshUserNavContext(true);
         // Redirect after brief delay
         setTimeout(() => {
           router.push("/account");
-        }, 1200);
+        }, 600);
       }
     });
   };

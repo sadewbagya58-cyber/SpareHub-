@@ -56,7 +56,18 @@ export async function getProductReviewsAction(productId: string): Promise<{
     reviewsQuery = reviewsQuery.or(`status.eq.published,customer_id.eq.${user.id}`);
   }
 
-  const { data: rawReviews, error: revErr } = await reviewsQuery;
+  // Run reviews query and user review-eligibility check concurrently
+  const [reviewsRes, eligibilityRes] = await Promise.all([
+    reviewsQuery,
+    user
+      ? supabase.rpc("check_user_can_review_product", {
+          p_user_id: user.id,
+          p_product_id: productId,
+        })
+      : Promise.resolve({ data: false, error: null }),
+  ]);
+
+  const { data: rawReviews, error: revErr } = reviewsRes;
 
   if (revErr) {
     console.error("Error fetching product reviews:", revErr);
@@ -137,22 +148,13 @@ export async function getProductReviewsAction(productId: string): Promise<{
     distribution,
   };
 
-  // 4. Check user review eligibility
+  // 4. Evaluate user review eligibility result
   let userCanReview = false;
   if (user) {
-    try {
-      // First attempt database function
-      const { data: canReviewRpc, error: rpcErr } = await supabase.rpc(
-        "check_user_can_review_product",
-        {
-          p_user_id: user.id,
-          p_product_id: productId,
-        }
-      );
-
-      if (!rpcErr && typeof canReviewRpc === "boolean") {
-        userCanReview = canReviewRpc;
-      } else {
+    if (!eligibilityRes.error && typeof eligibilityRes.data === "boolean") {
+      userCanReview = eligibilityRes.data;
+    } else {
+      try {
         // Fallback: direct query through order items
         const admin = createAdminClient();
         const { data: ordersWithItem } = await admin
@@ -172,10 +174,10 @@ export async function getProductReviewsAction(productId: string): Promise<{
           .limit(1);
 
         userCanReview = Boolean(ordersWithItem && ordersWithItem.length > 0);
+      } catch (e) {
+        console.error("Error evaluating user review eligibility:", e);
+        userCanReview = false;
       }
-    } catch (e) {
-      console.error("Error evaluating user review eligibility:", e);
-      userCanReview = false;
     }
   }
 

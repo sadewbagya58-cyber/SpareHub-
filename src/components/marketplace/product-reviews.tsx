@@ -19,27 +19,50 @@ import {
 import type { ProductReviewItem, ProductRatingSummary } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 
-interface ProductReviewsProps {
-  productId: string;
+interface ProductReviewsInitialData {
+  reviews: ProductReviewItem[];
+  summary: ProductRatingSummary;
+  userCanReview: boolean;
+  userReview?: ProductReviewItem | null;
 }
 
-export function ProductReviews({ productId }: ProductReviewsProps) {
-  const [reviews, setReviews] = useState<ProductReviewItem[]>([]);
-  const [summary, setSummary] = useState<ProductRatingSummary>({
-    averageRating: 0,
-    totalReviews: 0,
-    distribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
-  });
-  const [userCanReview, setUserCanReview] = useState(false);
-  const [userReview, setUserReview] = useState<ProductReviewItem | null>(null);
-  const [loading, setLoading] = useState(true);
+interface ProductReviewsProps {
+  productId: string;
+  initialData?: ProductReviewsInitialData;
+}
+
+export function ProductReviews({ productId, initialData }: ProductReviewsProps) {
+  const [reviews, setReviews] = useState<ProductReviewItem[]>(
+    () => initialData?.reviews ?? []
+  );
+  const [summary, setSummary] = useState<ProductRatingSummary>(
+    () =>
+      initialData?.summary ?? {
+        averageRating: 0,
+        totalReviews: 0,
+        distribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
+      }
+  );
+  const [userCanReview, setUserCanReview] = useState<boolean>(
+    () => initialData?.userCanReview ?? false
+  );
+  const [userReview, setUserReview] = useState<ProductReviewItem | null>(
+    () => initialData?.userReview ?? null
+  );
+  const [loading, setLoading] = useState<boolean>(() => !initialData);
 
   // Review Form State
   const [showForm, setShowForm] = useState(false);
-  const [rating, setRating] = useState(5);
+  const [rating, setRating] = useState<number>(
+    () => initialData?.userReview?.rating ?? 5
+  );
   const [hoverRating, setHoverRating] = useState<number | null>(null);
-  const [title, setTitle] = useState("");
-  const [comment, setComment] = useState("");
+  const [title, setTitle] = useState<string>(
+    () => initialData?.userReview?.title || ""
+  );
+  const [comment, setComment] = useState<string>(
+    () => initialData?.userReview?.comment || ""
+  );
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
@@ -67,6 +90,11 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
   }, [productId]);
 
   useEffect(() => {
+    // Skip mount-time Server Action POST when initialData was already preloaded on the server
+    if (initialData) {
+      return;
+    }
+
     let isMounted = true;
     async function init() {
       try {
@@ -92,7 +120,7 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
     return () => {
       isMounted = false;
     };
-  }, [productId]);
+  }, [productId, initialData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

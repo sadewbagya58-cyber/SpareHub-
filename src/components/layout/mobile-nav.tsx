@@ -1,57 +1,41 @@
 "use client";
- 
-import React, { useState, useEffect } from "react";
+
+import React, { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Search, Store, ShoppingCart, User } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
 import { getCartCountAction } from "@/lib/cart/actions";
+import {
+  useUserNavContext,
+  updateUserNavState,
+  refreshUserNavContext,
+} from "@/lib/client/user-nav-store";
 
 export function MobileNav() {
   const pathname = usePathname();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [cartCount, setCartCount] = useState<number>(0);
+  const { authenticated: isLoggedIn, cartCount } = useUserNavContext();
 
   useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsLoggedIn(!!session);
-    });
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(!!session);
-    });
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-    async function loadCount() {
-      try {
-        const c = await getCartCountAction();
-        if (isMounted) setCartCount(c);
-      } catch {
-        // fallback
-      }
-    }
-    loadCount();
-
-    const handleCartUpdated = (e: Event) => {
+    const handleCartUpdated = async (e: Event) => {
       const customEvent = e as CustomEvent<{ count?: number }>;
       if (typeof customEvent.detail?.count === "number") {
-        setCartCount(customEvent.detail.count);
+        updateUserNavState({ cartCount: customEvent.detail.count });
       } else {
-        loadCount();
+        try {
+          const state = await refreshUserNavContext(true);
+          if (!state.initialized) {
+            const c = await getCartCountAction();
+            updateUserNavState({ cartCount: c });
+          }
+        } catch {
+          // graceful fallback
+        }
       }
     };
 
     window.addEventListener("sparehub:cart-updated", handleCartUpdated);
     return () => {
-      isMounted = false;
       window.removeEventListener("sparehub:cart-updated", handleCartUpdated);
     };
   }, []);

@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
@@ -1280,8 +1281,10 @@ export async function getPublicProducts(options?: PublicProductsQueryOptions) {
 
 /**
  * Server Helper: Fetch public product by slug for product detail page.
+ * Request-memoized via React `cache()` so `generateMetadata` and `ProductDetailPage`
+ * share a single Supabase query instead of executing the 6-table join twice per request.
  */
-export async function getPublicProductBySlug(slug: string) {
+const getCachedPublicProductBySlug = cache(async (slug: string) => {
   try {
     const supabase = await createServerSupabaseClient();
 
@@ -1371,4 +1374,8 @@ export async function getPublicProductBySlug(slug: string) {
     console.error("Error in getPublicProductBySlug:", err);
     return null;
   }
+});
+
+export async function getPublicProductBySlug(slug: string) {
+  return getCachedPublicProductBySlug(slug);
 }

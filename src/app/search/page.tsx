@@ -50,10 +50,22 @@ async function SearchResults({ searchParams }: SearchPageProps) {
   const params = await searchParams;
   const { q, type, make, model, variant, category, condition, brand, sort } = params;
 
-  // Load database taxonomy & categories concurrently
-  const [taxonomy, categories] = await Promise.all([
+  const hasRawVehicleParams = Boolean(type || make || model || variant);
+  const sortMode = (sort as "newest" | "price_asc" | "price_desc" | "name_asc") || "newest";
+
+  // When no vehicle filter parameters are present, fetch taxonomy, categories, and products in a single parallel batch
+  const [taxonomy, categories, preloadedProducts] = await Promise.all([
     getVehicleTaxonomyHierarchy(),
     getProductCategories(),
+    !hasRawVehicleParams
+      ? getPublicProducts({
+          search: q,
+          category,
+          condition: condition && condition !== "all" ? condition : undefined,
+          brand: brand && brand !== "all" ? brand : undefined,
+          sort: sortMode,
+        })
+      : Promise.resolve(null),
   ]);
 
   // Server-side validation and sanitization of untrusted vehicle parameters
@@ -66,18 +78,20 @@ async function SearchResults({ searchParams }: SearchPageProps) {
     ? categories.find((c) => c.slug === category)
     : undefined;
 
-  // Fetch live published products from non-suspended shops
-  const liveProducts = await getPublicProducts({
-    search: q,
-    category,
-    condition: condition && condition !== "all" ? condition : undefined,
-    brand: brand && brand !== "all" ? brand : undefined,
-    vehicleTypeId: validatedVehicle.vehicleType?.id,
-    vehicleMakeId: validatedVehicle.vehicleMake?.id,
-    vehicleModelId: validatedVehicle.vehicleModel?.id,
-    vehicleVariantId: validatedVehicle.vehicleVariant?.id,
-    sort: (sort as "newest" | "price_asc" | "price_desc" | "name_asc") || "newest",
-  });
+  // Fetch live published products from non-suspended shops (reusing preloaded batch when no vehicle filter was requested)
+  const liveProducts =
+    preloadedProducts ??
+    (await getPublicProducts({
+      search: q,
+      category,
+      condition: condition && condition !== "all" ? condition : undefined,
+      brand: brand && brand !== "all" ? brand : undefined,
+      vehicleTypeId: validatedVehicle.vehicleType?.id,
+      vehicleMakeId: validatedVehicle.vehicleMake?.id,
+      vehicleModelId: validatedVehicle.vehicleModel?.id,
+      vehicleVariantId: validatedVehicle.vehicleVariant?.id,
+      sort: sortMode,
+    }));
 
   const hasVehicleFilter = validatedVehicle.hasFilter;
   const hasOtherFilters = Boolean(q || category || condition || brand || sort);

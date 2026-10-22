@@ -1,7 +1,6 @@
 "use server";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
 import type { CartItem, MultiVendorCartGroup } from "@/lib/types";
 
 export interface CartResponse {
@@ -194,12 +193,18 @@ export async function addToCartAction(productId: string, quantity: number = 1): 
     };
   }
 
-  // Check product existence, status & stock
-  const { data: product, error: prodErr } = await supabase
-    .from("products")
-    .select("id, title, is_published, status, stock_quantity, shop:shops(status)")
-    .eq("id", productId)
-    .single();
+  // Fetch target product and user's existing cart items concurrently in 1 parallel roundtrip (instead of 3 sequential queries)
+  const [{ data: product, error: prodErr }, { data: userCartItems }] = await Promise.all([
+    supabase
+      .from("products")
+      .select("id, title, is_published, status, stock_quantity, shop:shops(status)")
+      .eq("id", productId)
+      .single(),
+    supabase
+      .from("cart_items")
+      .select("id, product_id, quantity")
+      .eq("user_id", user.id),
+  ]);
 
   if (prodErr || !product) {
     return { success: false, message: "Product not found." };
@@ -211,13 +216,12 @@ export async function addToCartAction(productId: string, quantity: number = 1): 
     return { success: false, message: "This product is currently unavailable for purchase." };
   }
 
-  // Check existing item in cart
-  const { data: existing } = await supabase
-    .from("cart_items")
-    .select("id, quantity")
-    .eq("user_id", user.id)
-    .eq("product_id", productId)
-    .maybeSingle();
+  const allItems = userCartItems || [];
+  const existing = allItems.find((row) => row.product_id === productId);
+  const otherItemsCount = allItems.reduce(
+    (acc, row) => acc + (row.product_id === productId ? 0 : row.quantity || 0),
+    0
+  );
 
   const newTotalQty = (existing?.quantity ?? 0) + qty;
 
@@ -249,13 +253,8 @@ export async function addToCartAction(productId: string, quantity: number = 1): 
     }
   }
 
-  const { data: allItems } = await supabase
-    .from("cart_items")
-    .select("quantity")
-    .eq("user_id", user.id);
-  const totalCartCount = (allItems || []).reduce((acc, row) => acc + (row.quantity || 0), 0);
+  const totalCartCount = otherItemsCount + newTotalQty;
 
-  revalidatePath("/cart");
   return { success: true, message: "Part added to shopping cart.", cartCount: totalCartCount };
 }
 
@@ -281,14 +280,13 @@ export async function updateCartQuantityAction(cartItemId: string, quantity: num
     return { success: false, message: "Authentication required." };
   }
 
-  // Fetch cart item with product stock
-  const { data: item, error: fetchErr } = await supabase
+  // Fetch user's cart items with product stock in a single query
+  const { data: userItems, error: fetchErr } = await supabase
     .from("cart_items")
     .select("id, quantity, product:products(stock_quantity, title)")
-    .eq("id", cartItemId)
-    .eq("user_id", user.id)
-    .single();
+    .eq("user_id", user.id);
 
+  const item = (userItems || []).find((row) => row.id === cartItemId);
   if (fetchErr || !item) {
     return { success: false, message: "Cart item not found." };
   }
@@ -312,13 +310,12 @@ export async function updateCartQuantityAction(cartItemId: string, quantity: num
     return { success: false, message: "Failed to update item quantity." };
   }
 
-  const { data: allItems } = await supabase
-    .from("cart_items")
-    .select("quantity")
-    .eq("user_id", user.id);
-  const totalCartCount = (allItems || []).reduce((acc, row) => acc + (row.quantity || 0), 0);
+  const otherItemsCount = (userItems || []).reduce(
+    (acc, row) => acc + (row.id === cartItemId ? 0 : row.quantity || 0),
+    0
+  );
+  const totalCartCount = otherItemsCount + qty;
 
-  revalidatePath("/cart");
   return { success: true, cartCount: totalCartCount };
 }
 
@@ -355,7 +352,6 @@ export async function removeCartItemAction(cartItemId: string): Promise<{
     .eq("user_id", user.id);
   const totalCartCount = (allItems || []).reduce((acc, row) => acc + (row.quantity || 0), 0);
 
-  revalidatePath("/cart");
   return { success: true, cartCount: totalCartCount };
 }
 
@@ -378,7 +374,6 @@ export async function clearCartAction(): Promise<{ success: boolean; message?: s
     return { success: false, message: "Failed to clear cart." };
   }
 
-  revalidatePath("/cart");
   return { success: true, cartCount: 0 };
 }
 

@@ -63,17 +63,18 @@ export default async function SellerDashboardPage() {
   let netEarningsMinor = 0;
 
   if (shop) {
-    const { count } = await supabase
-      .from("products")
-      .select("*", { count: "exact", head: true })
-      .eq("shop_id", shop.id);
+    const [{ count }, { count: oCount, data: ordersData }] = await Promise.all([
+      supabase
+        .from("products")
+        .select("*", { count: "exact", head: true })
+        .eq("shop_id", shop.id),
+      supabase
+        .from("seller_orders")
+        .select("total_amount_minor, status")
+        .eq("shop_id", shop.id),
+    ]);
+
     productCount = count ?? 0;
-
-    const { count: oCount, data: ordersData } = await supabase
-      .from("seller_orders")
-      .select("total_amount_minor, status")
-      .eq("shop_id", shop.id);
-
     orderCount = oCount ?? (ordersData ? ordersData.length : 0);
     if (ordersData) {
       netEarningsMinor = ordersData

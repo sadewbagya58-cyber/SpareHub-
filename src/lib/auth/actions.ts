@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -152,20 +153,18 @@ export async function loginAction(
       return { error: "Authentication failed. Please try again." };
     }
 
+    // If an explicit internal redirect was requested, validate and honor it immediately without an extra DB roundtrip
+    if (redirectTarget) {
+      const safe = safeRedirectUrl(redirectTarget);
+      return { success: true, redirectTo: safe };
+    }
+
     // Fetch user profile to determine default portal landing
     const { data: profile } = await supabase
       .from("user_profiles")
       .select("role, roles")
       .eq("id", data.user.id)
       .maybeSingle();
-
-    revalidatePath("/", "layout");
-
-    // If an explicit internal redirect was requested, validate and honor it
-    if (redirectTarget) {
-      const safe = safeRedirectUrl(redirectTarget);
-      return { success: true, redirectTo: safe };
-    }
 
     // Default redirection based on authoritative database role
     if (profile?.role === "platform_admin" || profile?.roles?.includes("platform_admin")) {
@@ -251,9 +250,10 @@ export async function updateProfileAction(
 }
 
 /**
- * Server Helper: Fetch the current authenticated user and their profile
+ * Server Helper: Fetch the current authenticated user and their profile.
+ * Request-memoized via React `cache()` to prevent duplicate `user_profiles` queries within the same render.
  */
-export async function getCurrentUserProfile() {
+const getCachedCurrentUserProfile = cache(async () => {
   try {
     const supabase = await createServerSupabaseClient();
     const {
@@ -275,4 +275,8 @@ export async function getCurrentUserProfile() {
   } catch {
     return null;
   }
+});
+
+export async function getCurrentUserProfile() {
+  return getCachedCurrentUserProfile();
 }

@@ -238,127 +238,176 @@ function mergeByKey<T>(
   return result;
 }
 
+const TAXONOMY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes in-memory TTL for static reference tables
+
+let cachedCategories: { data: CategoryOption[]; expiresAt: number } | null = null;
+let inflightCategoriesPromise: Promise<CategoryOption[]> | null = null;
+
+let cachedTaxonomy: { data: VehicleTaxonomyHierarchy; expiresAt: number } | null = null;
+let inflightTaxonomyPromise: Promise<VehicleTaxonomyHierarchy> | null = null;
+
 /**
  * Fetch product categories from Supabase, falling back to comprehensive seeded defaults.
+ * Cached in memory with a 5-minute TTL and in-flight deduplication to avoid redundant DB roundtrips on every search/filter action.
  */
 export async function getProductCategories(): Promise<CategoryOption[]> {
-  try {
-    const supabase = await createServerSupabaseClient();
-    const { data, error } = await supabase
-      .from("categories")
-      .select("id, name, slug, icon_name")
-      .eq("is_active", true)
-      .order("display_order", { ascending: true });
-
-    if (error || !data || data.length === 0) {
-      return FALLBACK_CATEGORIES;
-    }
-
-    return data;
-  } catch (err) {
-    console.warn("Using fallback categories due to fetch error:", err);
-    return FALLBACK_CATEGORIES;
+  const now = Date.now();
+  if (cachedCategories && now < cachedCategories.expiresAt) {
+    return cachedCategories.data;
   }
+
+  if (inflightCategoriesPromise) {
+    return inflightCategoriesPromise;
+  }
+
+  inflightCategoriesPromise = (async () => {
+    try {
+      const supabase = await createServerSupabaseClient();
+      const { data, error } = await supabase
+        .from("categories")
+        .select("id, name, slug, icon_name")
+        .eq("is_active", true)
+        .order("display_order", { ascending: true });
+
+      const resolved =
+        error || !data || data.length === 0 ? FALLBACK_CATEGORIES : data;
+
+      cachedCategories = {
+        data: resolved,
+        expiresAt: Date.now() + TAXONOMY_CACHE_TTL_MS,
+      };
+      return resolved;
+    } catch (err) {
+      console.warn("Using fallback categories due to fetch error:", err);
+      return FALLBACK_CATEGORIES;
+    } finally {
+      inflightCategoriesPromise = null;
+    }
+  })();
+
+  return inflightCategoriesPromise;
 }
 
 /**
  * Fetch hierarchical 4-level vehicle taxonomy (`Type -> Make -> Model -> Variant`)
  * for structured compatibility selection and display.
+ * Cached in memory with a 5-minute TTL and in-flight deduplication so home, search, and filter transitions do not re-query 4 static tables on every click.
  */
 export async function getVehicleTaxonomyHierarchy(): Promise<VehicleTaxonomyHierarchy> {
-  try {
-    const supabase = await createServerSupabaseClient();
-
-    const [typesRes, makesRes, modelsRes, variantsRes] = await Promise.all([
-      supabase
-        .from("vehicle_types")
-        .select("id, name, display_order")
-        .eq("is_active", true)
-        .order("display_order"),
-      supabase
-        .from("vehicle_makes")
-        .select("id, vehicle_type_id, name, slug")
-        .order("name"),
-      supabase
-        .from("vehicle_models")
-        .select("id, make_id, name, slug")
-        .order("name"),
-      supabase
-        .from("vehicle_variants")
-        .select(
-          "id, model_id, generation_chassis, year_start, year_end, engine_code, transmission, fuel_type"
-        )
-        .order("year_start", { ascending: false }),
-    ]);
-
-    const vehicleTypes = mergeByKey<VehicleTypeOption>(
-      (typesRes.data as VehicleTypeOption[]) || [],
-      FALLBACK_VEHICLE_TYPES,
-      (t) => t.id
-    );
-
-    const dbMakes = (makesRes.data as VehicleMakeOption[]) || [];
-    const vehicleMakes = mergeByKey<VehicleMakeOption>(
-      dbMakes,
-      FALLBACK_VEHICLE_MAKES,
-      (m) => `${m.vehicle_type_id}:${m.name.toLowerCase()}`
-    );
-
-    // Map fallback make IDs to actual merged make IDs in case DB had custom UUIDs
-    const fallbackMakeById = new Map(FALLBACK_VEHICLE_MAKES.map((m) => [m.id, m]));
-    const mergedMakeByNaturalKey = new Map(
-      vehicleMakes.map((m) => [`${m.vehicle_type_id}:${m.name.toLowerCase()}`, m])
-    );
-
-    const normalizedFallbackModels: VehicleModelOption[] = FALLBACK_VEHICLE_MODELS.map((mod) => {
-      const fbMake = fallbackMakeById.get(mod.make_id);
-      const actualMake = fbMake
-        ? mergedMakeByNaturalKey.get(`${fbMake.vehicle_type_id}:${fbMake.name.toLowerCase()}`)
-        : undefined;
-      return actualMake ? { ...mod, make_id: actualMake.id } : mod;
-    });
-
-    const dbModels = (modelsRes.data as VehicleModelOption[]) || [];
-    const vehicleModels = mergeByKey<VehicleModelOption>(
-      dbModels,
-      normalizedFallbackModels,
-      (m) => `${m.make_id}:${m.name.toLowerCase()}`
-    );
-
-    // Map fallback model IDs to actual merged model IDs in case DB had custom UUIDs
-    const fallbackModelById = new Map(normalizedFallbackModels.map((m) => [m.id, m]));
-    const mergedModelByNaturalKey = new Map(
-      vehicleModels.map((m) => [`${m.make_id}:${m.name.toLowerCase()}`, m])
-    );
-
-    const normalizedFallbackVariants: VehicleVariantOption[] = FALLBACK_VEHICLE_VARIANTS.map((v) => {
-      const fbModel = fallbackModelById.get(v.model_id);
-      const actualModel = fbModel
-        ? mergedModelByNaturalKey.get(`${fbModel.make_id}:${fbModel.name.toLowerCase()}`)
-        : undefined;
-      return actualModel ? { ...v, model_id: actualModel.id } : v;
-    });
-
-    const dbVariants = (variantsRes.data as VehicleVariantOption[]) || [];
-    const vehicleVariants = mergeByKey<VehicleVariantOption>(
-      dbVariants,
-      normalizedFallbackVariants,
-      (v) => `${v.model_id}:${(v.generation_chassis || "").toLowerCase()}:${v.year_start}`
-    );
-
-    return {
-      vehicleTypes,
-      vehicleMakes,
-      vehicleModels,
-      vehicleVariants,
-    };
-  } catch (err) {
-    console.warn("Using fallback vehicle taxonomy due to fetch error:", err);
-    return {
-      vehicleTypes: FALLBACK_VEHICLE_TYPES,
-      vehicleMakes: FALLBACK_VEHICLE_MAKES,
-      vehicleModels: FALLBACK_VEHICLE_MODELS,
-      vehicleVariants: FALLBACK_VEHICLE_VARIANTS,
-    };
+  const now = Date.now();
+  if (cachedTaxonomy && now < cachedTaxonomy.expiresAt) {
+    return cachedTaxonomy.data;
   }
+
+  if (inflightTaxonomyPromise) {
+    return inflightTaxonomyPromise;
+  }
+
+  inflightTaxonomyPromise = (async () => {
+    try {
+      const supabase = await createServerSupabaseClient();
+
+      const [typesRes, makesRes, modelsRes, variantsRes] = await Promise.all([
+        supabase
+          .from("vehicle_types")
+          .select("id, name, display_order")
+          .eq("is_active", true)
+          .order("display_order"),
+        supabase
+          .from("vehicle_makes")
+          .select("id, vehicle_type_id, name, slug")
+          .order("name"),
+        supabase
+          .from("vehicle_models")
+          .select("id, make_id, name, slug")
+          .order("name"),
+        supabase
+          .from("vehicle_variants")
+          .select(
+            "id, model_id, generation_chassis, year_start, year_end, engine_code, transmission, fuel_type"
+          )
+          .order("year_start", { ascending: false }),
+      ]);
+
+      const vehicleTypes = mergeByKey<VehicleTypeOption>(
+        (typesRes.data as VehicleTypeOption[]) || [],
+        FALLBACK_VEHICLE_TYPES,
+        (t) => t.id
+      );
+
+      const dbMakes = (makesRes.data as VehicleMakeOption[]) || [];
+      const vehicleMakes = mergeByKey<VehicleMakeOption>(
+        dbMakes,
+        FALLBACK_VEHICLE_MAKES,
+        (m) => `${m.vehicle_type_id}:${m.name.toLowerCase()}`
+      );
+
+      // Map fallback make IDs to actual merged make IDs in case DB had custom UUIDs
+      const fallbackMakeById = new Map(FALLBACK_VEHICLE_MAKES.map((m) => [m.id, m]));
+      const mergedMakeByNaturalKey = new Map(
+        vehicleMakes.map((m) => [`${m.vehicle_type_id}:${m.name.toLowerCase()}`, m])
+      );
+
+      const normalizedFallbackModels: VehicleModelOption[] = FALLBACK_VEHICLE_MODELS.map((mod) => {
+        const fbMake = fallbackMakeById.get(mod.make_id);
+        const actualMake = fbMake
+          ? mergedMakeByNaturalKey.get(`${fbMake.vehicle_type_id}:${fbMake.name.toLowerCase()}`)
+          : undefined;
+        return actualMake ? { ...mod, make_id: actualMake.id } : mod;
+      });
+
+      const dbModels = (modelsRes.data as VehicleModelOption[]) || [];
+      const vehicleModels = mergeByKey<VehicleModelOption>(
+        dbModels,
+        normalizedFallbackModels,
+        (m) => `${m.make_id}:${m.name.toLowerCase()}`
+      );
+
+      // Map fallback model IDs to actual merged model IDs in case DB had custom UUIDs
+      const fallbackModelById = new Map(normalizedFallbackModels.map((m) => [m.id, m]));
+      const mergedModelByNaturalKey = new Map(
+        vehicleModels.map((m) => [`${m.make_id}:${m.name.toLowerCase()}`, m])
+      );
+
+      const normalizedFallbackVariants: VehicleVariantOption[] = FALLBACK_VEHICLE_VARIANTS.map((v) => {
+        const fbModel = fallbackModelById.get(v.model_id);
+        const actualModel = fbModel
+          ? mergedModelByNaturalKey.get(`${fbModel.make_id}:${fbModel.name.toLowerCase()}`)
+          : undefined;
+        return actualModel ? { ...v, model_id: actualModel.id } : v;
+      });
+
+      const dbVariants = (variantsRes.data as VehicleVariantOption[]) || [];
+      const vehicleVariants = mergeByKey<VehicleVariantOption>(
+        dbVariants,
+        normalizedFallbackVariants,
+        (v) => `${v.model_id}:${(v.generation_chassis || "").toLowerCase()}:${v.year_start}`
+      );
+
+      const resolved: VehicleTaxonomyHierarchy = {
+        vehicleTypes,
+        vehicleMakes,
+        vehicleModels,
+        vehicleVariants,
+      };
+
+      cachedTaxonomy = {
+        data: resolved,
+        expiresAt: Date.now() + TAXONOMY_CACHE_TTL_MS,
+      };
+      return resolved;
+    } catch (err) {
+      console.warn("Using fallback vehicle taxonomy due to fetch error:", err);
+      return {
+        vehicleTypes: FALLBACK_VEHICLE_TYPES,
+        vehicleMakes: FALLBACK_VEHICLE_MAKES,
+        vehicleModels: FALLBACK_VEHICLE_MODELS,
+        vehicleVariants: FALLBACK_VEHICLE_VARIANTS,
+      };
+    } finally {
+      inflightTaxonomyPromise = null;
+    }
+  })();
+
+  return inflightTaxonomyPromise;
 }
