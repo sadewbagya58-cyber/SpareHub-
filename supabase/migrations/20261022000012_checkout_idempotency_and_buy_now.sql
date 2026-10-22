@@ -21,6 +21,11 @@ CREATE INDEX IF NOT EXISTS idx_customer_orders_checkout_attempt
 -- -----------------------------------------------------------------------------
 -- 2. UPGRADED TRANSACTIONAL CHECKOUT FUNCTION (Supports Cart, Buy Now & Idempotency)
 -- -----------------------------------------------------------------------------
+-- Drop legacy 9-argument signature to prevent ambiguous overloads in PostgreSQL / PostgREST
+DROP FUNCTION IF EXISTS public.process_checkout_order(
+  text, text, text, text, text, text, text, text, text
+);
+
 CREATE OR REPLACE FUNCTION public.process_checkout_order(
   p_shipping_full_name text,
   p_shipping_phone text,
@@ -120,7 +125,7 @@ BEGIN
     END IF;
 
     IF v_item_record.shop_status = 'suspended' THEN
-      RAISE EXCEPTION 'Vendor store is currently inactive.', v_item_record.title;
+      RAISE EXCEPTION 'Vendor store for product "%" is currently inactive.', v_item_record.title;
     END IF;
 
     IF v_item_record.stock_quantity < v_buy_qty THEN
@@ -134,8 +139,11 @@ BEGIN
     BEGIN
       SELECT public.calculate_shop_delivery_fee(v_item_record.shop_id, p_shipping_district, v_merchandise_subtotal)
       INTO v_shop_delivery_fee;
-    EXCEPTION WHEN OTHERS THEN
-      v_shop_delivery_fee := 0;
+    EXCEPTION
+      WHEN undefined_function THEN
+        v_shop_delivery_fee := 0;
+      WHEN OTHERS THEN
+        RAISE;
     END;
 
     v_total_delivery_fee := coalesce(v_shop_delivery_fee, 0);
@@ -202,8 +210,11 @@ BEGIN
       BEGIN
         SELECT public.calculate_shop_delivery_fee(v_shop_record.shop_id, p_shipping_district, v_shop_subtotal)
         INTO v_shop_delivery_fee;
-      EXCEPTION WHEN OTHERS THEN
-        v_shop_delivery_fee := 0;
+      EXCEPTION
+        WHEN undefined_function THEN
+          v_shop_delivery_fee := 0;
+        WHEN OTHERS THEN
+          RAISE;
       END;
 
       v_total_delivery_fee := v_total_delivery_fee + coalesce(v_shop_delivery_fee, 0);
@@ -342,8 +353,11 @@ BEGIN
       BEGIN
         SELECT public.calculate_shop_delivery_fee(v_shop_record.shop_id, p_shipping_district, v_shop_subtotal)
         INTO v_shop_delivery_fee;
-      EXCEPTION WHEN OTHERS THEN
-        v_shop_delivery_fee := 0;
+      EXCEPTION
+        WHEN undefined_function THEN
+          v_shop_delivery_fee := 0;
+        WHEN OTHERS THEN
+          RAISE;
       END;
 
       INSERT INTO public.seller_orders (
@@ -436,5 +450,10 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.process_checkout_order FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.process_checkout_order TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.process_checkout_order(
+  text, text, text, text, text, text, text, text, text, text, uuid, int
+) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION public.process_checkout_order(
+  text, text, text, text, text, text, text, text, text, text, uuid, int
+) TO authenticated, service_role;

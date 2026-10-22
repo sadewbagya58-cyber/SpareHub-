@@ -452,3 +452,122 @@ describe("Database Migrations & Schema Architecture Verification", () => {
   });
 });
 
+describe("Migration 012 & PL/pgSQL Function Compilation Integrity", () => {
+  const migrationsDir = path.resolve(process.cwd(), "supabase/migrations");
+  const migrationFiles = fs.readdirSync(migrationsDir).filter((f) => f.endsWith(".sql"));
+
+  test("validates all PL/pgSQL RAISE statement parameter counts across every migration", () => {
+    // Regex matches: RAISE [EXCEPTION|NOTICE|WARNING|INFO|LOG] 'format string' [, arg1, arg2...] ;
+    const raiseRegex = /RAISE\s+(?:EXCEPTION|NOTICE|WARNING|INFO|LOG)\s+'([^']*(?:''[^']*)*)'\s*([^;]*);/gi;
+
+    for (const file of migrationFiles) {
+      const sql = fs.readFileSync(path.join(migrationsDir, file), "utf-8");
+      let match;
+      while ((match = raiseRegex.exec(sql)) !== null) {
+        const formatString = match[1];
+        const argsClause = match[2].trim();
+
+        // Count non-escaped '%' format specifiers in the format string (%% is literal %)
+        const cleanString = formatString.replace(/%%/g, "");
+        const placeholderCount = (cleanString.match(/%/g) || []).length;
+
+        // Count arguments (if any)
+        let argCount = 0;
+        if (argsClause.length > 0) {
+          let depth = 0;
+          let inQuote = false;
+          let currentArg = "";
+          const args = [];
+          for (let i = 0; i < argsClause.length; i++) {
+            const char = argsClause[i];
+            if (char === "'" && argsClause[i - 1] !== "\\") {
+              inQuote = !inQuote;
+              currentArg += char;
+            } else if (!inQuote && char === "(") {
+              depth++;
+              currentArg += char;
+            } else if (!inQuote && char === ")") {
+              depth--;
+              currentArg += char;
+            } else if (!inQuote && depth === 0 && char === ",") {
+              if (currentArg.trim().length > 0) {
+                args.push(currentArg.trim());
+              }
+              currentArg = "";
+            } else {
+              currentArg += char;
+            }
+          }
+          if (currentArg.trim().length > 0) {
+            args.push(currentArg.trim());
+          }
+          argCount = args.length;
+        }
+
+        assert.strictEqual(
+          argCount,
+          placeholderCount,
+          `In ${file}: RAISE statement parameter count mismatch! ` +
+          `Format string '${formatString}' has ${placeholderCount} '%' placeholders, but supplied ${argCount} arguments: [${argsClause}].`
+        );
+      }
+    }
+  });
+
+  test("migration 012 safely drops legacy 9-argument overload before creating new 12-argument function", () => {
+    const migration12Path = path.join(migrationsDir, "20261022000012_checkout_idempotency_and_buy_now.sql");
+    const sql = fs.readFileSync(migration12Path, "utf-8");
+
+    assert.ok(
+      sql.includes("DROP FUNCTION IF EXISTS public.process_checkout_order(") &&
+      sql.includes("text, text, text, text, text, text, text, text, text"),
+      "Migration 012 must explicitly drop legacy 9-argument function to prevent ambiguous function call errors"
+    );
+
+    const dropIndex = sql.indexOf("DROP FUNCTION IF EXISTS public.process_checkout_order(");
+    const createIndex = sql.indexOf("CREATE OR REPLACE FUNCTION public.process_checkout_order(");
+    assert.ok(
+      dropIndex < createIndex,
+      "Legacy function must be dropped BEFORE creating upgraded function"
+    );
+  });
+
+  test("migration 012 preserves business validation exceptions during delivery calculation", () => {
+    const migration12Path = path.join(migrationsDir, "20261022000012_checkout_idempotency_and_buy_now.sql");
+    const sql = fs.readFileSync(migration12Path, "utf-8");
+
+    // Must NOT blindly swallow all exceptions into fee := 0 with WHEN OTHERS THEN v_shop_delivery_fee := 0
+    assert.ok(
+      !sql.includes("EXCEPTION WHEN OTHERS THEN"),
+      "Must not swallow all exceptions into free delivery"
+    );
+    assert.ok(
+      sql.includes("WHEN undefined_function THEN") && sql.includes("WHEN OTHERS THEN\n        RAISE;"),
+      "Must handle undefined_function safely while re-raising business validation failures"
+    );
+  });
+
+  test("migration 012 enforces checkout idempotency and explicit function permissions", () => {
+    const migration12Path = path.join(migrationsDir, "20261022000012_checkout_idempotency_and_buy_now.sql");
+    const sql = fs.readFileSync(migration12Path, "utf-8");
+
+    assert.ok(
+      sql.includes("checkout_attempt_id text UNIQUE;"),
+      "Must add unique checkout_attempt_id column"
+    );
+    assert.ok(
+      sql.includes("SECURITY DEFINER"),
+      "Function must be marked SECURITY DEFINER"
+    );
+    assert.ok(
+      sql.includes("SET search_path = public, auth, pg_temp"),
+      "Function must set secure search_path"
+    );
+    assert.ok(
+      sql.includes("REVOKE ALL ON FUNCTION public.process_checkout_order(") &&
+      sql.includes("GRANT EXECUTE ON FUNCTION public.process_checkout_order("),
+      "Must explicitly revoke and grant permissions on 12-argument signature"
+    );
+  });
+});
+
