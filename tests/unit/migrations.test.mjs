@@ -569,5 +569,94 @@ describe("Migration 012 & PL/pgSQL Function Compilation Integrity", () => {
       "Must explicitly revoke and grant permissions on 12-argument signature"
     );
   });
+
+  test("all triggers across all migrations reference existing defined functions", () => {
+    // Collect all functions defined up to each migration file
+    const definedFunctions = new Set();
+    const functionDefinitionRegex = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([a-zA-Z0-9_.]+)\s*\(/gi;
+    const triggerExecutionRegex = /EXECUTE\s+(?:FUNCTION|PROCEDURE)\s+([a-zA-Z0-9_.]+)\s*\(/gi;
+
+    for (const file of migrationFiles) {
+      const sql = fs.readFileSync(path.join(migrationsDir, file), "utf-8");
+
+      let defMatch;
+      while ((defMatch = functionDefinitionRegex.exec(sql)) !== null) {
+        let fnName = defMatch[1].trim();
+        if (!fnName.includes(".")) {
+          fnName = `public.${fnName}`;
+        }
+        definedFunctions.add(fnName.toLowerCase());
+      }
+
+      let execMatch;
+      while ((execMatch = triggerExecutionRegex.exec(sql)) !== null) {
+        let fnName = execMatch[1].trim();
+        if (!fnName.includes(".")) {
+          fnName = `public.${fnName}`;
+        }
+        assert.ok(
+          definedFunctions.has(fnName.toLowerCase()),
+          `In ${file}: Trigger executes unknown function '${fnName}()'. Function must be defined before being attached to triggers.`
+        );
+      }
+    }
+  });
+
+  test("migration 013 uses public.set_updated_at() and provides handle_updated_at() compatibility alias", () => {
+    const migration13Path = path.join(migrationsDir, "20261023000013_shop_verification_and_multi_shop.sql");
+    const sql = fs.readFileSync(migration13Path, "utf-8");
+
+    assert.ok(
+      sql.includes("EXECUTE FUNCTION public.set_updated_at()"),
+      "Migration 013 must execute public.set_updated_at() for seller_documents trigger"
+    );
+    assert.ok(
+      sql.includes("CREATE OR REPLACE FUNCTION public.handle_updated_at()"),
+      "Migration 013 must define handle_updated_at() compatibility alias"
+    );
+    assert.ok(
+      sql.includes("REVOKE ALL ON FUNCTION public.handle_updated_at() FROM PUBLIC;") &&
+      sql.includes("GRANT EXECUTE ON FUNCTION public.handle_updated_at() TO authenticated, service_role;"),
+      "Migration 013 must restrict handle_updated_at() permissions"
+    );
+  });
+
+  test("migration 013 safely updates shop verification triggers, policies, and administrative bypass", () => {
+    const migration13Path = path.join(migrationsDir, "20261023000013_shop_verification_and_multi_shop.sql");
+    const sql = fs.readFileSync(migration13Path, "utf-8");
+
+    // Administrative bypass for prevent_self_shop_approval
+    assert.ok(
+      sql.includes("current_user IN ('postgres', 'supabase_admin')") &&
+      sql.includes("auth.role() = 'service_role'") &&
+      sql.includes("public.is_platform_admin()"),
+      "Migration 013 must allow postgres, supabase_admin, service_role, and platform admin in prevent_self_shop_approval"
+    );
+
+    // Trigger update on shops
+    assert.ok(
+      sql.includes("DROP TRIGGER IF EXISTS trg_prevent_shop_approval ON public.shops;") &&
+      sql.includes("BEFORE INSERT OR UPDATE OF status, approved_by, approved_at, verification_status"),
+      "Migration 013 must recreate trg_prevent_shop_approval to observe verification_status and audit fields"
+    );
+
+    // Enforce verification on product publish
+    assert.ok(
+      sql.includes("CREATE OR REPLACE FUNCTION public.enforce_shop_verification_on_publish()"),
+      "Migration 013 must create enforce_shop_verification_on_publish function"
+    );
+    assert.ok(
+      sql.includes("CREATE TRIGGER trg_enforce_shop_verification_on_publish"),
+      "Migration 013 must attach enforce_shop_verification_on_publish trigger to products"
+    );
+
+    // RLS policy for published products from verified active shops
+    assert.ok(
+      sql.includes("is_published = true") &&
+      sql.includes("status = 'active'") &&
+      sql.includes("s.verification_status = 'approved'"),
+      "Public read policy must require is_published = true, status = 'active', and verification_status = 'approved'"
+    );
+  });
 });
 
