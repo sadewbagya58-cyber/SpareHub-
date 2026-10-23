@@ -46,6 +46,8 @@ interface ProductFormProps {
     vehicleModels: VehicleModelOption[];
     vehicleVariants?: VehicleVariantOption[];
   };
+  isShopVerified?: boolean;
+  shopVerificationStatus?: string;
 }
 
 export function ProductForm({
@@ -53,6 +55,8 @@ export function ProductForm({
   initialData,
   categories,
   vehicleTaxonomy,
+  isShopVerified = false,
+  shopVerificationStatus = "not_submitted",
 }: ProductFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -101,9 +105,9 @@ export function ProductForm({
     initialData?.warranty_details || ""
   );
 
-  // Visibility & Publication
+  // Visibility & Publication: unverified shops default to saving drafts (is_published = false)
   const [isPublished, setIsPublished] = useState<boolean>(
-    initialData?.is_published ?? true
+    isShopVerified ? (initialData?.is_published ?? true) : false
   );
   const [status, setStatus] = useState<ProductStatus>(
     initialData?.status && initialData.status !== "banned"
@@ -194,7 +198,12 @@ export function ProductForm({
           if (res.error) {
             setErrorMessage(res.error);
           } else {
-            setSuccessMessage("Product listed successfully! Redirecting...");
+            setSuccessMessage(
+              res.message ||
+                (isPublished
+                  ? "Product listed successfully! Redirecting..."
+                  : "Product draft saved! Redirecting...")
+            );
             setTimeout(() => {
               router.push("/seller/products");
               router.refresh();
@@ -586,26 +595,57 @@ export function ProductForm({
           </h3>
         </div>
 
+        {!isShopVerified && (
+          <div className="p-4 rounded-xl bg-red-50 border border-red-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-sparehub-error shrink-0 mt-0.5" />
+              <div className="text-xs text-red-900">
+                <p className="font-bold">Shop Verification Required to Publish</p>
+                <p className="text-red-800 mt-0.5">
+                  {shopVerificationStatus === "pending_review"
+                    ? "Your seller verification is currently under administrator review. You can save this product as a draft now and publish it as soon as your shop is approved."
+                    : "Your shop is open, but you must complete seller verification before publishing products. You can save this product as a draft now."}
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/seller/shop#verification"
+              className="inline-flex items-center justify-center rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3.5 py-2 shrink-0 transition-colors"
+            >
+              Complete Verification
+            </Link>
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-orange-50/50 border border-orange-100">
           <div>
-            <label className="text-sm font-bold text-sparehub-dark flex items-center gap-2 cursor-pointer">
+            <label
+              className={`text-sm font-bold text-sparehub-dark flex items-center gap-2 ${
+                isShopVerified ? "cursor-pointer" : "cursor-not-allowed opacity-70"
+              }`}
+            >
               <input
                 type="checkbox"
-                checked={isPublished}
-                onChange={(e) => setIsPublished(e.target.checked)}
-                className="w-4 h-4 text-sparehub-orange rounded border-gray-300 focus:ring-sparehub-orange"
+                checked={isShopVerified ? isPublished : false}
+                disabled={!isShopVerified}
+                onChange={(e) => {
+                  if (isShopVerified) {
+                    setIsPublished(e.target.checked);
+                  }
+                }}
+                className="w-4 h-4 text-sparehub-orange rounded border-gray-300 focus:ring-sparehub-orange disabled:opacity-50"
               />
               Publish to Marketplace Immediately
             </label>
             <p className="text-xs text-gray-600 mt-1">
-              {isPublished
-                ? "This product will be immediately visible to car owners and buyers across Sri Lanka. No admin review required."
-                : "Saved as private draft. You can publish it anytime when ready."}
+              {isShopVerified && isPublished
+                ? "This product will be immediately visible to car owners and buyers across Sri Lanka."
+                : "Saved as a private product draft. You can publish it anytime once your shop verification is approved."}
             </p>
           </div>
 
           <div className="shrink-0">
-            {isPublished ? (
+            {isShopVerified && isPublished ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-sparehub-success text-xs font-bold rounded-full border border-green-200">
                 <CheckCircle className="w-3.5 h-3.5" />
                 Live on Marketplace
@@ -659,7 +699,13 @@ export function ProductForm({
           ) : (
             <>
               <Save className="w-4 h-4" />
-              {mode === "create" ? "Create & Publish Listing" : "Save Changes"}
+              {mode === "create"
+                ? isShopVerified && isPublished
+                  ? "Create & Publish Listing"
+                  : "Save Product Draft"
+                : isShopVerified && isPublished
+                ? "Save & Publish Changes"
+                : "Save Draft Changes"}
             </>
           )}
         </button>

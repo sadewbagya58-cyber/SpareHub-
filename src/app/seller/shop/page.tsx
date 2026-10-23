@@ -2,16 +2,22 @@ import React from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Store, ArrowLeft, PlusCircle, ExternalLink } from "lucide-react";
-import { getSellerShopProfile } from "@/lib/seller/actions";
+import {
+  getSellerShopProfile,
+  getShopVerificationDetailsAction,
+} from "@/lib/seller/actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShopForm } from "./shop-form";
 import { ShopDeliverySettings } from "@/components/seller/shop-delivery-settings";
+import { ShopSwitcher } from "@/components/seller/shop-switcher";
+import { ShopVerificationPanel } from "@/components/seller/shop-verification-panel";
+import type { ShopVerificationStatus } from "@/lib/validators/shop";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Shop Management | SpareHub Seller Center",
-  description: "Manage your storefront profile, location, contact information, and review status.",
+  title: "Shop Management & Verification | SpareHub Seller Center",
+  description: "Manage your storefront profile, location, seller verification documents, and delivery settings.",
 };
 
 export default async function SellerShopPage() {
@@ -21,7 +27,10 @@ export default async function SellerShopPage() {
     redirect("/login?redirect=/seller/shop");
   }
 
-  const { sellerProfile, shop } = profileData;
+  const { sellerProfile, shop, shops } = profileData;
+  const verificationDetails = shop
+    ? await getShopVerificationDetailsAction(shop.id)
+    : null;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-8">
@@ -54,6 +63,11 @@ export default async function SellerShopPage() {
           </Link>
         )}
       </div>
+
+      {/* Multi-Shop Switcher */}
+      {shops && shops.length > 0 && (
+        <ShopSwitcher shops={shops} activeShopId={shop?.id} />
+      )}
 
       {/* When NO shop exists: Empty State Card */}
       {!shop ? (
@@ -91,10 +105,49 @@ export default async function SellerShopPage() {
           </CardContent>
         </Card>
       ) : (
-        /* When shop exists: Edit Form, Compliance & Delivery Management */
+        /* When shop exists: Verification Panel, Edit Form, & Delivery Management */
         <div className="space-y-8">
-          <ShopForm shop={shop} sellerType={sellerProfile?.seller_type} />
-          <ShopDeliverySettings shop={shop} />
+          <ShopVerificationPanel
+            key={`verify-${shop.id}`}
+            shopId={shop.id}
+            shopName={shop.name}
+            verificationStatus={
+              ((verificationDetails?.verificationStatus ||
+                shop.verification_status) as ShopVerificationStatus) ||
+              "not_submitted"
+            }
+            verificationReason={
+              verificationDetails?.verificationReason ?? shop.verification_reason
+            }
+            verificationSubmittedAt={
+              verificationDetails?.verificationSubmittedAt ??
+              shop.verification_submitted_at
+            }
+            verificationReviewedAt={
+              verificationDetails?.verificationReviewedAt ??
+              shop.verification_reviewed_at
+            }
+            initialOwnerLegalName={
+              verificationDetails?.ownerLegalName ??
+              shop.owner_legal_name ??
+              sellerProfile?.owner_legal_name
+            }
+            initialResidentialAddress={
+              verificationDetails?.residentialAddress ??
+              shop.residential_address ??
+              sellerProfile?.residential_address
+            }
+            initialShopDocuments={verificationDetails?.shopDocuments || []}
+            reusableAccountNicDocuments={
+              verificationDetails?.reusableAccountNicDocuments || []
+            }
+          />
+          <ShopForm
+            key={`form-${shop.id}`}
+            shop={shop}
+            sellerType={shop.shop_category || sellerProfile?.seller_type}
+          />
+          <ShopDeliverySettings key={`delivery-${shop.id}`} shop={shop} />
         </div>
       )}
     </div>

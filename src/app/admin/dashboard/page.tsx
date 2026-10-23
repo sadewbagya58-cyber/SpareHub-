@@ -58,7 +58,7 @@ export default async function AdminDashboardPage() {
       .select("*", { count: "exact", head: true }),
     supabase
       .from("shops")
-      .select("id, name, slug, description, phone, email, district, city, address_line1, status, created_at, seller_profiles(seller_type, id_number, id_type)")
+      .select("*, seller_profiles(*)")
       .order("created_at", { ascending: false }),
   ]);
 

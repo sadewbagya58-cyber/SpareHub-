@@ -81,6 +81,8 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
         initialData={product}
         categories={categories}
         vehicleTaxonomy={vehicleTaxonomy}
+        isShopVerified={shop.verification_status === "approved"}
+        shopVerificationStatus={shop.verification_status || "not_submitted"}
       />
     </div>
   );

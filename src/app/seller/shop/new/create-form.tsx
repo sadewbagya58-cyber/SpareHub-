@@ -25,16 +25,28 @@ import { slugify } from "@/lib/validators/shop";
 interface CreateShopFormProps {
   initialEmail?: string;
   initialSellerType?: string;
+  initialOwnerLegalName?: string;
+  initialResidentialAddress?: string;
+  initialPhone?: string;
 }
 
-export function CreateShopForm({ initialEmail = "", initialSellerType = "retail_shop" }: CreateShopFormProps) {
+export function CreateShopForm({
+  initialEmail = "",
+  initialSellerType = "retail_shop",
+  initialOwnerLegalName = "",
+  initialResidentialAddress = "",
+  initialPhone = "",
+}: CreateShopFormProps) {
   const router = useRouter();
   const [sellerType, setSellerType] = useState<SellerType>(initialSellerType as SellerType);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [isAutoSlug, setIsAutoSlug] = useState(true);
   const [description, setDescription] = useState("");
-  const [phone, setPhone] = useState("");
+  const [ownerLegalName, setOwnerLegalName] = useState(initialOwnerLegalName);
+  const [residentialAddress, setResidentialAddress] = useState(initialResidentialAddress);
+  const [sameAsResidential, setSameAsResidential] = useState(false);
+  const [phone, setPhone] = useState(initialPhone);
   const [email, setEmail] = useState(initialEmail);
   const [addressLine1, setAddressLine1] = useState("");
   const [addressLine2, setAddressLine2] = useState("");
@@ -58,14 +70,22 @@ export function CreateShopForm({ initialEmail = "", initialSellerType = "retail_
     e.preventDefault();
     setResult(null);
 
+    const effectiveBusinessAddress1 =
+      sameAsResidential && residentialAddress.trim()
+        ? residentialAddress.trim()
+        : addressLine1;
+
     const formData = new FormData();
     formData.append("seller_type", sellerType);
     formData.append("name", name);
     formData.append("slug", slug || slugify(name));
     formData.append("description", description);
+    formData.append("owner_legal_name", ownerLegalName);
+    formData.append("residential_address", residentialAddress);
+    formData.append("same_as_residential", sameAsResidential ? "true" : "false");
     formData.append("phone", phone);
     formData.append("email", email);
-    formData.append("address_line1", addressLine1);
+    formData.append("address_line1", effectiveBusinessAddress1);
     formData.append("address_line2", addressLine2);
     formData.append("district", district);
     formData.append("city", city);
@@ -217,11 +237,21 @@ export function CreateShopForm({ initialEmail = "", initialSellerType = "retail_
         <CardHeader>
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             <MapPin className="w-4 h-4 text-sparehub-orange" />
-            3. Contact & Location Information
+            3. Owner Identity, Residential &amp; Shop Address
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Owner's Full Legal Name (As on NIC)"
+              value={ownerLegalName}
+              onChange={(e) => setOwnerLegalName(e.target.value)}
+              placeholder="e.g. Kasun Perera"
+              required
+              disabled={isPending}
+              helperText="Required for seller identity verification."
+            />
+
             <Input
               label="Contact Phone Number"
               type="tel"
@@ -230,7 +260,24 @@ export function CreateShopForm({ initialEmail = "", initialSellerType = "retail_
               placeholder="077 123 4567 or 011 234 5678"
               required
               disabled={isPending}
-              helperText="Sri Lankan mobile (07x) or landline format."
+              helperText="Used for order contact only (no phone OTP required)."
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Owner's Residential Address"
+              value={residentialAddress}
+              onChange={(e) => {
+                setResidentialAddress(e.target.value);
+                if (sameAsResidential) {
+                  setAddressLine1(e.target.value);
+                }
+              }}
+              placeholder="e.g. No. 45, Temple Road, Maharagama"
+              required
+              disabled={isPending}
+              helperText="Private residential address for seller verification."
             />
 
             <Input
@@ -244,11 +291,32 @@ export function CreateShopForm({ initialEmail = "", initialSellerType = "retail_
             />
           </div>
 
+          <div className="p-3 rounded-xl bg-gray-50 border border-sparehub-border">
+            <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-sparehub-dark">
+              <input
+                type="checkbox"
+                checked={sameAsResidential}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setSameAsResidential(checked);
+                  if (checked && residentialAddress) {
+                    setAddressLine1(residentialAddress);
+                  }
+                }}
+                className="w-4 h-4 text-sparehub-orange rounded border-gray-300 focus:ring-sparehub-orange"
+              />
+              Shop / business address is the same as my residential address (operating from home)
+            </label>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="Address Line 1"
-              value={addressLine1}
-              onChange={(e) => setAddressLine1(e.target.value)}
+              label="Shop / Business Address Line 1"
+              value={sameAsResidential ? residentialAddress : addressLine1}
+              onChange={(e) => {
+                setSameAsResidential(false);
+                setAddressLine1(e.target.value);
+              }}
               placeholder="e.g. 84 Panchikawatta Road"
               required
               disabled={isPending}

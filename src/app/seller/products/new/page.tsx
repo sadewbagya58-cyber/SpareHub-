@@ -33,6 +33,8 @@ export default async function NewProductPage() {
     redirect("/seller/shop/new");
   }
 
+  const isShopVerified = shop.verification_status === "approved";
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-6">
       {/* Header & Breadcrumb */}
@@ -50,13 +52,22 @@ export default async function NewProductPage() {
               Add New Spare Part
             </h1>
             <p className="text-xs text-gray-500 mt-1">
-              Storefront: <strong className="text-sparehub-dark">{shop.name}</strong> • Immediate self-service marketplace publication
+              Storefront: <strong className="text-sparehub-dark">{shop.name}</strong> •{" "}
+              {isShopVerified
+                ? "Verified shop — ready for instant publication"
+                : "Draft creation enabled — complete verification to publish"}
             </p>
           </div>
 
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-50 text-sparehub-orange border border-orange-200 rounded-full text-[11px] font-bold self-start sm:self-auto">
+          <div
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold self-start sm:self-auto border ${
+              isShopVerified
+                ? "bg-orange-50 text-sparehub-orange border-orange-200"
+                : "bg-amber-50 text-amber-800 border-amber-200"
+            }`}
+          >
             <Sparkles className="w-3.5 h-3.5" />
-            Instant Publication Active
+            {isShopVerified ? "Instant Publication Active" : "Draft Mode (Verification Required to Publish)"}
           </div>
         </div>
       </div>
@@ -66,6 +77,8 @@ export default async function NewProductPage() {
         mode="create"
         categories={categories}
         vehicleTaxonomy={vehicleTaxonomy}
+        isShopVerified={isShopVerified}
+        shopVerificationStatus={shop.verification_status || "not_submitted"}
       />
     </div>
   );

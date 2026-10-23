@@ -19,12 +19,8 @@ export default async function NewShopPage() {
     redirect("/login?redirect=/seller/shop/new");
   }
 
-  const { user, sellerProfile, shop } = profileData;
-
-  // If a shop already exists, redirect to shop management
-  if (shop) {
-    redirect("/seller/shop");
-  }
+  const { user, userProfile, sellerProfile, shops } = profileData;
+  const existingShopCount = shops?.length || 0;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-8">
@@ -41,17 +37,26 @@ export default async function NewShopPage() {
             <Store className="w-5 h-5" />
           </div>
           <h1 className="text-2xl font-black text-sparehub-dark tracking-tight">
-            Register Your Automotive Storefront
+            {existingShopCount > 0
+              ? "Open an Additional Storefront"
+              : "Register Your Automotive Storefront"}
           </h1>
         </div>
         <p className="text-xs text-gray-500 mt-1">
-          Complete the details below to initialize your vendor shop on SpareHub.
+          {existingShopCount > 0
+            ? `You currently manage ${existingShopCount} shop${existingShopCount > 1 ? "s" : ""} under your account. Each shop has its own independent verification status and catalog.`
+            : "Complete the details below to open your vendor shop on SpareHub. No phone OTP required."}
         </p>
       </div>
 
       <CreateShopForm
         initialEmail={user.email || ""}
         initialSellerType={sellerProfile?.seller_type || "retail_shop"}
+        initialOwnerLegalName={
+          sellerProfile?.owner_legal_name || userProfile?.full_name || ""
+        }
+        initialResidentialAddress={sellerProfile?.residential_address || ""}
+        initialPhone={userProfile?.phone || ""}
       />
     </div>
   );

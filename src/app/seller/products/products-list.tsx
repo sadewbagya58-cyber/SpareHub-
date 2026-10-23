@@ -29,11 +29,13 @@ import { type CategoryOption } from "@/lib/products/taxonomy";
 interface ProductsListProps {
   initialProducts: SellerProductListItem[];
   categories: CategoryOption[];
+  isShopVerified?: boolean;
 }
 
 export function ProductsList({
   initialProducts,
   categories,
+  isShopVerified = false,
 }: ProductsListProps) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
@@ -70,6 +72,14 @@ export function ProductsList({
   const handleTogglePublish = (productId: string, currentPublished: boolean) => {
     setActionMessage(null);
     setActionError(null);
+
+    if (!currentPublished && !isShopVerified) {
+      setActionError(
+        "Your shop is open, but you must complete seller verification before publishing products."
+      );
+      return;
+    }
+
     setTogglingId(productId);
 
     startTransition(async () => {

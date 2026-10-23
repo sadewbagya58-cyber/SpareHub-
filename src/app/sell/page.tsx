@@ -78,6 +78,13 @@ export default async function SellPage() {
                   <Settings className="w-4 h-4" />
                   Manage Shop Profile
                 </Link>
+                <Link
+                  href="/seller/shop/new"
+                  className="inline-flex items-center justify-center font-medium rounded-lg border border-sparehub-border bg-white text-sparehub-orange hover:bg-orange-50 text-sm px-4 py-2 gap-2 h-10 font-semibold transition-all active:scale-[0.97]"
+                >
+                  <Store className="w-4 h-4" />
+                  Open Another Shop
+                </Link>
               </div>
             </div>
           ) : (
@@ -85,6 +92,8 @@ export default async function SellPage() {
             <SellerOnboardingForm
               isAuthenticated={!!user}
               userEmail={user?.email || ""}
+              initialOwnerLegalName={profileData?.userProfile?.full_name || ""}
+              initialPhone={profileData?.userProfile?.phone || ""}
             />
           )}
         </div>

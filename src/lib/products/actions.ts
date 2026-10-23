@@ -4,6 +4,7 @@ import { cache } from "react";
 import { revalidatePath } from "next/cache";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getSellerShopProfile } from "@/lib/seller/actions";
+import { canShopPublishProducts } from "@/lib/validators/shop";
 import {
   productCreateSchema,
   productUpdateSchema,
@@ -247,6 +248,7 @@ interface DBPublicProductRow {
     logo_url?: string | null;
     cover_url?: string | null;
     status: string;
+    verification_status?: string;
   } | null;
   product_images?: DBImageRow[] | null;
   product_compatibility?: DBCompatibilityJoinRow[] | null;
@@ -269,6 +271,7 @@ interface DBPublicProductDetailRow extends DBPublicProductRow {
     logo_url?: string | null;
     cover_url?: string | null;
     status: string;
+    verification_status?: string;
     created_at: string;
   } | null;
   product_compatibility?: DBCompatibilityJoinRow[] | null;
@@ -608,14 +611,9 @@ export async function createProductAction(
       return { error: "Authentication required to create product listings." };
     }
 
-    // Verify user has an active shop
-    const { data: sellerProfile } = await supabase
-      .from("seller_profiles")
-      .select("id, shops(id, name, status)")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    const shop = sellerProfile?.shops?.[0];
+    // Verify user has an active shop (uses active selected shop for multi-shop accounts)
+    const sellerData = await getSellerShopProfile();
+    const shop = sellerData?.shop;
     if (!shop) {
       return {
         error: "You must create a shop before adding products. Please set up your shop first.",
@@ -638,6 +636,20 @@ export async function createProductAction(
       };
     }
     const validated = parseRes.data;
+
+    // Critical Business Rule: Unverified shops can create and save drafts (is_published = false),
+    // but cannot publish products (is_published = true) until shop.verification_status === 'approved'.
+    const targetIsPublished = validated.is_published ?? false;
+    if (targetIsPublished) {
+      const publishCheck = canShopPublishProducts(shop);
+      if (!publishCheck.allowed) {
+        return {
+          error:
+            publishCheck.reason ||
+            "Shop verification is required before publishing products. Please save this item as a draft or complete seller verification.",
+        };
+      }
+    }
 
     // Validate 4-level vehicle compatibility hierarchy & duplicates before DB write
     const taxonomy = await getVehicleTaxonomyHierarchy();
@@ -704,7 +716,7 @@ export async function createProductAction(
         warranty_period_months: validated.warranty_period_months ?? 0,
         warranty_details: validated.warranty_details || null,
         is_universal: Boolean(validated.is_universal),
-        is_published: validated.is_published ?? true,
+        is_published: targetIsPublished,
         status: initialStatus,
       })
       .select("id, slug")
@@ -760,7 +772,9 @@ export async function createProductAction(
 
     return {
       success: true,
-      message: "Product created and published successfully!",
+      message: targetIsPublished
+        ? "Product created and published successfully!"
+        : "Product saved as a draft!",
       productId,
       slug: finalSlug,
     };
@@ -797,10 +811,10 @@ export async function updateProductAction(
     }
     const validated = parseRes.data;
 
-    // Verify ownership
+    // Verify ownership & fetch shop verification status
     const { data: currentProduct, error: fetchErr } = await supabase
       .from("products")
-      .select("id, shop_id, slug, shops!inner(seller_profiles!inner(user_id))")
+      .select("id, shop_id, slug, shops!inner(*, seller_profiles!inner(user_id))")
       .eq("id", validated.productId)
       .maybeSingle();
 
@@ -809,11 +823,27 @@ export async function updateProductAction(
     }
 
     const typedProd = currentProduct as unknown as {
-      shops?: { seller_profiles?: { user_id: string } };
+      shops?: {
+        id: string;
+        status?: string;
+        verification_status?: string;
+        seller_profiles?: { user_id: string };
+      };
     };
     const ownerUserId = typedProd.shops?.seller_profiles?.user_id;
     if (ownerUserId !== user.id) {
       return { error: "Unauthorized: You do not own this product listing." };
+    }
+
+    if (validated.is_published) {
+      const publishCheck = canShopPublishProducts(typedProd.shops);
+      if (!publishCheck.allowed) {
+        return {
+          error:
+            publishCheck.reason ||
+            "Shop verification is required before publishing products. Please save this product as a draft or complete seller verification.",
+        };
+      }
     }
 
     // Validate 4-level vehicle compatibility hierarchy & duplicates before DB write
@@ -943,10 +973,10 @@ export async function toggleProductPublishAction(
       return { error: "Authentication required." };
     }
 
-    // Verify ownership
+    // Verify ownership & fetch shop verification status
     const { data: prod, error: fetchErr } = await supabase
       .from("products")
-      .select("id, slug, shops!inner(seller_profiles!inner(user_id))")
+      .select("id, slug, shops!inner(*, seller_profiles!inner(user_id))")
       .eq("id", productId)
       .maybeSingle();
 
@@ -955,11 +985,27 @@ export async function toggleProductPublishAction(
     }
 
     const typedProd = prod as unknown as {
-      shops?: { seller_profiles?: { user_id: string } };
+      shops?: {
+        id: string;
+        status?: string;
+        verification_status?: string;
+        seller_profiles?: { user_id: string };
+      };
     };
     const ownerUserId = typedProd.shops?.seller_profiles?.user_id;
     if (ownerUserId !== user.id) {
       return { error: "Unauthorized: You do not own this product." };
+    }
+
+    if (isPublished) {
+      const publishCheck = canShopPublishProducts(typedProd.shops);
+      if (!publishCheck.allowed) {
+        return {
+          error:
+            publishCheck.reason ||
+            "Shop verification is required before publishing products. Please complete seller verification first.",
+        };
+      }
     }
 
     const { error } = await supabase
@@ -1090,7 +1136,7 @@ export async function getPublicProducts(options?: PublicProductsQueryOptions) {
         stock_quantity,
         is_universal,
         categories (name, slug),
-        shops!inner (id, name, slug, city, district, logo_url, status),
+        shops!inner (*),
         product_images (image_url, is_primary, display_order),
         product_compatibility (
           id,
@@ -1184,6 +1230,13 @@ export async function getPublicProducts(options?: PublicProductsQueryOptions) {
     }> = [];
 
     for (const item of rawItems) {
+      if (
+        item.shops?.verification_status &&
+        item.shops.verification_status !== "approved"
+      ) {
+        continue;
+      }
+
       const enrichedCompats = (item.product_compatibility || []).map((c) =>
         enrichCompatibilityRow(c)
       );
@@ -1294,21 +1347,7 @@ const getCachedPublicProductBySlug = cache(async (slug: string) => {
         `
         *,
         categories (name, slug),
-        shops!inner (
-          id,
-          name,
-          slug,
-          description,
-          phone,
-          email,
-          city,
-          district,
-          address_line1,
-          logo_url,
-          cover_url,
-          status,
-          created_at
-        ),
+        shops!inner (*),
         product_images (id, image_url, alt_text, display_order, is_primary),
         product_compatibility (
           id,
@@ -1350,6 +1389,12 @@ const getCachedPublicProductBySlug = cache(async (slug: string) => {
     }
 
     const row = data as unknown as DBPublicProductDetailRow;
+    if (
+      row.shops?.verification_status &&
+      row.shops.verification_status !== "approved"
+    ) {
+      return null;
+    }
 
     const images = (row.product_images || []).sort(
       (a: DBImageRow, b: DBImageRow) =>

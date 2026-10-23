@@ -65,6 +65,7 @@ export default async function SellerProductsPage() {
   const totalProducts = products.length;
   const publishedCount = products.filter((p) => p.is_published).length;
   const outOfStockCount = products.filter((p) => p.stock_quantity === 0).length;
+  const isShopVerified = shop.verification_status === "approved";
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-8">
@@ -82,7 +83,10 @@ export default async function SellerProductsPage() {
             Inventory & Spare Parts
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            Storefront: <strong className="text-sparehub-dark">{shop.name}</strong> • Immediate self-service publication active
+            Storefront: <strong className="text-sparehub-dark">{shop.name}</strong> •{" "}
+            {isShopVerified
+              ? "Verified Shop — Instant publication active"
+              : "Verification required before publishing products (Draft mode enabled)"}
           </p>
         </div>
 
@@ -92,10 +96,32 @@ export default async function SellerProductsPage() {
             className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-4 py-2.5 bg-sparehub-orange hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
           >
             <Plus className="w-4 h-4 shrink-0" />
-            Add New Part
+            {isShopVerified ? "Add New Part" : "Create Product Draft"}
           </Link>
         </div>
       </div>
+
+      {!isShopVerified && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-red-50 border border-red-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-sparehub-error shrink-0 mt-0.5" />
+            <div>
+              <h2 className="text-sm font-black text-red-950">
+                Shop Verification Required
+              </h2>
+              <p className="text-xs text-red-800 mt-0.5">
+                Your shop is open, but you must complete seller verification before publishing products. You can prepare and save product drafts now.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/seller/shop#verification"
+            className="inline-flex items-center justify-center rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2.5 shrink-0 transition-colors"
+          >
+            Complete Verification
+          </Link>
+        </div>
+      )}
 
       {/* Quick Metrics Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -140,6 +166,7 @@ export default async function SellerProductsPage() {
       <ProductsList
         initialProducts={products}
         categories={categories}
+        isShopVerified={isShopVerified}
       />
     </div>
   );

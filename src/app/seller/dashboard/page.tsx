@@ -19,6 +19,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatLKR } from "@/lib/utils";
+import { ShopSwitcher } from "@/components/seller/shop-switcher";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ export default async function SellerDashboardPage() {
     redirect("/login?redirect=/seller/dashboard");
   }
 
-  const { userProfile: profile, sellerProfile, shop } = sellerData;
+  const { userProfile: profile, sellerProfile, shop, shops } = sellerData;
 
   const roles = profile?.roles || (profile?.role ? [profile.role] : ["customer"]);
   let isSeller = roles.includes("seller") || roles.includes("platform_admin");
@@ -77,10 +78,65 @@ export default async function SellerDashboardPage() {
 
   const isSuspended = shop?.status === "suspended";
   const isDraft = shop?.status === "draft";
+  const verificationStatus = shop?.verification_status || "not_submitted";
+  const isVerifiedShop = verificationStatus === "approved";
   const statusBadgeVariant = isSuspended ? "error" : isDraft ? "neutral" : "success";
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 space-y-8">
+      {/* Multi-Shop Switcher & Open Another Shop */}
+      {shops && shops.length > 0 && (
+        <ShopSwitcher shops={shops} activeShopId={shop?.id} />
+      )}
+
+      {/* Prominent Red Warning Banner when Shop is Open but Seller Verification is Not Approved */}
+      {shop && !isVerifiedShop && (
+        <div className="p-5 rounded-2xl border-2 border-red-300 bg-red-50 text-red-950 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 rounded-xl bg-red-100 text-red-700 shrink-0 mt-0.5">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-black text-red-950">
+                  Shop Verification Required
+                </h2>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-200/80 text-red-900">
+                  {verificationStatus === "pending_review"
+                    ? "Pending Admin Review"
+                    : verificationStatus === "resubmission_required"
+                    ? "Resubmission Required"
+                    : verificationStatus === "rejected"
+                    ? "Verification Rejected"
+                    : "Not Submitted"}
+                </span>
+              </div>
+              <p className="text-xs text-red-900 font-medium leading-relaxed">
+                Your shop is open, but you must complete seller verification before publishing products.
+              </p>
+              {verificationStatus === "pending_review" && (
+                <p className="text-xs text-red-800">
+                  Your uploaded documents are currently awaiting administrator review. You may continue configuring your shop and saving product drafts.
+                </p>
+              )}
+              {(verificationStatus === "resubmission_required" ||
+                verificationStatus === "rejected") &&
+                shop.verification_reason && (
+                  <p className="text-xs text-red-950 bg-white/80 px-3 py-2 rounded-lg border border-red-200 mt-1.5">
+                    <strong>Administrator Reason:</strong> {shop.verification_reason}
+                  </p>
+                )}
+            </div>
+          </div>
+
+          <Link
+            href="/seller/shop#verification"
+            className="inline-flex items-center justify-center rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2.5 shadow-sm shrink-0 transition-all active:scale-[0.97]"
+          >
+            Complete Verification
+          </Link>
+        </div>
+      )}
       {/* Header Banner */}
       <div className="overflow-hidden rounded-2xl bg-white border border-sparehub-border shadow-xs">
         {shop?.cover_url && (

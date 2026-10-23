@@ -23,13 +23,23 @@ import { slugify } from "@/lib/validators/shop";
 interface SellerOnboardingFormProps {
   isAuthenticated: boolean;
   userEmail?: string;
+  initialOwnerLegalName?: string;
+  initialPhone?: string;
 }
 
-export function SellerOnboardingForm({ isAuthenticated, userEmail = "" }: SellerOnboardingFormProps) {
+export function SellerOnboardingForm({
+  isAuthenticated,
+  userEmail = "",
+  initialOwnerLegalName = "",
+  initialPhone = "",
+}: SellerOnboardingFormProps) {
   const router = useRouter();
   const [sellerType, setSellerType] = useState<SellerType>("retail_shop");
   const [shopName, setShopName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [ownerLegalName, setOwnerLegalName] = useState(initialOwnerLegalName);
+  const [residentialAddress, setResidentialAddress] = useState("");
+  const [sameAsResidential, setSameAsResidential] = useState(false);
+  const [phone, setPhone] = useState(initialPhone);
   const [email, setEmail] = useState(userEmail);
   const [addressLine1, setAddressLine1] = useState("");
   const [district, setDistrict] = useState("Colombo");
@@ -48,13 +58,21 @@ export function SellerOnboardingForm({ isAuthenticated, userEmail = "" }: Seller
 
     setResult(null);
 
+    const effectiveAddressLine1 =
+      sameAsResidential && residentialAddress.trim()
+        ? residentialAddress.trim()
+        : addressLine1;
+
     const formData = new FormData();
     formData.append("seller_type", sellerType);
     formData.append("name", shopName);
     formData.append("slug", slugify(shopName));
+    formData.append("owner_legal_name", ownerLegalName);
+    formData.append("residential_address", residentialAddress);
+    formData.append("same_as_residential", sameAsResidential ? "true" : "false");
     formData.append("phone", phone);
     formData.append("email", email || userEmail);
-    formData.append("address_line1", addressLine1);
+    formData.append("address_line1", effectiveAddressLine1);
     formData.append("district", district);
     formData.append("city", city);
 
@@ -148,12 +166,38 @@ export function SellerOnboardingForm({ isAuthenticated, userEmail = "" }: Seller
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
+          label="Owner's Full Legal Name (As on NIC)"
+          placeholder="e.g. Kasun Perera"
+          required
+          value={ownerLegalName}
+          onChange={(e) => setOwnerLegalName(e.target.value)}
+          disabled={isSubmitting}
+        />
+
+        <Input
           label="Contact Phone Number"
           placeholder="e.g. 077 123 4567"
           type="tel"
           required
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
+          disabled={isSubmitting}
+          helperText="Contact only — no phone OTP required."
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Input
+          label="Residential Address"
+          placeholder="e.g. No. 45, Temple Road, Maharagama"
+          required
+          value={residentialAddress}
+          onChange={(e) => {
+            setResidentialAddress(e.target.value);
+            if (sameAsResidential) {
+              setAddressLine1(e.target.value);
+            }
+          }}
           disabled={isSubmitting}
         />
 
@@ -166,6 +210,24 @@ export function SellerOnboardingForm({ isAuthenticated, userEmail = "" }: Seller
           onChange={(e) => setEmail(e.target.value)}
           disabled={isSubmitting}
         />
+      </div>
+
+      <div className="p-3 rounded-xl bg-gray-50 border border-sparehub-border">
+        <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-sparehub-dark">
+          <input
+            type="checkbox"
+            checked={sameAsResidential}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setSameAsResidential(checked);
+              if (checked && residentialAddress) {
+                setAddressLine1(residentialAddress);
+              }
+            }}
+            className="w-4 h-4 text-sparehub-orange rounded border-gray-300 focus:ring-sparehub-orange"
+          />
+          Shop / business address is the same as my residential address (operating from home)
+        </label>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -204,11 +266,14 @@ export function SellerOnboardingForm({ isAuthenticated, userEmail = "" }: Seller
 
         <div className="sm:col-span-1">
           <Input
-            label="Street Address"
+            label="Shop / Business Address"
             placeholder="e.g. 142 High Level Rd"
             required
-            value={addressLine1}
-            onChange={(e) => setAddressLine1(e.target.value)}
+            value={sameAsResidential ? residentialAddress : addressLine1}
+            onChange={(e) => {
+              setSameAsResidential(false);
+              setAddressLine1(e.target.value);
+            }}
             disabled={isSubmitting}
           />
         </div>

@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getSellerShopProfile } from "@/lib/seller/actions";
 import { revalidatePath } from "next/cache";
 import type {
   CommissionRuleItem,
@@ -315,24 +316,16 @@ export async function getSellerEarningsAction(): Promise<{
     totalOrdersCount: 0,
   };
 
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [supabase, sellerData] = await Promise.all([
+    createServerSupabaseClient(),
+    getSellerShopProfile(),
+  ]);
 
-  if (!user) {
+  if (!sellerData || !sellerData.user) {
     return { summary: defaultSummary, ledger: [], success: false, message: "Authentication required." };
   }
 
-  // Fetch seller's shop
-  const { data: sellerProfile } = await supabase
-    .from("seller_profiles")
-    .select("shops(id, name, slug)")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const shop = (sellerProfile?.shops as any)?.[0];
+  const shop = sellerData.shop;
   if (!shop) {
     return { summary: defaultSummary, ledger: [], success: false, message: "No active shop found." };
   }
