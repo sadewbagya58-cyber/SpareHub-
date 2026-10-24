@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSellerShopProfile } from "@/lib/seller/actions";
 import { revalidatePath } from "next/cache";
+import { validateCommissionRateBps } from "@/lib/validators/business-rules";
 import type {
   CommissionRuleItem,
   CommissionLedgerItem,
@@ -51,6 +52,9 @@ export async function getCommissionRulesAction(): Promise<{
       effective_from,
       effective_until,
       is_active,
+      status,
+      proposed_at,
+      accepted_at,
       created_at,
       categories:categories (id, name),
       shops:shops (id, name)
@@ -75,6 +79,9 @@ export async function getCommissionRulesAction(): Promise<{
     effectiveFrom: row.effective_from,
     effectiveUntil: row.effective_until,
     isActive: Boolean(row.is_active),
+    status: row.status || (row.is_active ? "active" : "draft"),
+    proposedAt: row.proposed_at || null,
+    acceptedAt: row.accepted_at || null,
     createdAt: row.created_at,
   }));
 
@@ -135,10 +142,11 @@ export async function createCommissionRuleAction(payload: {
   }
 
   const rateBps = Math.round(Number(payload.rateBasisPoints));
-  if (isNaN(rateBps) || rateBps < 0 || rateBps > 10000) {
+  const rateValidation = validateCommissionRateBps(rateBps);
+  if (!rateValidation.valid) {
     return {
       success: false,
-      message: "Commission rate must be between 0 and 10000 basis points (0.00% to 100.00%).",
+      message: rateValidation.error || "Commission rate must be between 100 bps (1.00%) and 500 bps (5.00%).",
     };
   }
 
@@ -161,6 +169,9 @@ export async function createCommissionRuleAction(payload: {
     return { success: false, message: "Expiration date must be later than effective start date." };
   }
 
+  const isShopOverride = payload.ruleType === "shop_override";
+  const ruleStatus = isShopOverride ? "pending_acceptance" : "active";
+
   const adminClient = createAdminClient();
 
   const { data: inserted, error: insErr } = await adminClient
@@ -169,11 +180,13 @@ export async function createCommissionRuleAction(payload: {
       name,
       rule_type: payload.ruleType,
       category_id: payload.ruleType === "category_override" ? payload.categoryId : null,
-      shop_id: payload.ruleType === "shop_override" ? payload.shopId : null,
+      shop_id: isShopOverride ? payload.shopId : null,
       rate_basis_points: rateBps,
       effective_from: effectiveFrom,
       effective_until: effectiveUntil,
-      is_active: true,
+      is_active: !isShopOverride, // Shop override requires seller acceptance before activating
+      status: ruleStatus,
+      proposed_at: isShopOverride ? new Date().toISOString() : null,
       created_by: user.id,
     })
     .select("id")
@@ -181,7 +194,7 @@ export async function createCommissionRuleAction(payload: {
 
   if (insErr || !inserted) {
     console.error("Error creating commission rule:", insErr);
-    return { success: false, message: "Failed to create commission rule." };
+    return { success: false, message: "Failed to create commission rule: " + (insErr?.message || "") };
   }
 
   // Record audit log
@@ -196,11 +209,16 @@ export async function createCommissionRuleAction(payload: {
       rate_basis_points: rateBps,
       category_id: payload.categoryId,
       shop_id: payload.shopId,
+      status: ruleStatus,
     },
   });
 
   revalidatePath("/admin/commissions");
-  return { success: true, message: "Commission rule created successfully.", ruleId: inserted.id };
+  const returnMsg = isShopOverride
+    ? `Proposed custom rate of ${(rateBps / 100).toFixed(2)}% created. It is pending acceptance by the vendor before taking effect.`
+    : `Commission rule "${name}" created successfully.`;
+
+  return { success: true, message: returnMsg, ruleId: inserted.id };
 }
 
 /**
@@ -731,3 +749,64 @@ export async function bulkSettleShopEarningsAction(
     settledCount: count,
   };
 }
+
+/**
+ * Server Action: Get the active commission rate and any pending proposed rate for a shop.
+ */
+export async function getShopActiveCommissionInfoAction(shopIdParam?: string): Promise<{
+  success: boolean;
+  currentRateBps: number;
+  currentRuleName: string;
+  proposedRule?: {
+    id: string;
+    rateBasisPoints: number;
+    name: string;
+    proposedAt: string;
+  } | null;
+  error?: string;
+}> {
+  const profileRes = await getSellerShopProfile();
+  const shop = profileRes?.shop;
+  const shopId = shopIdParam || shop?.id;
+
+  if (!shopId) {
+    return { success: false, currentRateBps: 300, currentRuleName: "Default Rate", error: "Shop not found" };
+  }
+
+  const supabase = await createServerSupabaseClient();
+
+  // 1. Resolve current effective rule
+  const { data: resolved } = await supabase.rpc("resolve_effective_commission_rule", {
+    p_shop_id: shopId,
+    p_category_id: null,
+  });
+
+  const currentRateBps = resolved?.[0]?.rate_bps ?? 300;
+  const currentRuleName = resolved?.[0]?.rule_name ?? "Baseline Standard (3.00%)";
+
+  // 2. Check for any pending proposed shop_override
+  const { data: proposed } = await supabase
+    .from("commission_rules")
+    .select("id, name, rate_basis_points, proposed_at")
+    .eq("shop_id", shopId)
+    .eq("rule_type", "shop_override")
+    .eq("status", "pending_acceptance")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return {
+    success: true,
+    currentRateBps,
+    currentRuleName,
+    proposedRule: proposed
+      ? {
+          id: proposed.id,
+          rateBasisPoints: proposed.rate_basis_points,
+          name: proposed.name,
+          proposedAt: proposed.proposed_at || new Date().toISOString(),
+        }
+      : null,
+  };
+}
+

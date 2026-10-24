@@ -236,6 +236,9 @@ export interface CommissionRuleItem {
   effectiveFrom: string;
   effectiveUntil?: string | null;
   isActive: boolean;
+  status?: "draft" | "pending_acceptance" | "active" | "rejected" | "superseded";
+  proposedAt?: string | null;
+  acceptedAt?: string | null;
   createdAt: string;
 }
 

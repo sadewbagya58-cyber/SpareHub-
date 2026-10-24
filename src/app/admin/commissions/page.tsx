@@ -26,6 +26,7 @@ import {
 } from "@/lib/commission/actions";
 import type { CommissionRuleItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { AdminMonthlyBillingPanel } from "@/components/admin/admin-monthly-billing-panel";
 
 export default function AdminCommissionsPage() {
   const [rules, setRules] = useState<CommissionRuleItem[]>([]);
@@ -84,8 +85,8 @@ export default function AdminCommissionsPage() {
       return;
     }
 
-    if (rateBps < 0 || rateBps > 10000) {
-      setFormError("Rate must be between 0 and 10000 basis points (0% to 100%).");
+    if (rateBps < 100 || rateBps > 500) {
+      setFormError("Commission rate must be between 100 and 500 basis points (1.00% to 5.00%).");
       return;
     }
 
@@ -497,13 +498,21 @@ export default function AdminCommissionsPage() {
                             disabled={togglingRuleId === rule.id}
                             onClick={() => handleToggle(rule.id, rule.isActive)}
                             className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full cursor-pointer transition-colors disabled:opacity-50 ${
-                              rule.isActive
+                              rule.status === "pending_acceptance"
+                                ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                                : rule.isActive
                                 ? "bg-green-100 text-green-800 hover:bg-green-200"
                                 : "bg-gray-200 text-gray-600 hover:bg-gray-300"
                             }`}
                           >
                             <Power className="w-3 h-3" />
-                            {togglingRuleId === rule.id ? "Updating..." : rule.isActive ? "Active" : "Disabled"}
+                            {togglingRuleId === rule.id
+                              ? "Updating..."
+                              : rule.status === "pending_acceptance"
+                              ? "Pending Acceptance"
+                              : rule.isActive
+                              ? "Active"
+                              : "Disabled"}
                           </button>
                         </td>
 
@@ -536,6 +545,9 @@ export default function AdminCommissionsPage() {
             </>
           )}
         </div>
+
+        {/* Monthly Billing Engine & Financial Statement Reconciliation */}
+        <AdminMonthlyBillingPanel />
       </div>
 
       {/* Creation Modal */}
@@ -658,8 +670,8 @@ export default function AdminCommissionsPage() {
                 </div>
                 <input
                   type="number"
-                  min={0}
-                  max={10000}
+                  min={100}
+                  max={500}
                   step={25}
                   value={rateBps}
                   onChange={(e) => setRateBps(Number(e.target.value))}
@@ -669,10 +681,31 @@ export default function AdminCommissionsPage() {
                 <div className="flex gap-2 text-[10px] text-gray-500">
                   <button
                     type="button"
-                    onClick={() => setRateBps(250)}
+                    onClick={() => setRateBps(100)}
                     className="px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300 font-bold"
                   >
-                    2.50% (250)
+                    1.00% (100)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRateBps(200)}
+                    className="px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300 font-bold"
+                  >
+                    2.00% (200)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRateBps(300)}
+                    className="px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300 font-bold"
+                  >
+                    3.00% (300)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRateBps(400)}
+                    className="px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300 font-bold"
+                  >
+                    4.00% (400)
                   </button>
                   <button
                     type="button"
@@ -680,20 +713,6 @@ export default function AdminCommissionsPage() {
                     className="px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300 font-bold"
                   >
                     5.00% (500)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRateBps(750)}
-                    className="px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300 font-bold"
-                  >
-                    7.50% (750)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRateBps(1000)}
-                    className="px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300 font-bold"
-                  >
-                    10.00% (1000)
                   </button>
                 </div>
               </div>

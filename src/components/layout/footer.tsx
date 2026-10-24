@@ -7,6 +7,8 @@ const FOOTER_LINKS = [
   { label: "Help & Support", href: "/about#support" },
   { label: "Delivery Information", href: "/about#delivery" },
   { label: "Policies", href: "/about#policies" },
+  { label: "Terms", href: "/terms" },
+  { label: "Privacy", href: "/privacy" },
   { label: "Sell on SpareHub", href: "/sell" },
 ] as const;
 

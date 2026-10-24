@@ -17,6 +17,8 @@ import { getSellerEarningsAction } from "@/lib/commission/actions";
 import { formatLKR } from "@/lib/utils";
 import type { SellerEarningsSummary, CommissionLedgerItem } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
+import { CommissionRateBanner } from "@/components/seller/commission-rate-banner";
+import { MonthlyStatementsPanel } from "@/components/seller/monthly-statements-panel";
 
 export default function SellerEarningsPage() {
   const [summary, setSummary] = useState<SellerEarningsSummary>({
@@ -31,6 +33,8 @@ export default function SellerEarningsPage() {
   });
   const [ledger, setLedger] = useState<CommissionLedgerItem[]>([]);
   const [shopName, setShopName] = useState<string>("My Store");
+  const [shopId, setShopId] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<"ledger" | "statements">("ledger");
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
 
@@ -44,6 +48,7 @@ export default function SellerEarningsPage() {
           setSummary(res.summary);
           setLedger(res.ledger);
           if (res.shopName) setShopName(res.shopName);
+          if (res.shopId) setShopId(res.shopId);
         }
       } catch (e) {
         console.error("Failed to load seller earnings:", e);
@@ -141,8 +146,47 @@ export default function SellerEarningsPage() {
           </div>
         </div>
 
-        {/* Summary Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Active Commission Rate & Proposed Rate Notice */}
+        {shopId && <CommissionRateBanner shopId={shopId} />}
+
+        {/* Section Navigation Tabs */}
+        <div className="flex items-center gap-2 border-b border-gray-200">
+          <button
+            type="button"
+            onClick={() => setActiveTab("ledger")}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-colors ${
+              activeTab === "ledger"
+                ? "border-sparehub-orange text-sparehub-orange"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Delivered Order Items Ledger
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("statements")}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 transition-colors ${
+              activeTab === "statements"
+                ? "border-sparehub-orange text-sparehub-orange"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Monthly Commission Statements (Due 10th)
+          </button>
+        </div>
+
+        {activeTab === "statements" ? (
+          shopId ? (
+            <MonthlyStatementsPanel shopId={shopId} />
+          ) : (
+            <div className="p-8 text-center bg-white rounded-2xl border text-xs text-gray-500">
+              No active vendor shop found.
+            </div>
+          )
+        ) : (
+          <>
+            {/* Summary Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* 1. Available Balance */}
           <div className="bg-white rounded-2xl border border-sparehub-border p-5 shadow-xs space-y-2">
             <div className="flex items-center justify-between text-xs text-gray-500 font-semibold uppercase tracking-wider">
@@ -412,6 +456,8 @@ export default function SellerEarningsPage() {
             </>
           )}
         </div>
+        </>
+        )}
       </div>
     </div>
   );

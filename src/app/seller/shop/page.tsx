@@ -11,6 +11,7 @@ import { ShopForm } from "./shop-form";
 import { ShopDeliverySettings } from "@/components/seller/shop-delivery-settings";
 import { ShopSwitcher } from "@/components/seller/shop-switcher";
 import { ShopVerificationPanel } from "@/components/seller/shop-verification-panel";
+import { ShopPaymentGatewayPanel } from "@/components/seller/shop-payment-gateway-panel";
 import type { ShopVerificationStatus } from "@/lib/validators/shop";
 
 export const dynamic = "force-dynamic";
@@ -148,6 +149,7 @@ export default async function SellerShopPage() {
             sellerType={shop.shop_category || sellerProfile?.seller_type}
           />
           <ShopDeliverySettings key={`delivery-${shop.id}`} shop={shop} />
+          <ShopPaymentGatewayPanel key={`gateway-${shop.id}`} shopId={shop.id} />
         </div>
       )}
     </div>
