@@ -218,15 +218,19 @@ export function SellerOrdersList({
                       Customer Destination
                     </span>
                     <p className="font-bold text-sparehub-dark">
-                      {so.customerOrder?.shippingFullName}
+                      {so.customerOrder?.shippingFullName || "Customer Recipient"}
                     </p>
                     <p className="flex items-center gap-1 text-[11px]">
                       <MapPin className="w-3 h-3 text-sparehub-orange shrink-0" />
-                      {so.customerOrder?.shippingCity},{" "}
-                      {so.customerOrder?.shippingDistrict}
+                      {(() => {
+                        const city = so.customerOrder?.shippingCity?.trim();
+                        const district = so.customerOrder?.shippingDistrict?.trim();
+                        const parts = [city, district].filter(Boolean);
+                        return parts.length > 0 ? parts.join(", ") : "Destination not specified";
+                      })()}
                     </p>
                     <p className="text-[11px] text-gray-500 font-mono">
-                      Tel: {so.customerOrder?.shippingPhone}
+                      {so.customerOrder?.shippingPhone ? `Tel: ${so.customerOrder.shippingPhone}` : "Phone not provided"}
                     </p>
                   </div>
 

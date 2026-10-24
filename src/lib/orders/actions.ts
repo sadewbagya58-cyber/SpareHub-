@@ -1194,55 +1194,103 @@ export async function getSellerOrdersAction(statusFilter?: string): Promise<{
     return { success: false, orders: [], shopId: shop.id, shopName: shop.name };
   }
 
+  // Defense-in-depth: If joined customer_orders is null due to RLS, batch hydrate via adminClient for verified shop suborders
+  const missingCoIds = Array.from(
+    new Set(
+      data
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((row: any) => !row.customer_orders && row.customer_order_id)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((row: any) => row.customer_order_id as string)
+    )
+  );
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const orders: SellerSubOrder[] = data.map((row: any) => ({
-    id: row.id,
-    customerOrderId: row.customer_order_id,
-    shopId: row.shop_id,
-    shopName: shop.name,
-    subOrderNumber: row.sub_order_number,
-    status: row.status,
-    fulfillmentType: row.fulfillment_type,
-    courierName: row.courier_name,
-    trackingNumber: row.tracking_number,
-    trackingUrl: row.tracking_url,
-    dispatchedAt: row.dispatched_at,
-    deliveredAt: row.delivered_at,
-    cancelledAt: row.cancelled_at,
-    cancellationReason: row.cancellation_reason,
-    subtotalMinor: Number(row.subtotal_minor) || 0,
-    deliveryFeeMinor: Number(row.delivery_fee_minor) || 0,
-    totalAmountMinor: Number(row.total_amount_minor) || 0,
-    createdAt: row.created_at,
-    customerOrder: row.customer_orders
-      ? {
-          orderNumber: row.customer_orders.order_number,
-          shippingFullName: row.customer_orders.shipping_full_name,
-          shippingPhone: row.customer_orders.shipping_phone,
-          shippingAddressLine1: row.customer_orders.shipping_address_line1,
-          shippingAddressLine2: row.customer_orders.shipping_address_line2,
-          shippingDistrict: row.customer_orders.shipping_district,
-          shippingCity: row.customer_orders.shipping_city,
-          shippingPostalCode: row.customer_orders.shipping_postal_code,
-          customerNotes: row.customer_orders.customer_notes,
-          paymentMethod: row.customer_orders.payment_method,
-          paymentStatus: row.customer_orders.payment_status,
-          createdAt: row.customer_orders.created_at,
+  const coMap = new Map<string, any>();
+  if (missingCoIds.length > 0) {
+    try {
+      const adminClient = createAdminClient();
+      const { data: coList } = await adminClient
+        .from("customer_orders")
+        .select(`
+          id,
+          order_number,
+          shipping_full_name,
+          shipping_phone,
+          shipping_address_line1,
+          shipping_address_line2,
+          shipping_district,
+          shipping_city,
+          shipping_postal_code,
+          customer_notes,
+          payment_method,
+          payment_status,
+          created_at
+        `)
+        .in("id", missingCoIds);
+
+      if (coList) {
+        for (const co of coList) {
+          coMap.set(co.id, co);
         }
-      : undefined,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    items: (row.order_items || []).map((oi: any) => ({
-      id: oi.id,
-      sellerOrderId: row.id,
-      productId: "",
-      productTitle: oi.product_title_snapshot,
-      partNumber: oi.product_part_number_snapshot,
-      brandName: oi.product_brand_snapshot,
-      unitPriceMinorUnits: Number(oi.unit_price_minor_units) || 0,
-      quantity: oi.quantity,
-      totalPriceMinorUnits: Number(oi.total_price_minor_units) || 0,
-    })),
-  }));
+      }
+    } catch (e) {
+      console.error("Non-blocking error batch-hydrating customer orders for seller list:", e);
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const orders: SellerSubOrder[] = data.map((row: any) => {
+    const co = row.customer_orders || coMap.get(row.customer_order_id);
+    return {
+      id: row.id,
+      customerOrderId: row.customer_order_id,
+      shopId: row.shop_id,
+      shopName: shop.name,
+      subOrderNumber: row.sub_order_number,
+      status: row.status,
+      fulfillmentType: row.fulfillment_type,
+      courierName: row.courier_name,
+      trackingNumber: row.tracking_number,
+      trackingUrl: row.tracking_url,
+      dispatchedAt: row.dispatched_at,
+      deliveredAt: row.delivered_at,
+      cancelledAt: row.cancelled_at,
+      cancellationReason: row.cancellation_reason,
+      subtotalMinor: Number(row.subtotal_minor) || 0,
+      deliveryFeeMinor: Number(row.delivery_fee_minor) || 0,
+      totalAmountMinor: Number(row.total_amount_minor) || 0,
+      createdAt: row.created_at,
+      customerOrder: co
+        ? {
+            orderNumber: co.order_number,
+            shippingFullName: co.shipping_full_name,
+            shippingPhone: co.shipping_phone,
+            shippingAddressLine1: co.shipping_address_line1,
+            shippingAddressLine2: co.shipping_address_line2,
+            shippingDistrict: co.shipping_district,
+            shippingCity: co.shipping_city,
+            shippingPostalCode: co.shipping_postal_code,
+            customerNotes: co.customer_notes,
+            paymentMethod: co.payment_method,
+            paymentStatus: co.payment_status,
+            createdAt: co.created_at,
+          }
+        : undefined,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      items: (row.order_items || []).map((oi: any) => ({
+        id: oi.id,
+        sellerOrderId: row.id,
+        productId: "",
+        productTitle: oi.product_title_snapshot,
+        partNumber: oi.product_part_number_snapshot,
+        brandName: oi.product_brand_snapshot,
+        unitPriceMinorUnits: Number(oi.unit_price_minor_units) || 0,
+        quantity: oi.quantity,
+        totalPriceMinorUnits: Number(oi.total_price_minor_units) || 0,
+      })),
+    };
+  });
 
   return {
     success: true,
@@ -1339,6 +1387,36 @@ export async function getSellerOrderDetailAction(subOrderId: string): Promise<Se
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const row: any = so;
+  let customerOrderData = row.customer_orders;
+
+  // Defense-in-depth: If joined customer_orders is null due to RLS, hydrate via adminClient for verified seller suborder
+  if (!customerOrderData && row.customer_order_id) {
+    try {
+      const adminClient = createAdminClient();
+      const { data: coData } = await adminClient
+        .from("customer_orders")
+        .select(`
+          order_number,
+          shipping_full_name,
+          shipping_phone,
+          shipping_address_line1,
+          shipping_address_line2,
+          shipping_district,
+          shipping_city,
+          shipping_postal_code,
+          customer_notes,
+          payment_method,
+          payment_status,
+          created_at
+        `)
+        .eq("id", row.customer_order_id)
+        .maybeSingle();
+      customerOrderData = coData;
+    } catch (e) {
+      console.error("Non-blocking error hydrating customer order for seller sub-order detail:", e);
+    }
+  }
+
   return {
     id: row.id,
     customerOrderId: row.customer_order_id,
@@ -1358,20 +1436,20 @@ export async function getSellerOrderDetailAction(subOrderId: string): Promise<Se
     deliveryFeeMinor: Number(row.delivery_fee_minor) || 0,
     totalAmountMinor: Number(row.total_amount_minor) || 0,
     createdAt: row.created_at,
-    customerOrder: row.customer_orders
+    customerOrder: customerOrderData
       ? {
-          orderNumber: row.customer_orders.order_number,
-          shippingFullName: row.customer_orders.shipping_full_name,
-          shippingPhone: row.customer_orders.shipping_phone,
-          shippingAddressLine1: row.customer_orders.shipping_address_line1,
-          shippingAddressLine2: row.customer_orders.shipping_address_line2,
-          shippingDistrict: row.customer_orders.shipping_district,
-          shippingCity: row.customer_orders.shipping_city,
-          shippingPostalCode: row.customer_orders.shipping_postal_code,
-          customerNotes: row.customer_orders.customer_notes,
-          paymentMethod: row.customer_orders.payment_method,
-          paymentStatus: row.customer_orders.payment_status,
-          createdAt: row.customer_orders.created_at,
+          orderNumber: customerOrderData.order_number,
+          shippingFullName: customerOrderData.shipping_full_name,
+          shippingPhone: customerOrderData.shipping_phone,
+          shippingAddressLine1: customerOrderData.shipping_address_line1,
+          shippingAddressLine2: customerOrderData.shipping_address_line2,
+          shippingDistrict: customerOrderData.shipping_district,
+          shippingCity: customerOrderData.shipping_city,
+          shippingPostalCode: customerOrderData.shipping_postal_code,
+          customerNotes: customerOrderData.customer_notes,
+          paymentMethod: customerOrderData.payment_method,
+          paymentStatus: customerOrderData.payment_status,
+          createdAt: customerOrderData.created_at,
         }
       : undefined,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

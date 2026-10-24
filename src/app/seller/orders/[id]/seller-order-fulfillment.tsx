@@ -416,14 +416,34 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
               )}
 
               <div className="pt-1 leading-relaxed text-gray-700">
-                <p>{subOrder.customerOrder?.shippingAddressLine1}</p>
+                {subOrder.customerOrder?.shippingAddressLine1 && (
+                  <p>{subOrder.customerOrder.shippingAddressLine1}</p>
+                )}
                 {subOrder.customerOrder?.shippingAddressLine2 && (
                   <p>{subOrder.customerOrder.shippingAddressLine2}</p>
                 )}
-                <p className="font-semibold text-sparehub-dark">
-                  {subOrder.customerOrder?.shippingCity}, {subOrder.customerOrder?.shippingDistrict}
-                  {subOrder.customerOrder?.shippingPostalCode ? ` ${subOrder.customerOrder.shippingPostalCode}` : ""}
-                </p>
+                {(() => {
+                  const city = subOrder.customerOrder?.shippingCity?.trim();
+                  const district = subOrder.customerOrder?.shippingDistrict?.trim();
+                  const postal = subOrder.customerOrder?.shippingPostalCode?.trim();
+                  const locationParts = [city, district].filter(Boolean);
+                  if (locationParts.length > 0) {
+                    return (
+                      <p className="font-semibold text-sparehub-dark">
+                        {locationParts.join(", ")}
+                        {postal ? ` ${postal}` : ""}
+                      </p>
+                    );
+                  }
+                  if (!subOrder.customerOrder?.shippingAddressLine1 && !subOrder.customerOrder?.shippingAddressLine2) {
+                    return (
+                      <p className="text-gray-400 italic">
+                        Delivery address details not available.
+                      </p>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
 
               {subOrder.customerOrder?.customerNotes && (
@@ -438,17 +458,44 @@ export function SellerOrderFulfillment({ subOrder }: SellerOrderFulfillmentProps
           <div className="p-6 rounded-2xl border border-sparehub-border bg-white shadow-xs space-y-2 text-xs">
             <h3 className="font-bold text-sparehub-dark">Payment Mode</h3>
             <p className="text-gray-600">
-              Method: <strong className="capitalize">{subOrder.customerOrder?.paymentMethod === "cod" ? "Cash on Delivery (Courier Collects)" : "Online Payment"}</strong>
+              Method:{" "}
+              <strong className="capitalize">
+                {subOrder.customerOrder?.paymentMethod === "cod"
+                  ? "Cash on Delivery (Courier Collects)"
+                  : subOrder.customerOrder?.paymentMethod === "online"
+                  ? "Online Payment"
+                  : "Payment Method Unspecified"}
+              </strong>
             </p>
             <p className="text-gray-500 text-[11px]">
               Status:{" "}
-              {currentStatus === "cancelled" && subOrder.customerOrder?.paymentStatus === "unpaid" ? (
-                <strong className="text-gray-500">Unpaid (Cancelled)</strong>
-              ) : currentStatus === "delivered" && subOrder.customerOrder?.paymentMethod === "cod" ? (
-                <strong className="text-sparehub-success">Paid on Delivery</strong>
-              ) : (
-                <strong className="capitalize">{subOrder.customerOrder?.paymentStatus.replace("_", " ")}</strong>
-              )}
+              {(() => {
+                const method = subOrder.customerOrder?.paymentMethod;
+                const status = subOrder.customerOrder?.paymentStatus;
+
+                if (currentStatus === "cancelled") {
+                  return <strong className="text-gray-500">Unpaid (Cancelled)</strong>;
+                }
+                if (method === "cod") {
+                  if (currentStatus === "delivered" || status === "captured") {
+                    return <strong className="text-sparehub-success">Paid on Delivery</strong>;
+                  }
+                  return <strong className="text-amber-700">Cash Collection Pending (On Delivery)</strong>;
+                }
+                if (method === "online") {
+                  if (status === "captured" || status === "authorized") {
+                    return <strong className="text-sparehub-success capitalize">{status}</strong>;
+                  }
+                  if (status === "failed") {
+                    return <strong className="text-sparehub-error">Payment Failed</strong>;
+                  }
+                  if (status === "unpaid" || status === "initiated") {
+                    return <strong className="text-amber-700">Pending Online Payment</strong>;
+                  }
+                  return <strong className="capitalize text-sparehub-dark">{status ? status.replace("_", " ") : "Pending Payment"}</strong>;
+                }
+                return <strong className="text-gray-400">Status Unavailable</strong>;
+              })()}
             </p>
           </div>
         </div>

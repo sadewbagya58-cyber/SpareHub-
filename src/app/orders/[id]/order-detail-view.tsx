@@ -279,12 +279,26 @@ export function OrderDetailView({ order }: OrderDetailViewProps) {
                 {order.shippingPhone}
               </p>
               <div className="pt-1 leading-relaxed">
-                <p>{order.shippingAddressLine1}</p>
+                {order.shippingAddressLine1 && <p>{order.shippingAddressLine1}</p>}
                 {order.shippingAddressLine2 && <p>{order.shippingAddressLine2}</p>}
-                <p>
-                  {order.shippingCity}, {order.shippingDistrict}
-                  {order.shippingPostalCode ? ` ${order.shippingPostalCode}` : ""}
-                </p>
+                {(() => {
+                  const city = order.shippingCity?.trim();
+                  const district = order.shippingDistrict?.trim();
+                  const postal = order.shippingPostalCode?.trim();
+                  const parts = [city, district].filter(Boolean);
+                  if (parts.length > 0) {
+                    return (
+                      <p>
+                        {parts.join(", ")}
+                        {postal ? ` ${postal}` : ""}
+                      </p>
+                    );
+                  }
+                  if (!order.shippingAddressLine1 && !order.shippingAddressLine2) {
+                    return <p className="italic text-gray-400">Address details unavailable</p>;
+                  }
+                  return null;
+                })()}
               </div>
 
               {order.customerNotes && (
@@ -306,7 +320,11 @@ export function OrderDetailView({ order }: OrderDetailViewProps) {
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">Method</span>
                 <span className="font-bold text-sparehub-dark capitalize">
-                  {order.paymentMethod === "cod" ? "Cash on Delivery" : "Online Card"}
+                  {order.paymentMethod === "cod"
+                    ? "Cash on Delivery"
+                    : order.paymentMethod === "online"
+                    ? "Online Card"
+                    : "Payment Method Unspecified"}
                 </span>
               </div>
 
@@ -314,11 +332,23 @@ export function OrderDetailView({ order }: OrderDetailViewProps) {
                 <span className="text-gray-500">Payment Status</span>
                 {order.status === "cancelled" && order.paymentStatus === "unpaid" ? (
                   <span className="font-bold text-gray-500">Unpaid (Cancelled)</span>
-                ) : order.paymentStatus === "captured" && order.paymentMethod === "cod" ? (
-                  <span className="font-bold text-sparehub-success">Paid on Delivery</span>
+                ) : order.paymentMethod === "cod" ? (
+                  order.paymentStatus === "captured" || order.status === "completed" ? (
+                    <span className="font-bold text-sparehub-success">Paid on Delivery</span>
+                  ) : (
+                    <span className="font-bold text-amber-700">Cash on Delivery Pending</span>
+                  )
+                ) : order.paymentMethod === "online" ? (
+                  order.paymentStatus === "captured" || order.paymentStatus === "authorized" ? (
+                    <span className="font-bold text-sparehub-success capitalize">{order.paymentStatus}</span>
+                  ) : order.paymentStatus === "failed" ? (
+                    <span className="font-bold text-sparehub-error">Payment Failed</span>
+                  ) : (
+                    <span className="font-bold text-amber-700">Pending Online Payment</span>
+                  )
                 ) : (
-                  <span className="font-bold text-sparehub-dark capitalize">
-                    {order.paymentStatus.replace("_", " ")}
+                  <span className="font-bold text-gray-400">
+                    {order.paymentStatus ? order.paymentStatus.replace("_", " ") : "Status Unavailable"}
                   </span>
                 )}
               </div>

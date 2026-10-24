@@ -216,7 +216,7 @@ export default async function AdminOrdersPage({ searchParams }: AdminOrdersPageP
                     </span>
                     {getStatusBadge(order.status)}
                     <span className="text-[11px] text-gray-400 capitalize">
-                      ({order.paymentMethod} • {order.paymentStatus})
+                      ({order.paymentMethod === "cod" ? "COD" : order.paymentMethod === "online" ? "Online" : "Unspecified"} • {order.paymentStatus ? order.paymentStatus.replace("_", " ") : "Pending"})
                     </span>
                   </div>
                   <span className="text-[11px] text-gray-400 flex items-center gap-1.5">
